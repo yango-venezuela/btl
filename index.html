@@ -7,24 +7,43 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <script>
-  window.__scriptError = false;
+  function showError(title, detail) {
+    var r = document.getElementById('root');
+    if (!r) return;
+    r.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;background:#F8FAFC;padding:24px">' +
+      '<div style="text-align:center;max-width:480px">' +
+      '<div style="font-size:40px;font-weight:900;color:#E30613;margin-bottom:12px">Y</div>' +
+      '<h2 style="margin:0 0 8px;color:#0F172A">'+title+'</h2>' +
+      '<p style="color:#64748B;margin:0 0 8px;font-size:13px;line-height:1.6">'+detail+'</p>' +
+      '<p style="color:#94A3B8;margin:0 0 20px;font-size:12px">Detalles técnicos: '+
+        (typeof React==='undefined'?'React no cargó. ':'React OK. ')+
+        (typeof ReactDOM==='undefined'?'ReactDOM no cargó. ':'ReactDOM OK. ')+
+        (typeof Babel==='undefined'?'Babel no cargó.':'Babel OK.')+
+      '</p>' +
+      '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">' +
+      '<button onclick="window.location.reload()" style="padding:10px 18px;background:#E30613;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Recargar</button>' +
+      '<button onclick="localStorage.clear();window.location.reload()" style="padding:10px 18px;background:#fff;color:#DC2626;border:1px solid #FECACA;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Limpiar datos y recargar</button>' +
+      '</div></div></div>';
+  }
   window.addEventListener('error', function(e) {
     if (e.target && e.target.tagName === 'SCRIPT') {
-      window.__scriptError = true;
-      document.getElementById('root').innerHTML =
-        '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;background:#F8FAFC">' +
-        '<div style="text-align:center;padding:40px">' +
-        '<div style="font-size:40px;font-weight:900;color:#E30613;margin-bottom:12px">Y</div>' +
-        '<h2 style="margin:0 0 8px;color:#0F172A">Error al cargar la aplicación</h2>' +
-        '<p style="color:#64748B;margin:0 0 20px">No se pudo cargar una librería necesaria.<br>Verifica tu conexión a internet y recarga la página.</p>' +
-        '<button onclick="window.location.reload()" style="padding:10px 20px;background:#E30613;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Recargar</button>' +
-        '</div></div>';
+      showError('Error al cargar la aplicación', 'No se pudo cargar una librería necesaria. Verifica tu conexión a internet y recarga la página.');
     }
   }, true);
+  window.__appMounted = false;
+  setTimeout(function() {
+    if (!window.__appMounted) {
+      showError(
+        'La aplicación tardó demasiado en cargar',
+        'Puede ser un problema de conexión lenta o un error interno. Verifica que tienes internet y recarga.'
+      );
+    }
+  }, 20000);
 </script>
-<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone@7.26.5/babel.min.js"></script>
+<script crossorigin src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.5/babel.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; }
@@ -909,6 +928,7 @@ const S = {
   empty:{padding:"32px",textAlign:"center",color:"#94A3B8",fontSize:13.5,background:"#F8FAFC",borderRadius:10},
 };
 
+window.__appMounted = true;
 ReactDOM.createRoot(document.getElementById("root")).render(
   <ErrorBoundary><App /></ErrorBoundary>
 );
