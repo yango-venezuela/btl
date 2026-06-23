@@ -6,9 +6,25 @@
 <title>Yango BTL · Activaciones</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script>
+  window.__scriptError = false;
+  window.addEventListener('error', function(e) {
+    if (e.target && e.target.tagName === 'SCRIPT') {
+      window.__scriptError = true;
+      document.getElementById('root').innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;background:#F8FAFC">' +
+        '<div style="text-align:center;padding:40px">' +
+        '<div style="font-size:40px;font-weight:900;color:#E30613;margin-bottom:12px">Y</div>' +
+        '<h2 style="margin:0 0 8px;color:#0F172A">Error al cargar la aplicación</h2>' +
+        '<p style="color:#64748B;margin:0 0 20px">No se pudo cargar una librería necesaria.<br>Verifica tu conexión a internet y recarga la página.</p>' +
+        '<button onclick="window.location.reload()" style="padding:10px 20px;background:#E30613;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Recargar</button>' +
+        '</div></div>';
+    }
+  }, true);
+</script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.5/babel.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; }
@@ -33,9 +49,41 @@
 </style>
 </head>
 <body>
-<div id="root"></div>
+<div id="root">
+  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;background:#F8FAFC">
+    <div style="text-align:center;padding:40px">
+      <div style="font-size:40px;font-weight:900;color:#E30613;margin-bottom:12px">Y</div>
+      <div style="color:#64748B;font-size:14px">Cargando Yango BTL…</div>
+    </div>
+  </div>
+</div>
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo } = React;
+
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  render() {
+    if (this.state.hasError) {
+      const msg = this.state.error ? this.state.error.message : "Error desconocido";
+      return (
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",fontFamily:"system-ui,sans-serif",background:"#F8FAFC"}}>
+          <div style={{textAlign:"center",padding:40,maxWidth:480}}>
+            <div style={{fontSize:40,fontWeight:900,color:"#E30613",marginBottom:12}}>Y</div>
+            <h2 style={{margin:"0 0 8px",color:"#0F172A"}}>Algo salió mal</h2>
+            <p style={{color:"#64748B",margin:"0 0 8px",fontSize:13}}>{msg}</p>
+            <p style={{color:"#94A3B8",margin:"0 0 20px",fontSize:12}}>Si el error persiste, limpia los datos guardados y recarga.</p>
+            <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
+              <button onClick={()=>window.location.reload()} style={{padding:"10px 18px",background:"#E30613",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer"}}>Recargar</button>
+              <button onClick={()=>{localStorage.clear();window.location.reload();}} style={{padding:"10px 18px",background:"#fff",color:"#DC2626",border:"1px solid #FECACA",borderRadius:8,fontSize:14,fontWeight:600,cursor:"pointer"}}>Limpiar datos y recargar</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /* ====== ÍCONOS (SVG inline, reemplazan lucide-react) ====== */
 const Ico = (path) => (props) => {
@@ -621,7 +669,7 @@ function SyncBar({ onSync, loading, msg, configured }) {
         <div style={{fontSize:12,color:"#64748B",marginTop:2}}>{configured ? "Trae las respuestas más recientes del form (Google Sheets vía Apps Script)." : "Aún no configurado. Ve a Configuración para pegar el link de Apps Script."}</div>
         {msg && <div style={{fontSize:12,color:"#E30613",marginTop:6,fontWeight:600}}>{msg}</div>}
       </div>
-      <button className="primarybtn" style={{...S.primaryBtn,opacity:loading?.6:1}} onClick={onSync} disabled={loading}>
+      <button className="primarybtn" style={{...S.primaryBtn,opacity:loading?0.6:1}} onClick={onSync} disabled={loading}>
         <IconRefresh size={16}/> {loading?"Sincronizando…":"Sincronizar form"}
       </button>
     </div>
@@ -861,7 +909,9 @@ const S = {
   empty:{padding:"32px",textAlign:"center",color:"#94A3B8",fontSize:13.5,background:"#F8FAFC",borderRadius:10},
 };
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <ErrorBoundary><App /></ErrorBoundary>
+);
 </script>
 </body>
 </html>
