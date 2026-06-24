@@ -63,7 +63,21 @@
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
   input:focus, select:focus, textarea:focus { border-color: #E30613 !important; }
-  @media (max-width: 720px) { aside { display: none !important; } }
+  .ham-btn { display: none; }
+  .mob-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 99; }
+  @media (max-width: 720px) {
+    .ham-btn { display: flex !important; }
+    aside {
+      position: fixed !important;
+      top: 0; left: 0;
+      height: 100vh;
+      z-index: 100;
+      box-shadow: 4px 0 24px rgba(0,0,0,.18);
+      transition: transform .25s ease;
+    }
+    aside.sidebar-closed { transform: translateX(-100%); }
+    aside.sidebar-open  { transform: translateX(0); }
+  }
 </style>
 </head>
 <body>
@@ -818,6 +832,7 @@ function App() {
     appsScriptUrl: ""
   })));
   const [tab, setTab] = useState("global");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [importing, setImporting] = useState(false);
   const [zoneFilter, setZoneFilter] = useState("all");
@@ -861,16 +876,30 @@ function App() {
   const alloc = useMemo(() => allocate(acts, qr), [acts, qr]);
   return /*#__PURE__*/React.createElement("div", {
     style: S.app
-  }, /*#__PURE__*/React.createElement(Sidebar, {
+  }, menuOpen && /*#__PURE__*/React.createElement("div", {
+    className: "mob-overlay",
+    onClick: () => setMenuOpen(false)
+  }), /*#__PURE__*/React.createElement(Sidebar, {
     tab: tab,
-    setTab: setTab,
-    onNew: () => setEditing("new"),
-    onImport: () => setImporting(true)
+    setTab: t => {
+      setTab(t);
+      setMenuOpen(false);
+    },
+    onNew: () => {
+      setEditing("new");
+      setMenuOpen(false);
+    },
+    onImport: () => {
+      setImporting(true);
+      setMenuOpen(false);
+    },
+    menuOpen: menuOpen
   }), /*#__PURE__*/React.createElement("main", {
     style: S.main
   }, /*#__PURE__*/React.createElement(Header, {
     tab: tab,
-    count: acts.length
+    count: acts.length,
+    onMenu: () => setMenuOpen(v => !v)
   }), /*#__PURE__*/React.createElement("div", {
     style: S.content
   }, tab !== "mystery" && tab !== "settings" && /*#__PURE__*/React.createElement(Filters, {
@@ -933,7 +962,8 @@ function Sidebar({
   tab,
   setTab,
   onNew,
-  onImport
+  onImport,
+  menuOpen
 }) {
   const items = [{
     id: "global",
@@ -969,7 +999,8 @@ function Sidebar({
     icon: IconRefresh
   }];
   return /*#__PURE__*/React.createElement("aside", {
-    style: S.sidebar
+    style: S.sidebar,
+    className: menuOpen ? "sidebar-open" : "sidebar-closed"
   }, /*#__PURE__*/React.createElement("div", {
     style: S.logo
   }, /*#__PURE__*/React.createElement("div", {
@@ -1024,7 +1055,8 @@ function Sidebar({
 }
 function Header({
   tab,
-  count
+  count,
+  onMenu
 }) {
   const titles = {
     global: "Vista global",
@@ -1038,7 +1070,18 @@ function Header({
   };
   return /*#__PURE__*/React.createElement("header", {
     style: S.header
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "ham-btn",
+    onClick: onMenu,
+    "aria-label": "Menú",
+    style: S.hamBtn
+  }, /*#__PURE__*/React.createElement("span", {
+    style: S.hamLine
+  }), /*#__PURE__*/React.createElement("span", {
+    style: S.hamLine
+  }), /*#__PURE__*/React.createElement("span", {
+    style: S.hamLine
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
     style: S.h1
   }, titles[tab]), /*#__PURE__*/React.createElement("p", {
     style: S.sub
@@ -2945,7 +2988,32 @@ const S = {
     minWidth: 0
   },
   header: {
-    padding: "26px 32px 0"
+    padding: "26px 32px 0",
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 14
+  },
+  hamBtn: {
+    display: "none",
+    flexDirection: "column",
+    justifyContent: "center",
+    gap: 5,
+    width: 40,
+    height: 40,
+    padding: 8,
+    background: "transparent",
+    border: "1px solid #E2E8F0",
+    borderRadius: 9,
+    cursor: "pointer",
+    flexShrink: 0,
+    marginTop: 2
+  },
+  hamLine: {
+    display: "block",
+    width: "100%",
+    height: 2,
+    background: "#475569",
+    borderRadius: 2
   },
   h1: {
     margin: 0,
