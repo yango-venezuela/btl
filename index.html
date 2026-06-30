@@ -6,6 +6,7 @@
 <title>Yango BTL · Activaciones</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 <script>
   function showError(title, detail) {
     var r = document.getElementById('root');
@@ -43,6 +44,9 @@
 </script>
 <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script crossorigin src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script crossorigin src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; }
@@ -60,6 +64,10 @@
   .linkname:hover { color: #E30613; }
   .pin:hover { transform: translate(-50%,-50%) scale(1.25); z-index: 10; }
   .pin:hover span { opacity: 1 !important; }
+  .leaflet-container { font-family: 'Archivo', system-ui, sans-serif; }
+  .leaflet-popup-content { margin: 12px 14px; line-height: 1.45; }
+  .leaflet-control-attribution { font-size: 9px; }
+  .photo-preview { object-fit: cover; width: 100%; height: 100%; border-radius: 9px; }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
   input:focus, select:focus, textarea:focus { border-color: #E30613 !important; }
@@ -93,7 +101,8 @@
 const {
   useState,
   useEffect,
-  useMemo
+  useMemo,
+  useRef
 } = React;
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -676,6 +685,14 @@ function seed() {
     owner: "Agencia BTL",
     voucherCode: "",
     qrUrl: "",
+    address: "",
+    lat: null,
+    lng: null,
+    clicks: 0,
+    installs: 0,
+    registrations: 0,
+    firstTrips: 0,
+    promoRedemptions: 0,
     photos: [],
     notes: "",
     confExec: null,
@@ -792,6 +809,49 @@ const usd = n => "$" + new Intl.NumberFormat("en-US", {
 }).format(Math.round(n) || 0);
 const pct = n => (n * 100).toFixed(1) + "%";
 const monthName = m => ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][m];
+const shortDate = date => date ? new Date(date + "T00:00:00").toLocaleDateString("es-VE", {
+  day: "2-digit",
+  month: "2-digit"
+}) : "";
+const activationLabel = a => `${a.zone} ${shortDate(a.date)}`;
+const normalizeUrl = value => String(value || "").trim().replace(/\/+$/, "").toLowerCase();
+const escapeHtml = value => String(value || "").replace(/[&<>"']/g, ch => ({
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  "\"": "&quot;",
+  "'": "&#039;"
+})[ch]);
+function fileToPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const max = 1400;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve({
+          name: file.name,
+          data: canvas.toDataURL("image/jpeg", 0.78)
+        });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+const activationMetrics = a => ({
+  clicks: Number(a.clicks) || 0,
+  installs: Number(a.installs) || 0,
+  registrations: Number(a.registrations) || 0,
+  firstTrips: Number(a.firstTrips) || 0
+});
 function allocate(acts, qr) {
   const exec = acts.filter(a => a.status === "done");
   const out = {};
@@ -805,6 +865,11 @@ function allocate(acts, qr) {
       firstTrips: 0
     };
     rows.forEach(a => {
+      const direct = activationMetrics(a);
+      if (direct.clicks || direct.installs || direct.registrations || direct.firstTrips) {
+        out[a.id] = direct;
+        return;
+      }
       const sh = (a.flyers || 0) / totalFlyers;
       out[a.id] = {
         clicks: q.clicks * sh,
@@ -825,7 +890,18 @@ function inRange(dateStr, from, to) {
 
 /* ============================ APP ============================ */
 function App() {
-  const [acts, setActs] = useState(() => load(STORE_KEY, seed));
+  const [acts, setActs] = useState(() => load(STORE_KEY, seed).map(a => ({
+    address: "",
+    lat: null,
+    lng: null,
+    clicks: 0,
+    installs: 0,
+    registrations: 0,
+    firstTrips: 0,
+    promoRedemptions: 0,
+    photos: [],
+    ...a
+  })));
   const [qr, setQr] = useState(() => load(QR_KEY, seedQR));
   const [mystery, setMystery] = useState(() => load(MYS_KEY, seedMystery));
   const [cfg, setCfg] = useState(() => load(CFG_KEY, () => ({
@@ -835,6 +911,7 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [importingResults, setImportingResults] = useState(false);
   const [zoneFilter, setZoneFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [from, setFrom] = useState("");
@@ -872,6 +949,21 @@ function App() {
     setImporting(false);
     setTab("activations");
   };
+  const bulkResults = rows => {
+    setActs(previous => previous.map(a => {
+      const match = rows.find(r => r.date === a.date && r.qrUrl && a.qrUrl && normalizeUrl(r.qrUrl) === normalizeUrl(a.qrUrl)) || rows.find(r => r.date === a.date && r.zone && r.zone.toLowerCase() === a.zone.toLowerCase()) || rows.find(r => r.qrUrl && a.qrUrl && normalizeUrl(r.qrUrl) === normalizeUrl(a.qrUrl));
+      return match ? {
+        ...a,
+        clicks: match.clicks,
+        installs: match.installs,
+        registrations: match.registrations,
+        firstTrips: match.firstTrips,
+        promoRedemptions: match.promoRedemptions
+      } : a;
+    }));
+    setImportingResults(false);
+    setTab("qr");
+  };
   const filtered = acts.filter(a => (zoneFilter === "all" || a.zone === zoneFilter) && (typeFilter === "all" || a.type === typeFilter) && inRange(a.date, from, to));
   const alloc = useMemo(() => allocate(acts, qr), [acts, qr]);
   return /*#__PURE__*/React.createElement("div", {
@@ -891,6 +983,10 @@ function App() {
     },
     onImport: () => {
       setImporting(true);
+      setMenuOpen(false);
+    },
+    onImportResults: () => {
+      setImportingResults(true);
       setMenuOpen(false);
     },
     menuOpen: menuOpen
@@ -933,10 +1029,16 @@ function App() {
     onOpen: setEditing,
     onSave: save
   }), tab === "qr" && /*#__PURE__*/React.createElement(QRZones, {
-    qr: qr,
-    setQr: setQr,
     alloc: alloc,
-    acts: acts
+    acts: filtered,
+    onOpen: setEditing,
+    onImportResults: () => setImportingResults(true)
+  }), tab === "agency" && /*#__PURE__*/React.createElement(AgencyPortal, {
+    acts: filtered,
+    onSave: save,
+    alloc: alloc,
+    from: from,
+    to: to
   }), tab === "mystery" && /*#__PURE__*/React.createElement(Mystery, {
     mystery: mystery,
     setMystery: setMystery,
@@ -954,6 +1056,9 @@ function App() {
   }), importing && /*#__PURE__*/React.createElement(BulkImport, {
     onAdd: bulkAdd,
     onClose: () => setImporting(false)
+  }), importingResults && /*#__PURE__*/React.createElement(ResultsImport, {
+    onAdd: bulkResults,
+    onClose: () => setImportingResults(false)
   }));
 }
 
@@ -963,6 +1068,7 @@ function Sidebar({
   setTab,
   onNew,
   onImport,
+  onImportResults,
   menuOpen
 }) {
   const items = [{
@@ -989,6 +1095,10 @@ function Sidebar({
     id: "qr",
     label: "QR y promo codes",
     icon: IconQr
+  }, {
+    id: "agency",
+    label: "Portal de agencia",
+    icon: IconImage
   }, {
     id: "mystery",
     label: "Mystery Shopper",
@@ -1051,7 +1161,13 @@ function Sidebar({
     onClick: onImport
   }, /*#__PURE__*/React.createElement(IconUpload, {
     size: 15
-  }), " Cargar calendario (Excel)"));
+  }), " Cargar calendario"), /*#__PURE__*/React.createElement("button", {
+    className: "ghostbtn",
+    style: S.importBtn,
+    onClick: onImportResults
+  }, /*#__PURE__*/React.createElement(IconTrend, {
+    size: 15
+  }), " Cargar resultados"));
 }
 function Header({
   tab,
@@ -1064,7 +1180,8 @@ function Header({
     map: "Mapa de activaciones",
     calendar: "Calendario",
     activations: "Activaciones y validación",
-    qr: "QR y promo codes por zona",
+    qr: "QR y promo codes por activación",
+    agency: "Portal de agencia y evidencias",
     mystery: "Mystery Shopper",
     settings: "Configuración"
   };
@@ -1180,7 +1297,8 @@ function Global({
     firstTrips: 0
   });
   const totalCost = done.reduce((s, a) => s + (a.cost || 0), 0);
-  const redemptions = qr.reduce((s, q) => s + (q.promoRedemptions || 0), 0);
+  const directRedemptions = done.reduce((s, a) => s + (a.promoRedemptions || 0), 0);
+  const redemptions = directRedemptions || qr.reduce((s, q) => s + (q.promoRedemptions || 0), 0);
   const cpi = qrT.installs ? totalCost / qrT.installs : 0;
   const cpt = qrT.firstTrips ? totalCost / qrT.firstTrips : 0;
   const byType = TYPES.map(t => {
@@ -1192,6 +1310,26 @@ function Global({
       count: r.length
     };
   }).filter(t => t.count);
+  const byLocation = ZONES.map(zone => {
+    const rows = done.filter(a => a.zone === zone);
+    const metrics = rows.reduce((s, a) => {
+      const m = alloc[a.id] || {};
+      return {
+        installs: s.installs + (m.installs || 0),
+        firstTrips: s.firstTrips + (m.firstTrips || 0)
+      };
+    }, {
+      installs: 0,
+      firstTrips: 0
+    });
+    return {
+      zone,
+      count: rows.length,
+      flyers: rows.reduce((s, a) => s + (a.flyers || 0), 0),
+      cost: rows.reduce((s, a) => s + (a.cost || 0), 0),
+      ...metrics
+    };
+  }).filter(x => x.count).sort((a, b) => b.installs - a.installs);
   const maxInst = Math.max(...byType.map(t => t.installs), 1);
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: S.kpiGrid
@@ -1229,7 +1367,7 @@ function Global({
     style: S.twoCol
   }, /*#__PURE__*/React.createElement(Card, {
     title: "Installs por tipo de activación",
-    hint: "Estimado desde el QR de zona, prorrateado por flyers"
+    hint: "Resultados directos por activación; si faltan, usa la estimación por zona"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -1310,7 +1448,40 @@ function Global({
         textAlign: "right"
       }
     }, usd(cpiT), " / inst."));
-  })))));
+  })))), /*#__PURE__*/React.createElement(Card, {
+    title: "Resumen por ubicación",
+    hint: "Activaciones, flyers y resultados acumulados por zona"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto",
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: S.table
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Ubicación", "Activaciones", "Flyers", "Installs", "1ros viajes", "Invertido", "Costo/install"].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: S.th
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, byLocation.map(row => /*#__PURE__*/React.createElement("tr", {
+    key: row.zone
+  }, /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, /*#__PURE__*/React.createElement("b", null, row.zone)), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, fmt(row.count)), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, fmt(row.flyers)), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, fmt(row.installs)), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, fmt(row.firstTrips)), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, usd(row.cost)), /*#__PURE__*/React.createElement("td", {
+    style: {
+      ...S.td,
+      color: "#E30613",
+      fontWeight: 700
+    }
+  }, row.installs ? usd(row.cost / row.installs) : "—"))))))));
 }
 function Kpi({
   icon: Icon,
@@ -1364,13 +1535,30 @@ function Results({
     overall = t.clicks ? t.firstTrips / t.clicks : 0;
   const byZone = ZONES.map(z => {
     const r = done.filter(a => a.zone === z);
-    const q = qr.find(x => x.zone === z) || {
+    const fallback = qr.find(x => x.zone === z) || {};
+    const q = r.reduce((sum, a) => {
+      const m = alloc[a.id] || {};
+      return {
+        clicks: sum.clicks + (m.clicks || 0),
+        installs: sum.installs + (m.installs || 0),
+        registrations: sum.registrations + (m.registrations || 0),
+        firstTrips: sum.firstTrips + (m.firstTrips || 0),
+        promoRedemptions: sum.promoRedemptions + (a.promoRedemptions || 0)
+      };
+    }, {
       clicks: 0,
       installs: 0,
       registrations: 0,
       firstTrips: 0,
       promoRedemptions: 0
-    };
+    });
+    if (!r.some(a => a.clicks || a.installs || a.registrations || a.firstTrips)) {
+      q.clicks = fallback.clicks || q.clicks;
+      q.installs = fallback.installs || q.installs;
+      q.registrations = fallback.registrations || q.registrations;
+      q.firstTrips = fallback.firstTrips || q.firstTrips;
+      q.promoRedemptions = fallback.promoRedemptions || q.promoRedemptions;
+    }
     const c = r.reduce((s, a) => s + (a.cost || 0), 0);
     const s2r = q.clicks ? q.promoRedemptions / q.clicks : 0;
     return {
@@ -1379,7 +1567,8 @@ function Results({
       q,
       cost: c,
       cpi: q.installs ? c / q.installs : 0,
-      s2r
+      s2r,
+      codes: [...new Set(r.map(a => a.voucherCode).filter(Boolean))]
     };
   }).filter(z => z.count);
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
@@ -1455,7 +1644,7 @@ function Results({
       color: "#94A3B8",
       marginTop: 2
     }
-  }, z.q.code, z.q.promoCode ? ` · ${z.q.promoCode}` : "")), /*#__PURE__*/React.createElement("td", {
+  }, z.codes.length ? z.codes.join(" · ") : "Sin promo code")), /*#__PURE__*/React.createElement("td", {
     style: S.td
   }, z.count), /*#__PURE__*/React.createElement("td", {
     style: S.td
@@ -1532,138 +1721,102 @@ function FunnelArrow({
 
 /* ============================ QR + PROMO ZONES ============================ */
 function QRZones({
-  qr,
-  setQr,
   alloc,
-  acts
+  acts,
+  onOpen,
+  onImportResults
 }) {
-  const upd = (zone, patch) => setQr(p => p.map(q => q.zone === zone ? {
-    ...q,
-    ...patch
-  } : q));
-  const num = v => Math.max(0, parseInt(v || 0, 10) || 0);
-  return /*#__PURE__*/React.createElement(Card, {
-    title: "QR y promo codes por zona",
-    hint: "Cargá los escaneos de Bitly y los canjes del promo code. Una fila por zona."
+  const rows = [...acts].sort((a, b) => b.date.localeCompare(a.date));
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: S.syncBar
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 12,
-      marginTop: 6
+      flex: 1
     }
-  }, qr.map(q => {
-    const s2r = q.clicks ? q.promoRedemptions / q.clicks : 0;
-    return /*#__PURE__*/React.createElement("div", {
-      key: q.zone,
-      style: S.qrZoneRow
-    }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      fontSize: 14
+    }
+  }, "Resultados por activación"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#64748B",
+      marginTop: 2
+    }
+  }, "Cada QR queda identificado por ubicación y fecha, por ejemplo: Sabana Grande 24/06.")), /*#__PURE__*/React.createElement("button", {
+    className: "primarybtn",
+    style: S.primaryBtn,
+    onClick: onImportResults
+  }, /*#__PURE__*/React.createElement(IconUpload, {
+    size: 16
+  }), " Importar resultados")), /*#__PURE__*/React.createElement(Card, {
+    title: "QR, promo codes y métricas",
+    hint: "Abre una activación para editar el link, promo code o sus resultados."
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto",
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: S.table
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Activación", "QR / link", "Clics", "Installs", "Registros", "1ros viajes", "Promo", "Canjes", ""].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: S.th
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, rows.map(a => {
+    const m = alloc[a.id] || activationMetrics(a);
+    return /*#__PURE__*/React.createElement("tr", {
+      key: a.id
+    }, /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("b", null, activationLabel(a)), /*#__PURE__*/React.createElement("div", {
       style: {
-        minWidth: 140
+        fontSize: 10.5,
+        color: "#94A3B8",
+        marginTop: 2,
+        maxWidth: 220,
+        overflow: "hidden",
+        textOverflow: "ellipsis"
       }
-    }, /*#__PURE__*/React.createElement("div", {
+    }, a.name)), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, a.qrUrl ? /*#__PURE__*/React.createElement("a", {
+      href: a.qrUrl,
+      target: "_blank",
+      rel: "noreferrer",
       style: {
-        fontWeight: 700,
-        fontSize: 14
+        color: "#E30613",
+        fontWeight: 600,
+        fontSize: 12
       }
-    }, q.zone), /*#__PURE__*/React.createElement("div", {
+    }, "Abrir link") : /*#__PURE__*/React.createElement("span", {
       style: {
-        fontSize: 11,
         color: "#94A3B8"
       }
-    }, q.code)), /*#__PURE__*/React.createElement("div", {
-      style: S.qrFields
-    }, /*#__PURE__*/React.createElement(MiniField, {
-      label: "Clics QR"
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      style: S.miniInput,
-      value: q.clicks,
-      onChange: e => upd(q.zone, {
-        clicks: num(e.target.value)
-      })
-    })), /*#__PURE__*/React.createElement(MiniField, {
-      label: "Installs"
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      style: S.miniInput,
-      value: q.installs,
-      onChange: e => upd(q.zone, {
-        installs: num(e.target.value)
-      })
-    })), /*#__PURE__*/React.createElement(MiniField, {
-      label: "Registros"
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      style: S.miniInput,
-      value: q.registrations,
-      onChange: e => upd(q.zone, {
-        registrations: num(e.target.value)
-      })
-    })), /*#__PURE__*/React.createElement(MiniField, {
-      label: "1ros viajes"
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      style: S.miniInput,
-      value: q.firstTrips,
-      onChange: e => upd(q.zone, {
-        firstTrips: num(e.target.value)
-      })
-    })), /*#__PURE__*/React.createElement(MiniField, {
-      label: "Promo code"
-    }, /*#__PURE__*/React.createElement("input", {
+    }, "Sin link")), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, fmt(m.clicks)), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, fmt(m.installs)), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, fmt(m.registrations)), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, fmt(m.firstTrips)), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, a.voucherCode || "—"), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, fmt(a.promoRedemptions)), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "ghostbtn",
       style: {
-        ...S.miniInput,
-        width: 100
+        ...S.ghostBtn,
+        padding: "7px 10px",
+        fontSize: 12
       },
-      value: q.promoCode,
-      onChange: e => upd(q.zone, {
-        promoCode: e.target.value.toUpperCase()
-      }),
-      placeholder: "SABANA20"
-    })), /*#__PURE__*/React.createElement(MiniField, {
-      label: "Canjes"
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      style: S.miniInput,
-      value: q.promoRedemptions,
-      onChange: e => upd(q.zone, {
-        promoRedemptions: num(e.target.value)
-      })
-    })), /*#__PURE__*/React.createElement(MiniField, {
-      label: "Vig. (días)"
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      style: S.miniInput,
-      value: q.promoValidDays,
-      onChange: e => upd(q.zone, {
-        promoValidDays: num(e.target.value)
-      })
-    })), /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "#94A3B8",
-        marginBottom: 4
-      }
-    }, "Escaneo→canje"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontWeight: 800,
-        fontSize: 15,
-        color: "#16A34A"
-      }
-    }, pct(s2r)))));
-  })), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: 11.5,
-      color: "#94A3B8",
-      margin: "14px 0 0",
-      fontStyle: "italic"
-    }
-  }, "Bitly te da los clics/escaneos. Installs, registros y primeros viajes vienen de la atribución interna de Yango (UTM). Los canjes salen del reporte de promo codes."));
+      onClick: () => onOpen(a)
+    }, "Editar")));
+  }))))));
 }
 function MiniField({
   label,
@@ -1688,56 +1841,81 @@ function MapView({
   alloc,
   onOpen
 }) {
-  const LAT = [10.470, 10.508],
-    LNG = [-66.910, -66.800];
-  const px = lng => (lng - LNG[0]) / (LNG[1] - LNG[0]) * 100,
-    py = lat => (1 - (lat - LAT[0]) / (LAT[1] - LAT[0])) * 100;
-  const pins = acts.map((a, i) => {
-    const g = ZONE_GEO[a.zone] || {
-      lat: 10.49,
-      lng: -66.85
+  const mapNode = useRef(null);
+  const mapInstance = useRef(null);
+  useEffect(() => {
+    if (!mapNode.current || typeof L === "undefined") return;
+    if (mapInstance.current) {
+      mapInstance.current.remove();
+      mapInstance.current = null;
+    }
+    const map = L.map(mapNode.current, {
+      scrollWheelZoom: false
+    }).setView([10.4905, -66.8665], 13);
+    mapInstance.current = map;
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
+    const bounds = [];
+    acts.forEach((a, i) => {
+      const fallback = ZONE_GEO[a.zone] || {
+        lat: 10.4905,
+        lng: -66.8665
+      };
+      const hasExact = Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lng));
+      const lat = hasExact ? Number(a.lat) : fallback.lat + i % 4 * 0.00035;
+      const lng = hasExact ? Number(a.lng) : fallback.lng + i % 4 * 0.00035;
+      const t = typeOf(a.type);
+      const m = alloc[a.id] || activationMetrics(a);
+      const icon = L.divIcon({
+        className: "",
+        html: `<div style="width:20px;height:20px;border-radius:50%;background:${t.color};border:3px solid white;box-shadow:0 2px 8px rgba(15,23,42,.35)"></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      });
+      const marker = L.marker([lat, lng], {
+        icon
+      }).addTo(map);
+      marker.bindPopup(`<div style="min-width:190px"><b>${escapeHtml(activationLabel(a))}</b><br><span style="color:#64748B">${escapeHtml(a.name)}</span><br>${escapeHtml(a.address || "Dirección aproximada por zona")}<br><b>${fmt(m.installs)}</b> installs · <b>${fmt(a.flyers)}</b> flyers<br><button data-act="${escapeHtml(a.id)}" style="margin-top:8px;border:0;border-radius:7px;background:#E30613;color:#fff;padding:7px 10px;font-weight:700;cursor:pointer">Abrir ficha</button></div>`);
+      marker.on("popupopen", e => {
+        const button = e.popup.getElement()?.querySelector("[data-act]");
+        if (button) button.onclick = () => onOpen(a);
+      });
+      bounds.push([lat, lng]);
+    });
+    if (bounds.length > 1) map.fitBounds(bounds, {
+      padding: [35, 35],
+      maxZoom: 15
+    });
+    setTimeout(() => map.invalidateSize(), 0);
+    return () => {
+      map.remove();
+      mapInstance.current = null;
     };
-    const j = i % 5 * 0.0012;
-    return {
-      ...a,
-      x: px(g.lng + j),
-      y: py(g.lat + j)
-    };
-  });
+  }, [acts, alloc, onOpen]);
+  const approximate = acts.filter(a => !Number.isFinite(Number(a.lat)) || !Number.isFinite(Number(a.lng))).length;
   return /*#__PURE__*/React.createElement(Card, {
     title: "Mapa de activaciones en Caracas",
-    hint: "Color = tipo. Toca un punto para abrir la ficha. Respeta los filtros."
+    hint: "Mapa real de OpenStreetMap. Color = tipo. Toca un punto para abrir la ficha."
   }, /*#__PURE__*/React.createElement("div", {
-    style: S.mapWrap
-  }, /*#__PURE__*/React.createElement("div", {
-    style: S.mapGrid
-  }), ZONES.map(z => {
-    const g = ZONE_GEO[z];
-    return /*#__PURE__*/React.createElement("div", {
-      key: z,
-      style: {
-        ...S.zoneLabel,
-        left: `${px(g.lng)}%`,
-        top: `${py(g.lat)}%`
-      }
-    }, z);
-  }), pins.map(p => {
-    const t = typeOf(p.type);
-    const al = alloc[p.id];
-    return /*#__PURE__*/React.createElement("button", {
-      key: p.id,
-      className: "pin",
-      onClick: () => onOpen(p),
-      style: {
-        ...S.pin,
-        left: `${p.x}%`,
-        top: `${p.y}%`,
-        background: t.color
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: S.pinTip
-    }, /*#__PURE__*/React.createElement("b", null, p.name), /*#__PURE__*/React.createElement("br", null), t.label, " · ", p.promoters, " prom.", /*#__PURE__*/React.createElement("br", null), al ? `${fmt(al.installs)} installs (est.) · ${usd(p.cost)}` : "sin ejecutar"));
-  })), /*#__PURE__*/React.createElement("div", {
+    ref: mapNode,
+    style: {
+      width: "100%",
+      height: 540,
+      borderRadius: 12,
+      border: "1px solid #E2E8F0",
+      overflow: "hidden",
+      marginTop: 10,
+      background: "#E2E8F0"
+    }
+  }), approximate > 0 && /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 11.5,
+      color: "#B45309",
+      margin: "10px 0 0"
+    }
+  }, approximate, " activación", approximate !== 1 ? "es usan" : " usa", " una coordenada aproximada de la zona. Abre la ficha y busca la dirección para ubicarla exactamente."), /*#__PURE__*/React.createElement("div", {
     style: S.legend
   }, TYPES.map(t => /*#__PURE__*/React.createElement("div", {
     key: t.id,
@@ -2436,6 +2614,14 @@ function BulkImport({
         owner: "Agencia BTL",
         voucherCode: (voucherCode || "").toUpperCase(),
         qrUrl: "",
+        address: "",
+        lat: null,
+        lng: null,
+        clicks: 0,
+        installs: 0,
+        registrations: 0,
+        firstTrips: 0,
+        promoRedemptions: 0,
         photos: [],
         notes: "",
         status: "planned",
@@ -2533,6 +2719,405 @@ function BulkImport({
   }), " Cargar ", count || ""))));
 }
 
+/* ============================ RESULTS IMPORT ============================ */
+const cleanHeader = value => String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+function isoDate(value) {
+  if (!value) return "";
+  if (typeof value === "number" && typeof XLSX !== "undefined") {
+    const p = XLSX.SSF.parse_date_code(value);
+    return p ? `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}` : "";
+  }
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const s = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : s;
+}
+function resultRows(objects) {
+  return objects.map(raw => {
+    const row = {};
+    Object.entries(raw).forEach(([key, value]) => row[cleanHeader(key)] = value);
+    const pick = (...keys) => {
+      const key = keys.find(k => row[k] !== undefined);
+      return key ? row[key] : "";
+    };
+    return {
+      date: isoDate(pick("fecha", "date")),
+      qrUrl: String(pick("linkdelcodigoqr", "linkqr", "qrurl", "link", "url") || "").trim(),
+      zone: String(pick("zona", "ubicacion", "location") || "").trim(),
+      clicks: Number(pick("clicks", "clics", "escaneos")) || 0,
+      installs: Number(pick("installs", "instalaciones")) || 0,
+      registrations: Number(pick("registros", "registrations", "signups")) || 0,
+      firstTrips: Number(pick("primerosviajes", "1rosviajes", "firsttrips")) || 0,
+      promoRedemptions: Number(pick("canjes", "promoredemptions", "redemptions")) || 0
+    };
+  }).filter(row => row.date || row.qrUrl || row.zone);
+}
+function ResultsImport({
+  onAdd,
+  onClose
+}) {
+  const [rows, setRows] = useState([]);
+  const [msg, setMsg] = useState("");
+  const readFile = async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+      if (typeof XLSX === "undefined") throw new Error("Excel no disponible");
+      const data = await file.arrayBuffer();
+      const book = XLSX.read(data, {
+        type: "array",
+        cellDates: true
+      });
+      const sheet = book.Sheets[book.SheetNames[0]];
+      const parsed = resultRows(XLSX.utils.sheet_to_json(sheet, {
+        defval: ""
+      }));
+      setRows(parsed);
+      setMsg(parsed.length ? `${parsed.length} filas listas para cruzar con las activaciones.` : "No encontramos filas válidas.");
+    } catch (e) {
+      setRows([]);
+      setMsg("No pudimos leer el archivo. Usa .xlsx, .xls o .csv con encabezados.");
+    }
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: S.overlay,
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.modal,
+      maxWidth: 700
+    },
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.modalHead
+  }, /*#__PURE__*/React.createElement("h2", {
+    style: {
+      margin: 0,
+      fontSize: 18,
+      fontWeight: 800
+    }
+  }, "Importar resultados de activaciones"), /*#__PURE__*/React.createElement("button", {
+    className: "iconbtn",
+    style: S.iconBtn,
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement(IconX, {
+    size: 18
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: S.modalBody
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: "#475569",
+      lineHeight: 1.6,
+      marginTop: 0
+    }
+  }, "Sube el Excel exportado por Yango. La herramienta cruza cada fila primero por Fecha + Link QR, luego por Fecha + Zona."), /*#__PURE__*/React.createElement("div", {
+    style: S.colHint
+  }, /*#__PURE__*/React.createElement("b", null, "Fecha"), " · ", /*#__PURE__*/React.createElement("b", null, "Link del código QR"), " · Zona · Clicks · Installs · Registros · Primeros viajes · Canjes"), /*#__PURE__*/React.createElement("label", {
+    className: "primarybtn",
+    style: {
+      ...S.primaryBtn,
+      display: "inline-flex",
+      marginTop: 14
+    }
+  }, /*#__PURE__*/React.createElement(IconUpload, {
+    size: 16
+  }), " Seleccionar Excel", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: ".xlsx,.xls,.csv",
+    onChange: readFile,
+    style: {
+      display: "none"
+    }
+  })), msg && /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 12,
+      color: rows.length ? "#16A34A" : "#B45309",
+      fontWeight: 600
+    }
+  }, msg), rows.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto",
+      maxHeight: 250,
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: S.table
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Fecha", "Zona", "Link QR", "Installs", "1ros viajes"].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: S.th
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, rows.slice(0, 12).map((r, i) => /*#__PURE__*/React.createElement("tr", {
+    key: i
+  }, /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, r.date), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, r.zone || "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      ...S.td,
+      maxWidth: 180,
+      overflow: "hidden",
+      textOverflow: "ellipsis"
+    }
+  }, r.qrUrl || "—"), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, fmt(r.installs)), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, fmt(r.firstTrips)))))))), /*#__PURE__*/React.createElement("div", {
+    style: S.modalFoot
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "ghostbtn",
+    style: S.ghostBtn,
+    onClick: onClose
+  }, "Cancelar"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "primarybtn",
+    style: S.primaryBtn,
+    disabled: !rows.length,
+    onClick: () => onAdd(rows)
+  }, /*#__PURE__*/React.createElement(IconCheck, {
+    size: 16
+  }), " Aplicar ", rows.length || "", " filas"))));
+}
+
+/* ============================ AGENCY PORTAL + PDF ============================ */
+async function buildActivationReport(acts, alloc, from, to) {
+  if (!window.jspdf?.jsPDF) {
+    alert("El generador de PDF no cargó. Recarga la página e inténtalo de nuevo.");
+    return;
+  }
+  const {
+    jsPDF
+  } = window.jspdf;
+  const doc = new jsPDF({
+    unit: "mm",
+    format: "a4"
+  });
+  const pageW = 210;
+  const addHeader = () => {
+    doc.setFillColor(227, 6, 19);
+    doc.rect(0, 0, pageW, 22, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("Yango BTL · Reporte de activaciones", 14, 14);
+    doc.setTextColor(15, 23, 42);
+  };
+  addHeader();
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Periodo: ${from || "inicio"} a ${to || "hoy"} · ${acts.length} activaciones`, 14, 30);
+  let y = 39;
+  for (const [index, a] of acts.entries()) {
+    const metrics = alloc[a.id] || activationMetrics(a);
+    if (y > 250) {
+      doc.addPage();
+      addHeader();
+      y = 32;
+    }
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(12, y - 5, 186, 39, 3, 3, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text(`${index + 1}. ${a.name}`, 16, y + 2, {
+      maxWidth: 175
+    });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`${activationLabel(a)} · ${a.address || "Dirección no cargada"}`, 16, y + 9, {
+      maxWidth: 175
+    });
+    doc.text(`Flyers: ${fmt(a.flyers)} · Promotoras: ${fmt(a.promoters)} · Costo: ${usd(a.cost)}`, 16, y + 16);
+    doc.text(`Clicks: ${fmt(metrics.clicks)} · Installs: ${fmt(metrics.installs)} · Registros: ${fmt(metrics.registrations)} · 1ros viajes: ${fmt(metrics.firstTrips)}`, 16, y + 23);
+    doc.text(`Promo: ${a.voucherCode || "—"} · Canjes: ${fmt(a.promoRedemptions)} · Evidencias: ${(a.photos || []).length}`, 16, y + 30);
+    y += 42;
+    const photos = (a.photos || []).filter(p => p && p.data).slice(0, 4);
+    for (let i = 0; i < photos.length; i += 2) {
+      if (y > 225) {
+        doc.addPage();
+        addHeader();
+        y = 30;
+      }
+      photos.slice(i, i + 2).forEach((photo, j) => {
+        try {
+          doc.addImage(photo.data, "JPEG", 14 + j * 92, y, 86, 58, undefined, "FAST");
+        } catch (e) {}
+      });
+      y += 64;
+    }
+  }
+  const filename = `reporte-activaciones-${from || "inicio"}-${to || new Date().toISOString().slice(0, 10)}.pdf`;
+  doc.save(filename);
+}
+function AgencyPortal({
+  acts,
+  onSave,
+  alloc,
+  from,
+  to
+}) {
+  const rows = [...acts].sort((a, b) => b.date.localeCompare(a.date));
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.resultBanner,
+      background: "#172554"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 800,
+      fontSize: 20
+    }
+  }, "Portal operativo de agencia"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      opacity: .82,
+      marginTop: 4
+    }
+  }, "Carga flyers entregados y evidencias fotográficas por activación.")), /*#__PURE__*/React.createElement("button", {
+    className: "primarybtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#172554"
+    },
+    onClick: () => buildActivationReport(rows, alloc, from, to)
+  }, /*#__PURE__*/React.createElement(IconDownload, {
+    size: 16
+  }), " Descargar PDF")), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: 0,
+      padding: "12px 14px",
+      borderRadius: 10,
+      background: "#FFF7ED",
+      color: "#9A3412",
+      fontSize: 12,
+      lineHeight: 1.5
+    }
+  }, "Esta es la primera versión operativa. El acceso por usuario y las fotos compartidas entre dispositivos se conectarán a Supabase; por ahora los cambios quedan guardados en este navegador."), rows.length ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 12
+    }
+  }, rows.map(a => /*#__PURE__*/React.createElement(AgencyRow, {
+    key: a.id,
+    act: a,
+    onSave: onSave
+  }))) : /*#__PURE__*/React.createElement(Empty, {
+    msg: "No hay activaciones en el periodo seleccionado."
+  }));
+}
+function AgencyRow({
+  act,
+  onSave
+}) {
+  const [flyers, setFlyers] = useState(act.flyers || 0);
+  const [photos, setPhotos] = useState(act.photos || []);
+  const [saved, setSaved] = useState(false);
+  const add = async event => {
+    const files = [...event.target.files].slice(0, Math.max(0, 8 - photos.length));
+    if (!files.length) return;
+    try {
+      const uploaded = await Promise.all(files.map(fileToPhoto));
+      setPhotos(previous => [...previous, ...uploaded]);
+    } catch (e) {}
+    event.target.value = "";
+  };
+  const save = () => {
+    onSave({
+      ...act,
+      flyers: Math.max(0, Number(flyers) || 0),
+      photos
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1800);
+  };
+  return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 14,
+      alignItems: "flex-start",
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: "1 1 260px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 800,
+      fontSize: 15
+    }
+  }, activationLabel(act), " · ", act.name), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#64748B",
+      marginTop: 4
+    }
+  }, act.address || "Dirección pendiente", " · ", STATUS[act.status]?.label || act.status)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 180
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Flyers entregados"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    style: S.input,
+    value: flyers,
+    onChange: e => setFlyers(e.target.value)
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: "1 1 260px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.photoBox
+  }, photos.map((photo, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: S.photoThumb
+  }, photo?.data ? /*#__PURE__*/React.createElement("img", {
+    src: photo.data,
+    alt: photo.name || "Evidencia",
+    className: "photo-preview"
+  }) : /*#__PURE__*/React.createElement(IconImage, {
+    size: 18,
+    color: "#94A3B8"
+  }), /*#__PURE__*/React.createElement("button", {
+    style: S.photoX,
+    onClick: () => setPhotos(previous => previous.filter((_, index) => index !== i))
+  }, /*#__PURE__*/React.createElement(IconX, {
+    size: 11
+  })))), /*#__PURE__*/React.createElement("label", {
+    style: S.photoAdd
+  }, /*#__PURE__*/React.createElement(IconPlus, {
+    size: 16
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11
+    }
+  }, "Fotos"), /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: "image/*",
+    multiple: true,
+    onChange: add,
+    style: {
+      display: "none"
+    }
+  })))), /*#__PURE__*/React.createElement("button", {
+    className: "primarybtn",
+    style: {
+      ...S.primaryBtn,
+      alignSelf: "center"
+    },
+    onClick: save
+  }, /*#__PURE__*/React.createElement(IconCheck, {
+    size: 16
+  }), saved ? " Guardado" : " Guardar evidencia")));
+}
+
 /* ============================ QR GEN + EDITOR ============================ */
 function QRBlock({
   url,
@@ -2572,7 +3157,7 @@ function QRBlock({
       color: "#64748B",
       lineHeight: 1.5
     }
-  }, "QR de la zona, listo para imprenta."), /*#__PURE__*/React.createElement("button", {
+  }, "QR de la activación, listo para imprenta."), /*#__PURE__*/React.createElement("button", {
     className: "primarybtn",
     style: {
       ...S.primaryBtn,
@@ -2604,17 +3189,64 @@ function Editor({
     owner: "Agencia BTL",
     voucherCode: "",
     qrUrl: "",
+    address: "",
+    lat: null,
+    lng: null,
+    clicks: 0,
+    installs: 0,
+    registrations: 0,
+    firstTrips: 0,
+    promoRedemptions: 0,
     photos: [],
     notes: "",
     confExec: null
   };
   const [f, setF] = useState(act || blank);
+  const [geoMsg, setGeoMsg] = useState("");
+  const [geoLoading, setGeoLoading] = useState(false);
   const isNew = !act,
     set = (k, v) => setF(p => ({
       ...p,
       [k]: v
     })),
     num = (k, v) => set(k, Math.max(0, parseFloat(v || 0) || 0));
+  const geocode = async () => {
+    if (!f.address.trim()) {
+      setGeoMsg("Escribe primero una dirección.");
+      return;
+    }
+    setGeoLoading(true);
+    setGeoMsg("");
+    try {
+      const query = encodeURIComponent(`${f.address}, Caracas, Venezuela`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${query}`, {
+        headers: {
+          "Accept-Language": "es"
+        }
+      });
+      const data = await res.json();
+      if (data[0]) {
+        setF(p => ({
+          ...p,
+          lat: Number(data[0].lat),
+          lng: Number(data[0].lon)
+        }));
+        setGeoMsg("Dirección ubicada en el mapa.");
+      } else setGeoMsg("No encontramos esa dirección. Prueba agregando avenida, municipio o referencia.");
+    } catch (e) {
+      setGeoMsg("No se pudo consultar el mapa ahora mismo.");
+    }
+    setGeoLoading(false);
+  };
+  const addPhotos = async event => {
+    const files = [...event.target.files].slice(0, Math.max(0, 8 - (f.photos || []).length));
+    if (!files.length) return;
+    try {
+      const uploaded = await Promise.all(files.map(fileToPhoto));
+      set("photos", [...(f.photos || []), ...uploaded]);
+    } catch (e) {}
+    event.target.value = "";
+  };
   const al = act ? alloc[act.id] : null;
   return /*#__PURE__*/React.createElement("div", {
     style: S.overlay,
@@ -2664,7 +3296,41 @@ function Editor({
   }, TYPES.map(t => /*#__PURE__*/React.createElement("option", {
     key: t.id,
     value: t.id
-  }, t.label))))), /*#__PURE__*/React.createElement("div", {
+  }, t.label))))), /*#__PURE__*/React.createElement(Field, {
+    label: "Dirección exacta de la activación"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: f.address || "",
+    onChange: e => set("address", e.target.value),
+    placeholder: "Ej: Plaza Brión de Chacaíto, frente al metro"
+  }), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ghostbtn",
+    style: {
+      ...S.ghostBtn,
+      padding: "9px 12px",
+      whiteSpace: "nowrap"
+    },
+    onClick: geocode,
+    disabled: geoLoading
+  }, geoLoading ? "Buscando…" : "Ubicar")), geoMsg && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11.5,
+      color: f.lat && f.lng ? "#16A34A" : "#B45309",
+      marginTop: 6
+    }
+  }, geoMsg), f.lat && f.lng && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10.5,
+      color: "#94A3B8",
+      marginTop: 4
+    }
+  }, "Coordenadas: ", Number(f.lat).toFixed(5), ", ", Number(f.lng).toFixed(5))), /*#__PURE__*/React.createElement("div", {
     style: S.row2
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Fecha"
@@ -2706,8 +3372,30 @@ function Editor({
     value: f.cost,
     onChange: e => num("cost", e.target.value),
     placeholder: "320"
-  })), al && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Divider, {
-    label: "Resultados estimados (prorrateo del QR de la zona)"
+  })), /*#__PURE__*/React.createElement(Divider, {
+    label: "Resultados digitales de esta activación"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: S.estGrid
+  }, [["clicks", "Clics"], ["installs", "Installs"], ["registrations", "Registros"], ["firstTrips", "1ros viajes"]].map(([key, label]) => /*#__PURE__*/React.createElement(MiniField, {
+    key: key,
+    label: label
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    style: {
+      ...S.miniInput,
+      width: "100%"
+    },
+    value: f[key] || 0,
+    onChange: e => num(key, e.target.value)
+  })))), /*#__PURE__*/React.createElement(Field, {
+    label: "Canjes del promo code"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    style: S.input,
+    value: f.promoRedemptions || 0,
+    onChange: e => num("promoRedemptions", e.target.value)
+  })), al && !(f.clicks || f.installs || f.registrations || f.firstTrips) && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Divider, {
+    label: "Estimación provisional por zona"
   }), /*#__PURE__*/React.createElement("div", {
     style: S.estGrid
   }, /*#__PURE__*/React.createElement(Est, {
@@ -2739,7 +3427,7 @@ function Editor({
       margin: "6px 0 0"
     }
   }, "Repartido desde el QR de ", f.zone, " según los flyers de esta activación.")), /*#__PURE__*/React.createElement(Divider, {
-    label: "QR de la zona"
+    label: "QR de esta activación"
   }), /*#__PURE__*/React.createElement(Field, {
     label: "Link rastreable (compartido por las activaciones de la zona)"
   }, /*#__PURE__*/React.createElement("input", {
@@ -2751,7 +3439,7 @@ function Editor({
     style: S.qrBox
   }, /*#__PURE__*/React.createElement(QRBlock, {
     url: f.qrUrl,
-    label: f.zone
+    label: activationLabel(f)
   })), /*#__PURE__*/React.createElement(Field, {
     label: "Código de voucher / promo"
   }, /*#__PURE__*/React.createElement("input", {
@@ -2768,7 +3456,11 @@ function Editor({
   }, (f.photos || []).map((p, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     style: S.photoThumb
-  }, /*#__PURE__*/React.createElement(IconImage, {
+  }, p && p.data ? /*#__PURE__*/React.createElement("img", {
+    src: p.data,
+    alt: p.name || "Evidencia",
+    className: "photo-preview"
+  }) : /*#__PURE__*/React.createElement(IconImage, {
     size: 18,
     color: "#94A3B8"
   }), /*#__PURE__*/React.createElement("button", {
@@ -2776,16 +3468,29 @@ function Editor({
     onClick: () => set("photos", f.photos.filter((_, j) => j !== i))
   }, /*#__PURE__*/React.createElement(IconX, {
     size: 11
-  })))), /*#__PURE__*/React.createElement("button", {
-    style: S.photoAdd,
-    onClick: () => set("photos", [...(f.photos || []), "ref"])
+  })))), /*#__PURE__*/React.createElement("label", {
+    style: S.photoAdd
   }, /*#__PURE__*/React.createElement(IconPlus, {
     size: 16
   }), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 11
     }
-  }, "Agregar")))), /*#__PURE__*/React.createElement(Field, {
+  }, "Subir"), /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: "image/*",
+    multiple: true,
+    onChange: addPhotos,
+    style: {
+      display: "none"
+    }
+  })))), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 10.5,
+      color: "#94A3B8",
+      margin: "-4px 0 12px"
+    }
+  }, "Hasta 8 fotos. En esta versión se guardan en este navegador; la versión multiusuario usará almacenamiento en la nube."), /*#__PURE__*/React.createElement(Field, {
     label: "Notas"
   }, /*#__PURE__*/React.createElement("textarea", {
     style: {
