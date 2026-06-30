@@ -685,6 +685,7 @@ function seed() {
     owner: "Agencia BTL",
     voucherCode: "",
     qrUrl: "",
+    adjustName: "",
     address: "",
     lat: null,
     lng: null,
@@ -814,6 +815,32 @@ const shortDate = date => date ? new Date(date + "T00:00:00").toLocaleDateString
   month: "2-digit"
 }) : "";
 const activationLabel = a => `${a.zone} ${shortDate(a.date)}`;
+const slugify = value => String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/&/g, " y ").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+const compactSlug = value => slugify(value).replace(/_/g, "");
+const adjustNameFor = a => a.adjustName || `${compactSlug(a.zone)}_${a.type || "flyer"}_${a.date || new Date().toISOString().slice(0, 10)}`;
+const normalizeAdjustKey = value => slugify(value).replace(/_/g, "");
+function parseAdjustName(value) {
+  const raw = String(value || "").trim();
+  const key = normalizeAdjustKey(raw);
+  const spaced = slugify(raw);
+  const zone = ZONES.find(z => key.includes(compactSlug(z))) || "";
+  const typeObj = TYPES.find(t => key.includes(compactSlug(t.id)) || key.includes(compactSlug(t.label))) || null;
+  const dateMatch = spaced.match(/(20\d{2})[_-]?(\d{2})[_-]?(\d{2})/) || spaced.match(/(\d{2})[_-]?(\d{2})[_-]?(20\d{2})/) || spaced.match(/(\d{2})[_-]?(\d{2})(?!\d)/);
+  let date = "";
+  if (dateMatch) {
+    if (dateMatch[1] && dateMatch[1].startsWith("20")) date = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+    else if (dateMatch[3] && dateMatch[3].startsWith("20")) date = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+    else date = `${new Date().getFullYear()}-${dateMatch[2]}-${dateMatch[1]}`;
+  }
+  return {
+    raw,
+    key,
+    zone,
+    type: typeObj?.id || "",
+    date
+  };
+}
+const toNumber = value => Number(String(value ?? "").replace(/,/g, "").trim()) || 0;
 const normalizeUrl = value => String(value || "").trim().replace(/\/+$/, "").toLowerCase();
 const escapeHtml = value => String(value || "").replace(/[&<>"']/g, ch => ({
   "&": "&amp;",
@@ -901,6 +928,9 @@ function App() {
     promoRedemptions: 0,
     photos: [],
     ...a
+  })).map(a => ({
+    ...a,
+    adjustName: a.adjustName || adjustNameFor(a)
   })));
   const [qr, setQr] = useState(() => load(QR_KEY, seedQR));
   const [mystery, setMystery] = useState(() => load(MYS_KEY, seedMystery));
@@ -951,9 +981,14 @@ function App() {
   };
   const bulkResults = rows => {
     setActs(previous => previous.map(a => {
-      const match = rows.find(r => r.date === a.date && r.qrUrl && a.qrUrl && normalizeUrl(r.qrUrl) === normalizeUrl(a.qrUrl)) || rows.find(r => r.date === a.date && r.zone && r.zone.toLowerCase() === a.zone.toLowerCase()) || rows.find(r => r.qrUrl && a.qrUrl && normalizeUrl(r.qrUrl) === normalizeUrl(a.qrUrl));
+      const keys = [a.adjustName, adjustNameFor(a)].filter(Boolean).map(normalizeAdjustKey);
+      const match = rows.find(r => r.adjustKey && keys.includes(r.adjustKey)) || rows.find(r => r.date === a.date && r.qrUrl && a.qrUrl && normalizeUrl(r.qrUrl) === normalizeUrl(a.qrUrl)) || rows.find(r => r.date === a.date && r.zone && r.zone.toLowerCase() === a.zone.toLowerCase() && (!r.type || r.type === a.type)) || rows.find(r => r.qrUrl && a.qrUrl && normalizeUrl(r.qrUrl) === normalizeUrl(a.qrUrl));
       return match ? {
         ...a,
+        adjustName: a.adjustName || match.adjustName || adjustNameFor(a),
+        address: match.address || a.address,
+        lat: match.lat || a.lat,
+        lng: match.lng || a.lng,
         clicks: match.clicks,
         installs: match.installs,
         registrations: match.registrations,
@@ -1744,13 +1779,27 @@ function QRZones({
       color: "#64748B",
       marginTop: 2
     }
-  }, "Cada QR queda identificado por ubicación y fecha, por ejemplo: Sabana Grande 24/06.")), /*#__PURE__*/React.createElement("button", {
+  }, "Cada QR debe tener un nombre Adjust único: location_tipo_fecha. Ejemplo: sabanagrande_cafe_2026-06-24.")), /*#__PURE__*/React.createElement("button", {
     className: "primarybtn",
     style: S.primaryBtn,
     onClick: onImportResults
   }, /*#__PURE__*/React.createElement(IconUpload, {
     size: 16
   }), " Importar resultados")), /*#__PURE__*/React.createElement(Card, {
+    title: "Convención para Adjust",
+    hint: "Usa este nombre en Campaign o Adgroup para que la tabla importada se cruce sola."
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+      gap: 12,
+      marginTop: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.colHint
+  }, /*#__PURE__*/React.createElement("b", null, "Formato:"), " location_tipo_fecha", /*#__PURE__*/React.createElement("br", null), "Ej: ", /*#__PURE__*/React.createElement("code", null, "sabanagrande_cafe_2026-06-24")), /*#__PURE__*/React.createElement("div", {
+    style: S.colHint
+  }, /*#__PURE__*/React.createElement("b", null, "Adjust export:"), " Campaign / Adgroup · Clicks · Installs · registration · success_first_order"))), /*#__PURE__*/React.createElement(Card, {
     title: "QR, promo codes y métricas",
     hint: "Abre una activación para editar el link, promo code o sus resultados."
   }, /*#__PURE__*/React.createElement("div", {
@@ -1760,7 +1809,7 @@ function QRZones({
     }
   }, /*#__PURE__*/React.createElement("table", {
     style: S.table
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Activación", "QR / link", "Clics", "Installs", "Registros", "1ros viajes", "Promo", "Canjes", ""].map(h => /*#__PURE__*/React.createElement("th", {
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Activación", "Nombre Adjust", "QR / link", "Clics", "Installs", "Registros", "1ros viajes", "Promo", "Canjes", ""].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: S.th
   }, h)))), /*#__PURE__*/React.createElement("tbody", null, rows.map(a => {
@@ -1779,6 +1828,13 @@ function QRZones({
         textOverflow: "ellipsis"
       }
     }, a.name)), /*#__PURE__*/React.createElement("td", {
+      style: {
+        ...S.td,
+        fontFamily: "monospace",
+        fontSize: 12,
+        color: "#475569"
+      }
+    }, a.adjustName || adjustNameFor(a)), /*#__PURE__*/React.createElement("td", {
       style: S.td
     }, a.qrUrl ? /*#__PURE__*/React.createElement("a", {
       href: a.qrUrl,
@@ -2614,6 +2670,7 @@ function BulkImport({
         owner: "Agencia BTL",
         voucherCode: (voucherCode || "").toUpperCase(),
         qrUrl: "",
+        adjustName: "",
         address: "",
         lat: null,
         lng: null,
@@ -2734,24 +2791,55 @@ function isoDate(value) {
   return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : s;
 }
 function resultRows(objects) {
-  return objects.map(raw => {
+  const parsed = objects.map(raw => {
     const row = {};
     Object.entries(raw).forEach(([key, value]) => row[cleanHeader(key)] = value);
     const pick = (...keys) => {
-      const key = keys.find(k => row[k] !== undefined);
-      return key ? row[key] : "";
+      const exact = keys.find(k => row[k] !== undefined);
+      if (exact) return row[exact];
+      const partial = Object.keys(row).find(k => keys.some(wanted => k.startsWith(wanted)));
+      return partial ? row[partial] : "";
     };
+    const campaign = String(pick("campaign", "campaignattribution", "campana", "camp", "campaignname", "campname") || "").trim();
+    const adgroup = String(pick("adgroup", "adgroupattribution", "adgroupname", "adgroupid", "adgroupcampaign", "adgrouping") || "").trim();
+    const adjustName = String(pick("adjustname", "nombreadjust", "nombreadjust", "activationname", "activacion", "activation", "campaignid") || adgroup || campaign || "").trim();
+    const parsedName = parseAdjustName(adjustName);
+    const lowerName = adjustName.toLowerCase().trim();
     return {
-      date: isoDate(pick("fecha", "date")),
+      date: isoDate(pick("fecha", "date", "day", "dia")) || parsedName.date,
       qrUrl: String(pick("linkdelcodigoqr", "linkqr", "qrurl", "link", "url") || "").trim(),
-      zone: String(pick("zona", "ubicacion", "location") || "").trim(),
-      clicks: Number(pick("clicks", "clics", "escaneos")) || 0,
-      installs: Number(pick("installs", "instalaciones")) || 0,
-      registrations: Number(pick("registros", "registrations", "signups")) || 0,
-      firstTrips: Number(pick("primerosviajes", "1rosviajes", "firsttrips")) || 0,
-      promoRedemptions: Number(pick("canjes", "promoredemptions", "redemptions")) || 0
+      zone: String(pick("zona", "ubicacion", "location") || parsedName.zone || "").trim(),
+      type: String(pick("tipo", "type") || parsedName.type || "").trim(),
+      campaign,
+      adgroup,
+      adjustName,
+      adjustKey: parsedName.key,
+      address: String(pick("direccion", "address", "locationaddress") || "").trim(),
+      lat: toNumber(pick("lat", "latitude")),
+      lng: toNumber(pick("lng", "lon", "long", "longitude")),
+      isTotal: lowerName === "total" || lowerName === "wa" || lowerName === "overall",
+      clicks: toNumber(pick("clicks", "clics", "escaneos")),
+      installs: toNumber(pick("installs", "instalaciones")),
+      registrations: toNumber(pick("registros", "registration", "registrations", "signups")),
+      firstTrips: toNumber(pick("successfirstorder", "successfirstorders", "sfo", "primerosviajes", "1rosviajes", "firsttrips")),
+      promoRedemptions: toNumber(pick("canjes", "promoredemptions", "redemptions"))
     };
-  }).filter(row => row.date || row.qrUrl || row.zone);
+  }).filter(row => !row.isTotal && (row.zone || row.qrUrl));
+  const grouped = new Map();
+  parsed.forEach(row => {
+    const key = row.adjustKey || [row.date, row.zone, row.type, row.qrUrl].join("|");
+    const current = grouped.get(key);
+    if (!current) grouped.set(key, row);
+    else grouped.set(key, {
+      ...current,
+      clicks: current.clicks + row.clicks,
+      installs: current.installs + row.installs,
+      registrations: current.registrations + row.registrations,
+      firstTrips: current.firstTrips + row.firstTrips,
+      promoRedemptions: current.promoRedemptions + row.promoRedemptions
+    });
+  });
+  return [...grouped.values()];
 }
 function ResultsImport({
   onAdd,
@@ -2812,9 +2900,15 @@ function ResultsImport({
       lineHeight: 1.6,
       marginTop: 0
     }
-  }, "Sube el Excel exportado por Yango. La herramienta cruza cada fila primero por Fecha + Link QR, luego por Fecha + Zona."), /*#__PURE__*/React.createElement("div", {
+  }, "Sube el Excel/CSV exportado de Adjust o una hoja copiada desde Google Sheets. La herramienta cruza primero por nombre Adjust, luego por Fecha + Link QR y finalmente por Fecha + Zona/Tipo."), /*#__PURE__*/React.createElement("div", {
     style: S.colHint
-  }, /*#__PURE__*/React.createElement("b", null, "Fecha"), " · ", /*#__PURE__*/React.createElement("b", null, "Link del código QR"), " · Zona · Clicks · Installs · Registros · Primeros viajes · Canjes"), /*#__PURE__*/React.createElement("label", {
+  }, /*#__PURE__*/React.createElement("b", null, "Campaign / Adgroup"), " con formato ", /*#__PURE__*/React.createElement("b", null, "sabanagrande_cafe_2026-06-24"), " · Clicks · Installs · registration · success_first_order"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 11.5,
+      color: "#94A3B8",
+      margin: "8px 0 0"
+    }
+  }, "Si Adjust viene agrupado por adgroup, usa el nombre de la activación en Campaign o Adgroup. Ejemplo: sabanagrande_cafe_2026-06-24."), /*#__PURE__*/React.createElement("label", {
     className: "primarybtn",
     style: {
       ...S.primaryBtn,
@@ -2844,23 +2938,27 @@ function ResultsImport({
     }
   }, /*#__PURE__*/React.createElement("table", {
     style: S.table
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Fecha", "Zona", "Link QR", "Installs", "1ros viajes"].map(h => /*#__PURE__*/React.createElement("th", {
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Adjust name", "Fecha", "Zona", "Tipo", "Clicks", "Installs", "1ros viajes"].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: S.th
   }, h)))), /*#__PURE__*/React.createElement("tbody", null, rows.slice(0, 12).map((r, i) => /*#__PURE__*/React.createElement("tr", {
     key: i
   }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      ...S.td,
+      maxWidth: 220,
+      overflow: "hidden",
+      textOverflow: "ellipsis"
+    }
+  }, r.adjustName || "—"), /*#__PURE__*/React.createElement("td", {
     style: S.td
   }, r.date), /*#__PURE__*/React.createElement("td", {
     style: S.td
   }, r.zone || "—"), /*#__PURE__*/React.createElement("td", {
-    style: {
-      ...S.td,
-      maxWidth: 180,
-      overflow: "hidden",
-      textOverflow: "ellipsis"
-    }
-  }, r.qrUrl || "—"), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, r.type || "—"), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, fmt(r.clicks)), /*#__PURE__*/React.createElement("td", {
     style: S.td
   }, fmt(r.installs)), /*#__PURE__*/React.createElement("td", {
     style: S.td
@@ -3189,6 +3287,7 @@ function Editor({
     owner: "Agencia BTL",
     voucherCode: "",
     qrUrl: "",
+    adjustName: "",
     address: "",
     lat: null,
     lng: null,
@@ -3248,6 +3347,7 @@ function Editor({
     event.target.value = "";
   };
   const al = act ? alloc[act.id] : null;
+  const suggestedAdjustName = adjustNameFor(f);
   return /*#__PURE__*/React.createElement("div", {
     style: S.overlay,
     onClick: onClose
@@ -3429,6 +3529,36 @@ function Editor({
   }, "Repartido desde el QR de ", f.zone, " según los flyers de esta activación.")), /*#__PURE__*/React.createElement(Divider, {
     label: "QR de esta activación"
   }), /*#__PURE__*/React.createElement(Field, {
+    label: "Nombre para Adjust (Campaign o Adgroup)"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    style: {
+      ...S.input,
+      fontFamily: "monospace"
+    },
+    value: f.adjustName || suggestedAdjustName,
+    onChange: e => set("adjustName", slugify(e.target.value)),
+    placeholder: "sabanagrande_cafe_2026-06-24"
+  }), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ghostbtn",
+    style: {
+      ...S.ghostBtn,
+      padding: "9px 12px",
+      whiteSpace: "nowrap"
+    },
+    onClick: () => set("adjustName", suggestedAdjustName)
+  }, "Usar sugerido")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10.5,
+      color: "#94A3B8",
+      marginTop: 5
+    }
+  }, "Usa este texto en Adjust para que el reporte se cruce solo con ubicación, tipo y fecha.")), /*#__PURE__*/React.createElement(Field, {
     label: "Link rastreable (compartido por las activaciones de la zona)"
   }, /*#__PURE__*/React.createElement("input", {
     style: S.input,
