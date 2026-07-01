@@ -490,41 +490,75 @@ const IconRefresh = Ico(/*#__PURE__*/React.createElement(React.Fragment, null, /
 })));
 
 /* ============================ DATA ============================ */
-const ZONE_GEO = {
-  "Sabana Grande": {
-    lat: 10.4955,
-    lng: -66.8790
-  },
-  "Petare": {
-    lat: 10.4760,
-    lng: -66.8060
-  },
-  "Altamira": {
-    lat: 10.4960,
-    lng: -66.8470
-  },
-  "Chacao": {
-    lat: 10.4980,
-    lng: -66.8540
-  },
-  "Chacaíto": {
-    lat: 10.4930,
-    lng: -66.8640
-  },
-  "Las Mercedes": {
-    lat: 10.4790,
-    lng: -66.8590
-  },
-  "La Candelaria": {
-    lat: 10.5010,
-    lng: -66.9020
-  },
-  "El Recreo": {
-    lat: 10.4900,
-    lng: -66.8730
-  }
-};
-const ZONES = Object.keys(ZONE_GEO);
+const locationKey = value => String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "");
+const LOCATION_GROUPS = [{
+  zone: "Petare",
+  lat: 10.4760,
+  lng: -66.8060,
+  locations: ["Petare", "Palo Verde", "La Dolorita"]
+}, {
+  zone: "Centro",
+  lat: 10.5030,
+  lng: -66.9140,
+  locations: ["Centro de Caracas", "La Hoyada", "Bellas Artes", "Parque Central", "Plaza Venezuela", "Los Símbolos", "Estación 5 de Julio"]
+}, {
+  zone: "Este",
+  lat: 10.4935,
+  lng: -66.8490,
+  locations: ["Altamira", "Chacaíto", "El Recreo", "Los Dos Caminos", "Los Cortijos", "Los Ruices", "La California", "La Urbina", "Macaracuay"]
+}, {
+  zone: "Sureste",
+  lat: 10.4740,
+  lng: -66.8520,
+  locations: ["Las Mercedes", "Bello Monte", "El Cafetal", "Caurimare", "Prados del Este", "Plaza Baruta", "Las Minas"]
+}, {
+  zone: "Universidades",
+  lat: 10.4880,
+  lng: -66.8910,
+  locations: ["UCAB", "Ciudad Universitaria", "Monteávila"]
+}, {
+  zone: "Oeste",
+  lat: 10.4940,
+  lng: -66.9460,
+  locations: ["Catia", "Plaza Sucre", "Propatria", "Antímano", "La Yaguara", "La Vega", "Montalbán", "El Paraíso", "El Pinar"]
+}, {
+  zone: "Sur",
+  lat: 10.4410,
+  lng: -66.9330,
+  locations: ["Caricuao", "El Valle", "La Rinconada"]
+}, {
+  zone: "Norte",
+  lat: 10.5180,
+  lng: -66.9130,
+  locations: ["San Bernardino", "Alta Florida", "La Pastora"]
+}, {
+  zone: "Satelites",
+  lat: 10.3660,
+  lng: -66.9880,
+  locations: ["Los Teques", "San Antonio de los Altos", "El Junquito"]
+}, {
+  zone: "Sabana Grande",
+  lat: 10.4955,
+  lng: -66.8790,
+  locations: ["Sabana Grande"]
+}];
+const ZONE_GEO = Object.fromEntries(LOCATION_GROUPS.map(g => [g.zone, {
+  lat: g.lat,
+  lng: g.lng
+}]));
+const ZONE_DETAILS = Object.fromEntries(LOCATION_GROUPS.map(g => [g.zone, g.locations]));
+const ZONES = LOCATION_GROUPS.map(g => g.zone);
+function findZoneBucket(value) {
+  const key = locationKey(value);
+  if (!key) return "";
+  const exact = LOCATION_GROUPS.find(g => locationKey(g.zone) === key);
+  if (exact) return exact.zone;
+  const matches = LOCATION_GROUPS.flatMap(g => [g.zone, ...g.locations].map(name => ({
+    zone: g.zone,
+    key: locationKey(name)
+  }))).filter(x => x.key && key.includes(x.key)).sort((a, b) => b.key.length - a.key.length);
+  return matches[0]?.zone || "";
+}
 const TYPES = [{
   id: "flyer",
   label: "Solo flyers",
@@ -733,7 +767,7 @@ function seed() {
   }), base({
     id: "a2",
     name: "Paletas Plaza Altamira",
-    zone: "Altamira",
+    zone: "Este",
     type: "helado",
     date: offset(-9),
     status: "done",
@@ -756,7 +790,7 @@ function seed() {
   }), base({
     id: "a4",
     name: "Activación UCAB Mundial",
-    zone: "Chacao",
+    zone: "Universidades",
     type: "universidad",
     date: offset(-4),
     status: "done",
@@ -769,7 +803,7 @@ function seed() {
   }), base({
     id: "a5",
     name: "Café Chacaíto bulevar",
-    zone: "Chacaíto",
+    zone: "Este",
     type: "cafe",
     date: offset(-2),
     status: "done",
@@ -781,7 +815,7 @@ function seed() {
   }), base({
     id: "a6",
     name: "Evento POP Las Mercedes",
-    zone: "Las Mercedes",
+    zone: "Sureste",
     type: "evento",
     date: offset(2),
     status: "confirmed",
@@ -793,7 +827,7 @@ function seed() {
   }), base({
     id: "a7",
     name: "Helados Altamira tarde",
-    zone: "Altamira",
+    zone: "Este",
     type: "helado",
     date: offset(4),
     status: "confirmed",
@@ -805,7 +839,7 @@ function seed() {
   }), base({
     id: "a8",
     name: "Flyers La Candelaria",
-    zone: "La Candelaria",
+    zone: "Centro",
     type: "flyer",
     date: offset(6),
     status: "planned",
@@ -842,7 +876,7 @@ function parseAdjustName(value) {
   const raw = String(value || "").trim();
   const key = normalizeAdjustKey(raw);
   const spaced = slugify(raw);
-  const zone = ZONES.find(z => key.includes(compactSlug(z))) || "";
+  const zone = findZoneBucket(raw);
   const typeObj = TYPES.find(t => key.includes(compactSlug(t.id)) || key.includes(compactSlug(t.label))) || null;
   const dateMatch = spaced.match(/(20\d{2})[_-]?(\d{2})[_-]?(\d{2})/) || spaced.match(/(\d{2})[_-]?(\d{2})[_-]?(20\d{2})/) || spaced.match(/(\d{2})[_-]?(\d{2})(?!\d)/);
   let date = "";
@@ -949,9 +983,36 @@ function App() {
     ...a
   })).map(a => ({
     ...a,
+    zone: findZoneBucket(a.zone) || a.zone,
     adjustName: a.adjustName || adjustNameFor(a)
   })));
-  const [qr, setQr] = useState(() => load(QR_KEY, seedQR));
+  const [qr, setQr] = useState(() => {
+    const saved = load(QR_KEY, seedQR);
+    const byZone = new Map();
+    saved.forEach(row => {
+      const zone = findZoneBucket(row.zone) || row.zone;
+      const current = byZone.get(zone) || {
+        ...row,
+        zone,
+        clicks: 0,
+        installs: 0,
+        registrations: 0,
+        firstTrips: 0,
+        promoRedemptions: 0
+      };
+      byZone.set(zone, {
+        ...current,
+        code: current.code || row.code,
+        promoCode: current.promoCode || row.promoCode,
+        clicks: (current.clicks || 0) + (row.clicks || 0),
+        installs: (current.installs || 0) + (row.installs || 0),
+        registrations: (current.registrations || 0) + (row.registrations || 0),
+        firstTrips: (current.firstTrips || 0) + (row.firstTrips || 0),
+        promoRedemptions: (current.promoRedemptions || 0) + (row.promoRedemptions || 0)
+      });
+    });
+    return ZONES.map(z => byZone.get(z) || seedQR().find(x => x.zone === z));
+  });
   const [mystery, setMystery] = useState(() => load(MYS_KEY, seedMystery));
   const [cfg, setCfg] = useState(() => load(CFG_KEY, () => ({
     appsScriptUrl: ""
@@ -994,11 +1055,50 @@ function App() {
     setEditing(null);
   };
   const bulkAdd = rows => {
-    setActs(p => [...p, ...rows]);
+    setActs(p => [...p, ...rows.map(a => ({
+      ...a,
+      zone: findZoneBucket(a.zone) || a.zone
+    }))]);
     setImporting(false);
     setTab("activations");
   };
   const bulkResults = rows => {
+    const qrByZone = rows.filter(r => r.zone).reduce((map, row) => {
+      const zone = findZoneBucket(row.zone) || row.zone;
+      const current = map.get(zone) || {
+        clicks: 0,
+        installs: 0,
+        registrations: 0,
+        firstTrips: 0,
+        promoRedemptions: 0
+      };
+      map.set(zone, {
+        clicks: current.clicks + row.clicks,
+        installs: current.installs + row.installs,
+        registrations: current.registrations + row.registrations,
+        firstTrips: current.firstTrips + row.firstTrips,
+        promoRedemptions: current.promoRedemptions + row.promoRedemptions
+      });
+      return map;
+    }, new Map());
+    if (qrByZone.size) {
+      setQr(previous => ZONES.map(zone => {
+        const existing = previous.find(q => (findZoneBucket(q.zone) || q.zone) === zone) || seedQR().find(q => q.zone === zone);
+        const imported = qrByZone.get(zone);
+        return imported ? {
+          ...existing,
+          zone,
+          clicks: imported.clicks,
+          installs: imported.installs,
+          registrations: imported.registrations,
+          firstTrips: imported.firstTrips,
+          promoRedemptions: imported.promoRedemptions
+        } : {
+          ...existing,
+          zone
+        };
+      }));
+    }
     setActs(previous => previous.map(a => {
       const keys = [a.adjustName, adjustNameFor(a)].filter(Boolean).map(normalizeAdjustKey);
       const match = rows.find(r => r.adjustKey && keys.includes(r.adjustKey)) || rows.find(r => r.date === a.date && r.qrUrl && a.qrUrl && normalizeUrl(r.qrUrl) === normalizeUrl(a.qrUrl)) || rows.find(r => r.date === a.date && r.zone && r.zone.toLowerCase() === a.zone.toLowerCase() && (!r.type || r.type === a.type)) || rows.find(r => r.qrUrl && a.qrUrl && normalizeUrl(r.qrUrl) === normalizeUrl(a.qrUrl));
@@ -1801,7 +1901,7 @@ function QRZones({
       color: "#64748B",
       marginTop: 2
     }
-  }, "Cada QR debe tener un nombre Adjust único: location_tipo_fecha. Ejemplo: sabanagrande_cafe_2026-06-24.")), /*#__PURE__*/React.createElement("button", {
+  }, "Cada QR debe tener un nombre Adjust único: bucket_tipo_fecha. Ejemplo: este_cafe_2026-06-24. El reporte de Adjust también puede venir por bucket: Petare, Centro, Este…")), /*#__PURE__*/React.createElement("button", {
     className: "primarybtn",
     style: S.primaryBtn,
     onClick: onImportResults
@@ -1819,9 +1919,9 @@ function QRZones({
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: S.colHint
-  }, /*#__PURE__*/React.createElement("b", null, "Formato:"), " location_tipo_fecha", /*#__PURE__*/React.createElement("br", null), "Ej: ", /*#__PURE__*/React.createElement("code", null, "sabanagrande_cafe_2026-06-24")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("b", null, "Formato:"), " bucket_tipo_fecha", /*#__PURE__*/React.createElement("br", null), "Ej: ", /*#__PURE__*/React.createElement("code", null, "este_cafe_2026-06-24")), /*#__PURE__*/React.createElement("div", {
     style: S.colHint
-  }, /*#__PURE__*/React.createElement("b", null, "Adjust export:"), " Campaign / Adgroup · Clicks · Installs · registration · success_first_order"))), /*#__PURE__*/React.createElement(Card, {
+  }, /*#__PURE__*/React.createElement("b", null, "Adjust export:"), " campaign · adgroup · installs · attribution_clicks · registration_events · custom_sfo_yango_venezuela · success_first_order_events"))), /*#__PURE__*/React.createElement(Card, {
     title: "QR, promo codes y métricas",
     hint: "Abre una activación para editar el link, promo code o sus resultados."
   }, /*#__PURE__*/React.createElement("div", {
@@ -2826,11 +2926,12 @@ function resultRows(objects) {
     const adgroup = String(pick("adgroup", "adgroupattribution", "adgroupname", "adgroupid", "adgroupcampaign", "adgrouping") || "").trim();
     const adjustName = String(pick("adjustname", "nombreadjust", "nombreadjust", "activationname", "activacion", "activation", "campaignid") || adgroup || campaign || "").trim();
     const parsedName = parseAdjustName(adjustName);
+    const zoneName = String(pick("zona", "ubicacion", "location", "flyer") || "").trim();
     const lowerName = adjustName.toLowerCase().trim();
     return {
       date: isoDate(pick("fecha", "date", "day", "dia")) || parsedName.date,
       qrUrl: String(pick("linkdelcodigoqr", "linkqr", "qrurl", "link", "url") || "").trim(),
-      zone: String(pick("zona", "ubicacion", "location") || parsedName.zone || "").trim(),
+      zone: findZoneBucket(zoneName || parsedName.zone || adjustName || campaign) || "",
       type: String(pick("tipo", "type") || parsedName.type || "").trim(),
       campaign,
       adgroup,
@@ -2840,10 +2941,10 @@ function resultRows(objects) {
       lat: toNumber(pick("lat", "latitude")),
       lng: toNumber(pick("lng", "lon", "long", "longitude")),
       isTotal: lowerName === "total" || lowerName === "wa" || lowerName === "overall",
-      clicks: toNumber(pick("clicks", "clics", "escaneos")),
+      clicks: toNumber(pick("clicks", "attributionclicks", "clicksattribution", "clics", "escaneos")),
       installs: toNumber(pick("installs", "instalaciones")),
       registrations: toNumber(pick("registros", "registration", "registrations", "signups")),
-      firstTrips: toNumber(pick("successfirstorder", "successfirstorders", "sfo", "primerosviajes", "1rosviajes", "firsttrips")),
+      firstTrips: toNumber(pick("successfirstorder", "successfirstorders", "successfirstorderevents", "customsfo", "customsfoyangovenezuela", "sfo", "primerosviajes", "1rosviajes", "firsttrips")),
       promoRedemptions: toNumber(pick("canjes", "promoredemptions", "redemptions"))
     };
   }).filter(row => !row.isTotal && (row.zone || row.qrUrl));
@@ -2922,15 +3023,28 @@ function ResultsImport({
       lineHeight: 1.6,
       marginTop: 0
     }
-  }, "Sube el Excel/CSV exportado de Adjust o una hoja copiada desde Google Sheets. La herramienta cruza primero por nombre Adjust, luego por Fecha + Link QR y finalmente por Fecha + Zona/Tipo."), /*#__PURE__*/React.createElement("div", {
+  }, "Sube el CSV exportado de Adjust tal cual. Si el adgroup viene como Petare, Centro, Este, Sureste, Universidades, Oeste, Sur, Norte, Satelites o Sabana Grande, la herramienta actualiza automáticamente los resultados QR por bucket."), /*#__PURE__*/React.createElement("div", {
     style: S.colHint
-  }, /*#__PURE__*/React.createElement("b", null, "Campaign / Adgroup"), " con formato ", /*#__PURE__*/React.createElement("b", null, "sabanagrande_cafe_2026-06-24"), " · Clicks · Installs · registration · success_first_order"), /*#__PURE__*/React.createElement("p", {
+  }, /*#__PURE__*/React.createElement("b", null, "Columnas Adjust:"), " campaign · adgroup · installs · attribution_clicks · registration_events · custom_sfo_yango_venezuela · success_first_order_events"), /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: 11.5,
       color: "#94A3B8",
       margin: "8px 0 0"
     }
-  }, "Si Adjust viene agrupado por adgroup, usa el nombre de la activación en Campaign o Adgroup. Ejemplo: sabanagrande_cafe_2026-06-24."), /*#__PURE__*/React.createElement("label", {
+  }, "El adgroup puede ser el bucket completo (ej. Este) o una ubicación interna (ej. Altamira); la app lo normaliza al bucket correcto."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.colHint,
+      background: "#F8FAFC",
+      marginTop: 10,
+      maxHeight: 130,
+      overflowY: "auto"
+    }
+  }, LOCATION_GROUPS.map(g => /*#__PURE__*/React.createElement("div", {
+    key: g.zone,
+    style: {
+      marginBottom: 5
+    }
+  }, /*#__PURE__*/React.createElement("b", null, g.zone), ": ", g.locations.join(", ")))), /*#__PURE__*/React.createElement("label", {
     className: "primarybtn",
     style: {
       ...S.primaryBtn,
