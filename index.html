@@ -739,6 +739,7 @@ function seed() {
     voucherCode: "",
     qrUrl: "",
     adjustName: "",
+    realLocation: "",
     address: "",
     lat: null,
     lng: null,
@@ -747,6 +748,7 @@ function seed() {
     registrations: 0,
     firstTrips: 0,
     promoRedemptions: 0,
+    realLocation: "",
     photos: [],
     notes: "",
     confExec: null,
@@ -756,6 +758,7 @@ function seed() {
     id: "a1",
     name: "Café mañanero Sabana Grande",
     zone: "Sabana Grande",
+    realLocation: "Sabana Grande",
     type: "cafe",
     date: offset(-12),
     status: "done",
@@ -768,6 +771,7 @@ function seed() {
     id: "a2",
     name: "Paletas Plaza Altamira",
     zone: "Este",
+    realLocation: "Altamira",
     type: "helado",
     date: offset(-9),
     status: "done",
@@ -780,6 +784,7 @@ function seed() {
     id: "a3",
     name: "Flyers Petare boca de metro",
     zone: "Petare",
+    realLocation: "Petare",
     type: "flyer",
     date: offset(-7),
     status: "done",
@@ -791,6 +796,7 @@ function seed() {
     id: "a4",
     name: "Activación UCAB Mundial",
     zone: "Universidades",
+    realLocation: "UCAB",
     type: "universidad",
     date: offset(-4),
     status: "done",
@@ -804,6 +810,7 @@ function seed() {
     id: "a5",
     name: "Café Chacaíto bulevar",
     zone: "Este",
+    realLocation: "Chacaíto",
     type: "cafe",
     date: offset(-2),
     status: "done",
@@ -816,6 +823,7 @@ function seed() {
     id: "a6",
     name: "Evento POP Las Mercedes",
     zone: "Sureste",
+    realLocation: "Las Mercedes",
     type: "evento",
     date: offset(2),
     status: "confirmed",
@@ -828,6 +836,7 @@ function seed() {
     id: "a7",
     name: "Helados Altamira tarde",
     zone: "Este",
+    realLocation: "Altamira",
     type: "helado",
     date: offset(4),
     status: "confirmed",
@@ -840,6 +849,7 @@ function seed() {
     id: "a8",
     name: "Flyers La Candelaria",
     zone: "Centro",
+    realLocation: "La Hoyada",
     type: "flyer",
     date: offset(6),
     status: "planned",
@@ -867,7 +877,8 @@ const shortDate = date => date ? new Date(date + "T00:00:00").toLocaleDateString
   day: "2-digit",
   month: "2-digit"
 }) : "";
-const activationLabel = a => `${a.zone} ${shortDate(a.date)}`;
+const displayLocation = a => a.realLocation || a.location || a.zone;
+const activationLabel = a => `${displayLocation(a)} ${shortDate(a.date)}`;
 const slugify = value => String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/&/g, " y ").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 const compactSlug = value => slugify(value).replace(/_/g, "");
 const adjustNameFor = a => a.adjustName || `${compactSlug(a.zone)}_${a.type || "flyer"}_${a.date || new Date().toISOString().slice(0, 10)}`;
@@ -984,6 +995,7 @@ function App() {
   })).map(a => ({
     ...a,
     zone: findZoneBucket(a.zone) || a.zone,
+    realLocation: a.realLocation || a.location || (!ZONES.includes(a.zone) ? a.zone : ""),
     adjustName: a.adjustName || adjustNameFor(a)
   })));
   const [qr, setQr] = useState(() => {
@@ -1057,7 +1069,8 @@ function App() {
   const bulkAdd = rows => {
     setActs(p => [...p, ...rows.map(a => ({
       ...a,
-      zone: findZoneBucket(a.zone) || a.zone
+      realLocation: a.realLocation || a.location || (!ZONES.includes(a.zone) ? a.zone : ""),
+      zone: findZoneBucket(a.zone || a.realLocation || a.location) || a.zone
     }))]);
     setImporting(false);
     setTab("activations");
@@ -2055,7 +2068,7 @@ function MapView({
       const marker = L.marker([lat, lng], {
         icon
       }).addTo(map);
-      marker.bindPopup(`<div style="min-width:190px"><b>${escapeHtml(activationLabel(a))}</b><br><span style="color:#64748B">${escapeHtml(a.name)}</span><br>${escapeHtml(a.address || "Dirección aproximada por zona")}<br><b>${fmt(m.installs)}</b> installs · <b>${fmt(a.flyers)}</b> flyers<br><button data-act="${escapeHtml(a.id)}" style="margin-top:8px;border:0;border-radius:7px;background:#E30613;color:#fff;padding:7px 10px;font-weight:700;cursor:pointer">Abrir ficha</button></div>`);
+      marker.bindPopup(`<div style="min-width:190px"><b>${escapeHtml(activationLabel(a))}</b><br><span style="color:#64748B">${escapeHtml(a.name)}</span><br>${escapeHtml(a.address || "Dirección aproximada por zona")}<br><span style="color:#94A3B8">Bucket Adjust: ${escapeHtml(a.zone)}</span><br><b>${fmt(m.installs)}</b> installs · <b>${fmt(a.flyers)}</b> flyers<br><button data-act="${escapeHtml(a.id)}" style="margin-top:8px;border:0;border-radius:7px;background:#E30613;color:#fff;padding:7px 10px;font-weight:700;cursor:pointer">Abrir ficha</button></div>`);
       marker.on("popupopen", e => {
         const button = e.popup.getElement()?.querySelector("[data-act]");
         if (button) button.onclick = () => onOpen(a);
@@ -2218,7 +2231,7 @@ function CalendarView({
           color: STATUS[a.status].color,
           fontWeight: 600
         }
-      }, a.zone));
+      }, displayLocation(a)));
     })));
   })));
 }
@@ -2767,47 +2780,107 @@ function Settings({
 }
 
 /* ============================ BULK IMPORT ============================ */
+const calendarCleanHeader = value => String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+function calendarIsoDate(value) {
+  if (!value) return "";
+  if (typeof value === "number" && typeof XLSX !== "undefined") {
+    const p = XLSX.SSF.parse_date_code(value);
+    return p ? `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}` : "";
+  }
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const s = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : s;
+}
+function calendarRows(objects) {
+  return objects.map(raw => {
+    const row = {};
+    Object.entries(raw).forEach(([key, value]) => row[calendarCleanHeader(key)] = value);
+    const pick = (...keys) => {
+      const exact = keys.find(k => row[k] !== undefined);
+      if (exact) return row[exact];
+      const partial = Object.keys(row).find(k => keys.some(wanted => k.startsWith(wanted)));
+      return partial ? row[partial] : "";
+    };
+    const realLocation = String(pick("ubicacionreal", "ubicacion", "location", "locacion", "zonaoperativa") || "").trim();
+    const bucketRaw = String(pick("bucketadjust", "bucket", "zonaadjust", "zona", "flyer") || "").trim();
+    const zone = findZoneBucket(bucketRaw || realLocation) || ZONES[0];
+    const typeRaw = String(pick("tipo", "type", "tipodeactivacion") || "").trim();
+    const typeObj = TYPES.find(t => t.id === typeRaw || t.label.toLowerCase() === typeRaw.toLowerCase()) || TYPES[0];
+    const start = String(pick("horainicio", "inicio", "starttime", "hora") || "").trim();
+    const end = String(pick("horafin", "fin", "endtime") || "").trim();
+    const notes = String(pick("notas", "notes", "comentarios") || "").trim();
+    return {
+      id: "a" + Date.now() + Math.random().toString(36).slice(2, 6),
+      date: calendarIsoDate(pick("fecha", "date", "dia")) || new Date().toISOString().slice(0, 10),
+      name: String(pick("nombre", "activacion", "name", "activation") || "").trim() || `Activación ${realLocation || zone}`,
+      zone,
+      realLocation: realLocation || "",
+      type: typeObj.id,
+      promoters: toNumber(pick("promotoras", "promoters")) || 3,
+      hours: 4,
+      flyers: toNumber(pick("flyersestimados", "flyers", "volantes", "flyersentregados")),
+      cost: toNumber(pick("costousd", "costo", "cost", "inversion")),
+      owner: String(pick("responsable", "owner", "agencia") || "Agencia BTL").trim(),
+      voucherCode: String(pick("voucher", "promocode", "codigo", "codigopromo") || "").trim().toUpperCase(),
+      qrUrl: String(pick("linkqr", "qrurl", "link", "url") || "").trim(),
+      adjustName: "",
+      address: String(pick("direccion", "address") || "").trim(),
+      lat: toNumber(pick("lat", "latitude")) || null,
+      lng: toNumber(pick("lng", "lon", "long", "longitude")) || null,
+      clicks: 0,
+      installs: 0,
+      registrations: 0,
+      firstTrips: 0,
+      promoRedemptions: 0,
+      photos: [],
+      notes: [notes, start || end ? `Horario: ${start || "—"} - ${end || "—"}` : ""].filter(Boolean).join(" · "),
+      status: "planned",
+      confExec: null
+    };
+  }).filter(r => r.name && r.date);
+}
 function BulkImport({
   onAdd,
   onClose
 }) {
   const [text, setText] = useState("");
-  const example = "2026-07-01\tCafé Sabana Grande\tSabana Grande\tcafe\t4\t1200\t320\tSABANA20\n2026-07-02\tFlyers Petare\tPetare\tflyer\t5\t2500\t180";
+  const [msg, setMsg] = useState("");
+  const example = "Fecha\tNombre\tUbicación real\tBucket Adjust\tTipo\tDirección\tHora inicio\tHora fin\tPromotoras\tFlyers estimados\tCosto USD\tVoucher\tLink QR\tResponsable\tNotas\n2026-07-01\tCafé Altamira\tAltamira\t\tcafe\tPlaza Altamira\t08:00\t12:00\t4\t1200\t320\tALTAMIRA20\t\tAgencia BTL\t";
+  const readFile = async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+      if (typeof XLSX === "undefined") throw new Error("Excel no disponible");
+      const data = await file.arrayBuffer();
+      const book = XLSX.read(data, {
+        type: "array",
+        cellDates: true
+      });
+      const sheet = book.Sheets[book.SheetNames[0]];
+      const rows = calendarRows(XLSX.utils.sheet_to_json(sheet, {
+        defval: ""
+      }));
+      if (rows.length) onAdd(rows);
+      else setMsg("No encontramos filas válidas en el archivo.");
+    } catch (e) {
+      setMsg("No pudimos leer el archivo. Usa el template .xlsx o un CSV con encabezados.");
+    }
+  };
   const parse = () => {
-    const rows = text.trim().split("\n").map(line => {
-      const c = line.split(/\t|,(?![^"]*")/).map(x => x.trim());
-      const [date, name, zone, type, promoters, flyers, cost, voucherCode] = c;
-      const tObj = TYPES.find(t => t.id === type || t.label.toLowerCase() === (type || "").toLowerCase());
-      const zMatch = ZONES.find(z => z.toLowerCase() === (zone || "").toLowerCase()) || ZONES[0];
-      return {
-        id: "a" + Date.now() + Math.random().toString(36).slice(2, 6),
-        date: date || new Date().toISOString().slice(0, 10),
-        name: name || "Activación sin nombre",
-        zone: zMatch,
-        type: tObj ? tObj.id : "flyer",
-        promoters: parseInt(promoters, 10) || 3,
-        hours: 4,
-        flyers: parseInt(flyers, 10) || 0,
-        cost: parseFloat(cost) || 0,
-        owner: "Agencia BTL",
-        voucherCode: (voucherCode || "").toUpperCase(),
-        qrUrl: "",
-        adjustName: "",
-        address: "",
-        lat: null,
-        lng: null,
-        clicks: 0,
-        installs: 0,
-        registrations: 0,
-        firstTrips: 0,
-        promoRedemptions: 0,
-        photos: [],
-        notes: "",
-        status: "planned",
-        confExec: null
-      };
-    }).filter(r => r.name);
+    const lines = text.trim().split("\n").filter(Boolean);
+    const [headerLine, ...dataLines] = lines;
+    const headers = headerLine.split(/\t|,(?![^"]*")/).map(calendarCleanHeader);
+    const hasHeader = headers.some(h => ["fecha", "nombre", "ubicacionreal", "bucketadjust"].includes(h));
+    const rows = calendarRows((hasHeader ? dataLines : lines).map(line => {
+      const cells = line.split(/\t|,(?![^"]*")/).map(x => x.trim().replace(/^"|"$/g, ""));
+      const fallbackHeaders = ["fecha", "nombre", "ubicacionreal", "bucketadjust", "tipo", "direccion", "horainicio", "horafin", "promotoras", "flyersestimados", "costousd", "voucher", "linkqr", "responsable", "notas"];
+      const keys = hasHeader ? headers : fallbackHeaders;
+      return Object.fromEntries(keys.map((key, i) => [key, cells[i] || ""]));
+    }));
     if (rows.length) onAdd(rows);
+    else setMsg("No encontramos filas válidas en el texto pegado.");
   };
   const count = text.trim() ? text.trim().split("\n").filter(l => l.trim()).length : 0;
   return /*#__PURE__*/React.createElement("div", {
@@ -2842,19 +2915,42 @@ function BulkImport({
       lineHeight: 1.6,
       marginTop: 0
     }
-  }, "Copia las filas desde Excel/Sheets y pégalas. Una activación por línea, en este orden:"), /*#__PURE__*/React.createElement("div", {
+  }, "Sube el template de calendario o pega las filas desde Excel/Sheets. El calendario usa Ubicación real; resultados/Adjust usan Bucket Adjust."), /*#__PURE__*/React.createElement("label", {
+    className: "primarybtn",
+    style: {
+      ...S.primaryBtn,
+      display: "inline-flex",
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement(IconUpload, {
+    size: 16
+  }), " Seleccionar Excel/CSV", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: ".xlsx,.xls,.csv",
+    onChange: readFile,
+    style: {
+      display: "none"
+    }
+  })), msg && /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 12,
+      color: "#B45309",
+      fontWeight: 600,
+      marginTop: 0
+    }
+  }, msg), /*#__PURE__*/React.createElement("div", {
     style: S.colHint
-  }, /*#__PURE__*/React.createElement("b", null, "Fecha"), " · ", /*#__PURE__*/React.createElement("b", null, "Nombre"), " · ", /*#__PURE__*/React.createElement("b", null, "Zona"), " · ", /*#__PURE__*/React.createElement("b", null, "Tipo"), " · ", /*#__PURE__*/React.createElement("b", null, "Promotoras"), " · ", /*#__PURE__*/React.createElement("b", null, "Flyers"), " · ", /*#__PURE__*/React.createElement("b", null, "Costo USD"), " · ", /*#__PURE__*/React.createElement("b", null, "Voucher"), " ", /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("b", null, "Fecha"), " · ", /*#__PURE__*/React.createElement("b", null, "Nombre"), " · ", /*#__PURE__*/React.createElement("b", null, "Ubicación real"), " · ", /*#__PURE__*/React.createElement("b", null, "Bucket Adjust"), " · ", /*#__PURE__*/React.createElement("b", null, "Tipo"), " · Dirección · Hora inicio · Hora fin · Promotoras · Flyers estimados · Costo USD · Voucher · Link QR · Responsable · Notas ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: "#94A3B8"
     }
-  }, "(opcional)")), /*#__PURE__*/React.createElement("p", {
+  }, "(Bucket puede ir vacío)")), /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: 11.5,
       color: "#94A3B8",
       margin: "8px 0"
     }
-  }, "Fecha AAAA-MM-DD. Tipo: flyer, cafe, helado, universidad, evento. Zonas: ", ZONES.join(", "), "."), /*#__PURE__*/React.createElement("textarea", {
+  }, "Fecha AAAA-MM-DD. Tipo: flyer, cafe, helado, universidad, evento. Ubicación real: Altamira, Los Ruices, UCAB, Las Mercedes, etc. Bucket Adjust: ", ZONES.join(", "), "."), /*#__PURE__*/React.createElement("textarea", {
     style: {
       ...S.input,
       minHeight: 160,
@@ -3424,6 +3520,7 @@ function Editor({
     voucherCode: "",
     qrUrl: "",
     adjustName: "",
+    realLocation: "",
     address: "",
     lat: null,
     lng: null,
@@ -3513,10 +3610,24 @@ function Editor({
     value: f.name,
     onChange: e => set("name", e.target.value),
     placeholder: "Ej: Café mañanero Sabana Grande"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Ubicación real (sale en calendario)"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: f.realLocation || "",
+    onChange: e => setF(p => {
+      const realLocation = e.target.value;
+      return {
+        ...p,
+        realLocation,
+        zone: findZoneBucket(realLocation) || p.zone
+      };
+    }),
+    placeholder: "Ej: Altamira, Los Ruices, UCAB, Las Mercedes"
   })), /*#__PURE__*/React.createElement("div", {
     style: S.row2
   }, /*#__PURE__*/React.createElement(Field, {
-    label: "Zona"
+    label: "Bucket Adjust"
   }, /*#__PURE__*/React.createElement("select", {
     style: S.input,
     value: f.zone,
