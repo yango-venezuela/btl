@@ -770,6 +770,8 @@ function seed() {
   const base = over => ({
     promoters: 3,
     promoterNames: "",
+    actualPromoters: null,
+    actualFlyers: null,
     hours: 4,
     flyers: 0,
     cost: 0,
@@ -1042,6 +1044,8 @@ function App() {
     firstTrips: 0,
     promoRedemptions: 0,
     photos: [],
+    actualPromoters: null,
+    actualFlyers: null,
     ...a
   })).map(a => {
     const zone = findZoneBucket(a.zone || a.realLocation || a.location) || a.zone || ZONES[0];
@@ -1209,6 +1213,11 @@ function App() {
   };
   const filtered = acts.filter(a => (zoneFilter === "all" || a.zone === zoneFilter) && (typeFilter === "all" || a.type === typeFilter) && inRange(a.date, from, to));
   const alloc = useMemo(() => allocate(acts, qr), [acts, qr]);
+  const agencyOnly = new URLSearchParams(window.location.search).get("agency") === "1" || window.location.hash === "#agency";
+  if (agencyOnly) return /*#__PURE__*/React.createElement(AgencyStandalone, {
+    acts: acts,
+    onSave: save
+  });
   return /*#__PURE__*/React.createElement("div", {
     style: S.app
   }, menuOpen && /*#__PURE__*/React.createElement("div", {
@@ -1804,6 +1813,8 @@ function Results({
       q,
       cost: c,
       cpi: q.installs ? c / q.installs : 0,
+      cpr: q.registrations ? c / q.registrations : 0,
+      cpt: q.firstTrips ? c / q.firstTrips : 0,
       s2r,
       codes: [...new Set(r.map(a => a.voucherCode).filter(Boolean))]
     };
@@ -1876,7 +1887,7 @@ function Results({
     }
   }, /*#__PURE__*/React.createElement("table", {
     style: S.table
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Zona", "Act.", "Clics", "Installs", "Promo canjes", "Escaneo→canje", "Invertido", "Costo/inst."].map(h => /*#__PURE__*/React.createElement("th", {
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Zona", "Act.", "Clics", "Installs", "Registros", "1ros viajes", "Promo canjes", "Invertido", "Costo/inst.", "Costo/reg.", "Costo/1er viaje"].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: S.th
   }, h)))), /*#__PURE__*/React.createElement("tbody", null, byZone.map(z => /*#__PURE__*/React.createElement("tr", {
@@ -1897,13 +1908,11 @@ function Results({
     style: S.td
   }, fmt(z.q.installs)), /*#__PURE__*/React.createElement("td", {
     style: S.td
+  }, fmt(z.q.registrations)), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, fmt(z.q.firstTrips)), /*#__PURE__*/React.createElement("td", {
+    style: S.td
   }, fmt(z.q.promoRedemptions)), /*#__PURE__*/React.createElement("td", {
-    style: {
-      ...S.td,
-      fontWeight: 700,
-      color: "#16A34A"
-    }
-  }, pct(z.s2r)), /*#__PURE__*/React.createElement("td", {
     style: S.td
   }, usd(z.cost)), /*#__PURE__*/React.createElement("td", {
     style: {
@@ -1911,14 +1920,26 @@ function Results({
       fontWeight: 700,
       color: "#E30613"
     }
-  }, usd(z.cpi))))))), /*#__PURE__*/React.createElement("p", {
+  }, z.cpi ? usd(z.cpi) : "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      ...S.td,
+      fontWeight: 700,
+      color: "#7C3AED"
+    }
+  }, z.cpr ? usd(z.cpr) : "—"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      ...S.td,
+      fontWeight: 700,
+      color: "#DB2777"
+    }
+  }, z.cpt ? usd(z.cpt) : "—")))))), /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: 11,
       color: "#94A3B8",
       margin: "12px 0 0",
       fontStyle: "italic"
     }
-  }, "Escaneos (QR) y canjes (promo code) son canales distintos, mostrados como complementarios. El % escaneo→canje es tu conversión real a cliente.")));
+  }, "Registros y primeros viajes vienen del reporte de Adjust. Los costos se calculan con la inversión del calendario para cada zona.")));
 }
 function FunnelStep({
   icon: Icon,
@@ -2265,6 +2286,38 @@ function CalendarView({
   }, /*#__PURE__*/React.createElement(IconRight, {
     size: 18
   })))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.legend,
+      marginTop: 0,
+      marginBottom: 16,
+      paddingTop: 0,
+      borderTop: "none",
+      borderBottom: "1px solid #F1F5F9",
+      paddingBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.legendTitle
+  }, "Leyenda de calendario"), ACTIVE_TYPES.map(t => /*#__PURE__*/React.createElement("div", {
+    key: t.id,
+    style: S.legItem
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 10,
+      height: 10,
+      borderRadius: 99,
+      background: t.color
+    }
+  }), t.label)), /*#__PURE__*/React.createElement("div", {
+    style: S.legItem
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 14,
+      height: 10,
+      borderRadius: 4,
+      border: "1px solid #F59E0B",
+      background: "#FEF3C7"
+    }
+  }), "Verificada Mystery Shopper")), /*#__PURE__*/React.createElement("div", {
     style: S.calGrid
   }, ["L", "M", "M", "J", "V", "S", "D"].map((d, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
@@ -3346,7 +3399,7 @@ async function buildActivationReport(acts, alloc, from, to) {
     doc.text(`${activationLabel(a)} · ${a.address || "Dirección no cargada"}`, 16, y + 9, {
       maxWidth: 175
     });
-    doc.text(`Flyers: ${fmt(a.flyers)} · Promotoras: ${a.promoterNames || fmt(a.promoters)} · Costo: ${usd(a.cost)}`, 16, y + 16, {
+    doc.text(`Flyers reales: ${fmt(a.actualFlyers ?? a.flyers)} · Promotoras reales: ${a.actualPromoters ?? a.promoters}${a.promoterNames ? ` (${a.promoterNames})` : ""} · Costo: ${usd(a.cost)}`, 16, y + 16, {
       maxWidth: 175
     });
     doc.text(`Clicks: ${fmt(metrics.clicks)} · Installs: ${fmt(metrics.installs)} · Registros: ${fmt(metrics.registrations)} · 1ros viajes: ${fmt(metrics.firstTrips)}`, 16, y + 23);
@@ -3370,51 +3423,82 @@ async function buildActivationReport(acts, alloc, from, to) {
   const filename = `reporte-activaciones-${from || "inicio"}-${to || new Date().toISOString().slice(0, 10)}.pdf`;
   doc.save(filename);
 }
-function AgencyPortal({
+function AgencyStandalone({
   acts,
-  onSave,
-  alloc,
-  from,
-  to
+  onSave
 }) {
-  const rows = [...acts].sort((a, b) => b.date.localeCompare(a.date));
-  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const rows = acts.filter(a => inRange(a.date, from, to)).sort((a, b) => a.date.localeCompare(b.date));
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      minHeight: "100vh",
+      background: "#F8FAFC",
+      padding: 20,
+      fontFamily: "'YangoText',system-ui,sans-serif"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxWidth: 1100,
+      margin: "0 auto",
+      display: "flex",
+      flexDirection: "column",
+      gap: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       ...S.resultBanner,
       background: "#172554"
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontWeight: 800,
-      fontSize: 20
+      fontWeight: 900,
+      fontSize: 24
     }
-  }, "Admin de agencia"), /*#__PURE__*/React.createElement("div", {
+  }, "Portal agencia · Yango BTL"), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 12.5,
+      fontSize: 13,
       opacity: .82,
       marginTop: 4
     }
-  }, "La agencia abre cada activación del calendario y carga promotoras, flyers reales y fotos de prueba.")), /*#__PURE__*/React.createElement("button", {
-    className: "primarybtn",
+  }, "Selecciona cada activación del calendario y carga fotos, cantidad real de promotoras y flyers entregados.")), /*#__PURE__*/React.createElement("a", {
+    href: window.location.pathname,
     style: {
       ...S.primaryBtn,
       background: "#fff",
-      color: "#172554"
-    },
-    onClick: () => buildActivationReport(rows, alloc, from, to)
-  }, /*#__PURE__*/React.createElement(IconDownload, {
-    size: 16
-  }), " Descargar PDF")), /*#__PURE__*/React.createElement("p", {
+      color: "#172554",
+      textDecoration: "none"
+    }
+  }, "Volver al dashboard")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.filters,
+      margin: 0
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Desde"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: S.input,
+    value: from,
+    onChange: e => setFrom(e.target.value)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Hasta"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: S.input,
+    value: to,
+    onChange: e => setTo(e.target.value)
+  }))), /*#__PURE__*/React.createElement("p", {
     style: {
       margin: 0,
       padding: "12px 14px",
       borderRadius: 10,
-      background: "#FFF7ED",
-      color: "#9A3412",
+      background: "#EFF6FF",
+      color: "#1E3A8A",
       fontSize: 12,
       lineHeight: 1.5
     }
-  }, "Esta es la primera versión operativa. El acceso por usuario y las fotos compartidas entre dispositivos se conectarán a Supabase; por ahora los cambios quedan guardados en este navegador."), rows.length ? /*#__PURE__*/React.createElement("div", {
+  }, "Importante: este portal lee las activaciones cargadas en el calendario. Para sincronizar cargas entre computadoras distintas, hay que conectar el buzón central (Google Apps Script o Supabase)."), rows.length ? /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
@@ -3425,6 +3509,148 @@ function AgencyPortal({
     act: a,
     onSave: onSave
   }))) : /*#__PURE__*/React.createElement(Empty, {
+    msg: "No hay activaciones para este rango."
+  })));
+}
+function AgencyPortal({
+  acts,
+  onSave,
+  alloc,
+  from,
+  to
+}) {
+  const rows = [...acts].sort((a, b) => b.date.localeCompare(a.date));
+  const agencyUrl = `${window.location.origin}${window.location.pathname}?agency=1`;
+  const submitted = rows.filter(a => (a.photos || []).length || a.promoterNames || a.actualPromoters || a.actualFlyers).length;
+  const totalFlyers = rows.reduce((s, a) => s + (Number(a.actualFlyers) || 0), 0);
+  const totalPhotos = rows.reduce((s, a) => s + ((a.photos || []).length), 0);
+  const copyAgencyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(agencyUrl);
+      alert("Link de agencia copiado.");
+    } catch (e) {
+      prompt("Copia este link para la agencia:", agencyUrl);
+    }
+  };
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.resultBanner,
+      background: "#172554"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 800,
+      fontSize: 20
+    }
+  }, "Tu resumen de agencia"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      opacity: .82,
+      marginTop: 4
+    }
+  }, "Aquí ves lo que cargó la agencia y descargas el reporte con fotos por rango de fechas.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "ghostbtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#172554"
+    },
+    onClick: copyAgencyLink
+  }, /*#__PURE__*/React.createElement(IconUpload, {
+    size: 16
+  }), " Copiar link agencia"), /*#__PURE__*/React.createElement("button", {
+    className: "primarybtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#172554"
+    },
+    onClick: () => buildActivationReport(rows, alloc, from, to)
+  }, /*#__PURE__*/React.createElement(IconDownload, {
+    size: 16
+  }), " Descargar PDF"))), /*#__PURE__*/React.createElement("div", {
+    style: S.kpiGrid
+  }, /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconCheck,
+    label: "Activaciones con carga",
+    value: `${submitted}/${rows.length}`,
+    accent: "#16A34A"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconTicket,
+    label: "Flyers reportados",
+    value: fmt(totalFlyers),
+    accent: "#E30613"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconImage,
+    label: "Fotos cargadas",
+    value: fmt(totalPhotos),
+    accent: "#0EA5E9"
+  })), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: 0,
+      padding: "12px 14px",
+      borderRadius: 10,
+      background: "#FFF7ED",
+      color: "#9A3412",
+      fontSize: 12,
+      lineHeight: 1.5
+    }
+  }, "Link operativo para agencia: ", /*#__PURE__*/React.createElement("b", null, agencyUrl), ". Para ver cargas hechas desde otro equipo, el siguiente paso es conectar este portal a Google Apps Script o Supabase como buzón central."), rows.length ? /*#__PURE__*/React.createElement(Card, {
+    title: "Cargas de agencia",
+    hint: "Resumen sin mostrar fotos. El PDF sí incluye las evidencias del rango seleccionado."
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto",
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: S.table
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Fecha", "Activación", "Ubicación", "Promotoras reales", "Flyers reales", "Fotos", "Estado"].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: S.th
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, rows.map(a => {
+    const photoCount = (a.photos || []).length;
+    const completed = photoCount || a.promoterNames || a.actualPromoters || a.actualFlyers;
+    return /*#__PURE__*/React.createElement("tr", {
+      key: a.id
+    }, /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, shortDate(a.date)), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("b", null, a.name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10.5,
+        color: "#94A3B8",
+        marginTop: 2
+      }
+    }, typeOf(a.type).label)), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, displayLocation(a)), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, a.actualPromoters ?? "—", a.promoterNames ? /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10.5,
+        color: "#94A3B8",
+        marginTop: 2
+      }
+    }, a.promoterNames) : null), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, a.actualFlyers === null || a.actualFlyers === undefined ? "—" : fmt(a.actualFlyers)), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, fmt(photoCount)), /*#__PURE__*/React.createElement("td", {
+      style: {
+        ...S.td,
+        fontWeight: 800,
+        color: completed ? "#16A34A" : "#B45309"
+      }
+    }, completed ? "Cargado" : "Pendiente"));
+  }))))) : /*#__PURE__*/React.createElement(Empty, {
     msg: "No hay activaciones en el periodo seleccionado."
   }));
 }
@@ -3432,7 +3658,8 @@ function AgencyRow({
   act,
   onSave
 }) {
-  const [flyers, setFlyers] = useState(act.flyers || 0);
+  const [actualFlyers, setActualFlyers] = useState(act.actualFlyers ?? "");
+  const [actualPromoters, setActualPromoters] = useState(act.actualPromoters ?? act.promoters ?? 0);
   const [promoterNames, setPromoterNames] = useState(act.promoterNames || "");
   const [photos, setPhotos] = useState(act.photos || []);
   const [saved, setSaved] = useState(false);
@@ -3448,7 +3675,8 @@ function AgencyRow({
   const save = () => {
     onSave({
       ...act,
-      flyers: Math.max(0, Number(flyers) || 0),
+      actualFlyers: actualFlyers === "" ? null : Math.max(0, Number(actualFlyers) || 0),
+      actualPromoters: Math.max(0, Number(actualPromoters) || 0),
       promoterNames: promoterNames.trim(),
       photos
     });
@@ -3482,6 +3710,13 @@ function AgencyRow({
       width: 220
     }
   }, /*#__PURE__*/React.createElement(Field, {
+    label: "Cant. promotoras reales"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    style: S.input,
+    value: actualPromoters,
+    onChange: e => setActualPromoters(e.target.value)
+  })), /*#__PURE__*/React.createElement(Field, {
     label: "Promotoras que asistieron"
   }, /*#__PURE__*/React.createElement("input", {
     style: S.input,
@@ -3493,8 +3728,9 @@ function AgencyRow({
   }, /*#__PURE__*/React.createElement("input", {
     type: "number",
     style: S.input,
-    value: flyers,
-    onChange: e => setFlyers(e.target.value)
+    value: actualFlyers,
+    onChange: e => setActualFlyers(e.target.value),
+    placeholder: `Plan: ${fmt(act.flyers || 0)}`
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: "1 1 260px"
