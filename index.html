@@ -561,25 +561,62 @@ function findZoneBucket(value) {
 }
 const TYPES = [{
   id: "flyer",
-  label: "Solo flyers",
+  label: "Flyers",
   color: "#6B7280"
 }, {
   id: "cafe",
-  label: "Café + flyers",
+  label: "Café",
   color: "#B45309"
 }, {
   id: "helado",
-  label: "Helados / paletas",
+  label: "Helados",
   color: "#0EA5E9"
+}, {
+  id: "material_pop",
+  label: "Material POP",
+  color: "#DB2777"
 }, {
   id: "universidad",
   label: "Universidad",
   color: "#7C3AED"
 }, {
   id: "evento",
-  label: "Evento / POP",
-  color: "#DB2777"
+  label: "Evento",
+  color: "#EC4899"
 }];
+const ACTIVE_TYPES = TYPES.filter(t => ["flyer", "cafe", "helado", "material_pop"].includes(t.id));
+const EXPANDED_TYPE_ZONES = ["Sabana Grande", "Petare", "Centro", "Universidades", "Oeste"];
+const TYPE_NAME_ALIASES = {
+  flyers: "flyer",
+  flyer: "flyer",
+  volante: "flyer",
+  volantes: "flyer",
+  cafe: "cafe",
+  café: "cafe",
+  helado: "helado",
+  helados: "helado",
+  paleta: "helado",
+  paletas: "helado",
+  pop: "material_pop",
+  materialpop: "material_pop",
+  material_pop: "material_pop",
+  material_pop_: "material_pop",
+  universidad: "universidad",
+  universidades: "universidad",
+  evento: "evento",
+  eventos: "evento"
+};
+function normalizeTypeId(value) {
+  const key = slugify(value).replace(/_/g, "");
+  return TYPE_NAME_ALIASES[key] || TYPES.find(t => t.id === value || compactSlug(t.id) === key || compactSlug(t.label) === key)?.id || "";
+}
+function allowedTypesForZone(zone) {
+  return EXPANDED_TYPE_ZONES.includes(zone) ? ACTIVE_TYPES : ACTIVE_TYPES.filter(t => t.id === "flyer");
+}
+function safeTypeForZone(type, zone) {
+  const normalized = normalizeTypeId(type) || "flyer";
+  return allowedTypesForZone(zone).some(t => t.id === normalized) ? normalized : "flyer";
+}
 const STATUS = {
   planned: {
     label: "Planificada",
@@ -769,10 +806,10 @@ function seed() {
     voucherCode: "SABANA20"
   }), base({
     id: "a2",
-    name: "Paletas Plaza Altamira",
+    name: "Flyers Plaza Altamira",
     zone: "Este",
     realLocation: "Altamira",
-    type: "helado",
+    type: "flyer",
     date: offset(-9),
     status: "done",
     promoters: 3,
@@ -794,10 +831,10 @@ function seed() {
     cost: 180
   }), base({
     id: "a4",
-    name: "Activación UCAB Mundial",
+    name: "Material POP UCAB Mundial",
     zone: "Universidades",
     realLocation: "UCAB",
-    type: "universidad",
+    type: "material_pop",
     date: offset(-4),
     status: "done",
     promoters: 4,
@@ -808,10 +845,10 @@ function seed() {
     voucherCode: "UCAB25"
   }), base({
     id: "a5",
-    name: "Café Chacaíto bulevar",
+    name: "Flyers Chacaíto bulevar",
     zone: "Este",
     realLocation: "Chacaíto",
-    type: "cafe",
+    type: "flyer",
     date: offset(-2),
     status: "done",
     promoters: 3,
@@ -821,10 +858,10 @@ function seed() {
     voucherCode: "CHACA20"
   }), base({
     id: "a6",
-    name: "Evento POP Las Mercedes",
+    name: "Flyers Las Mercedes",
     zone: "Sureste",
     realLocation: "Las Mercedes",
-    type: "evento",
+    type: "flyer",
     date: offset(2),
     status: "confirmed",
     promoters: 6,
@@ -834,10 +871,10 @@ function seed() {
     voucherCode: "MERCADO30"
   }), base({
     id: "a7",
-    name: "Helados Altamira tarde",
+    name: "Flyers Altamira tarde",
     zone: "Este",
     realLocation: "Altamira",
-    type: "helado",
+    type: "flyer",
     date: offset(4),
     status: "confirmed",
     promoters: 3,
@@ -881,14 +918,27 @@ const displayLocation = a => a.realLocation || a.location || a.zone;
 const activationLabel = a => `${displayLocation(a)} ${shortDate(a.date)}`;
 const slugify = value => String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/&/g, " y ").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 const compactSlug = value => slugify(value).replace(/_/g, "");
-const adjustNameFor = a => a.adjustName || `${compactSlug(a.zone)}_${a.type || "flyer"}_${a.date || new Date().toISOString().slice(0, 10)}`;
+const pascalSlug = value => slugify(value).split("_").filter(Boolean).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join("");
+const adjustLocationLabel = value => ({
+  ucab: "UCAB"
+})[compactSlug(value)] || pascalSlug(value);
+const adjustTypeLabel = type => ({
+  flyer: "Flyers",
+  cafe: "Cafe",
+  helado: "Helados",
+  material_pop: "MaterialPOP",
+  universidad: "Universidad",
+  evento: "Evento"
+})[type] || pascalSlug(type);
+const adjustNameFor = a => a.adjustName || `${adjustLocationLabel(displayLocation(a) || a.zone)}${adjustTypeLabel(safeTypeForZone(a.type, a.zone))}`;
+const isLegacyAdjustName = value => /20\d{2}|_/.test(String(value || ""));
 const normalizeAdjustKey = value => slugify(value).replace(/_/g, "");
 function parseAdjustName(value) {
   const raw = String(value || "").trim();
   const key = normalizeAdjustKey(raw);
   const spaced = slugify(raw);
   const zone = findZoneBucket(raw);
-  const typeObj = TYPES.find(t => key.includes(compactSlug(t.id)) || key.includes(compactSlug(t.label))) || null;
+  const typeObj = TYPES.find(t => key.includes(compactSlug(t.id)) || key.includes(compactSlug(t.label)) || Object.entries(TYPE_NAME_ALIASES).some(([alias, id]) => id === t.id && key.includes(alias))) || null;
   const dateMatch = spaced.match(/(20\d{2})[_-]?(\d{2})[_-]?(\d{2})/) || spaced.match(/(\d{2})[_-]?(\d{2})[_-]?(20\d{2})/) || spaced.match(/(\d{2})[_-]?(\d{2})(?!\d)/);
   let date = "";
   if (dateMatch) {
@@ -992,12 +1042,24 @@ function App() {
     promoRedemptions: 0,
     photos: [],
     ...a
-  })).map(a => ({
-    ...a,
-    zone: findZoneBucket(a.zone) || a.zone,
-    realLocation: a.realLocation || a.location || (!ZONES.includes(a.zone) ? a.zone : ""),
-    adjustName: a.adjustName || adjustNameFor(a)
-  })));
+  })).map(a => {
+    const zone = findZoneBucket(a.zone || a.realLocation || a.location) || a.zone || ZONES[0];
+    const realLocation = a.realLocation || a.location || (!ZONES.includes(a.zone) ? a.zone : "");
+    const type = safeTypeForZone(a.type, zone);
+    return {
+      ...a,
+      zone,
+      realLocation,
+      type,
+      adjustName: a.adjustName && !isLegacyAdjustName(a.adjustName) ? a.adjustName : adjustNameFor({
+        ...a,
+        zone,
+        realLocation,
+        type,
+        adjustName: ""
+      })
+    };
+  }));
   const [qr, setQr] = useState(() => {
     const saved = load(QR_KEY, seedQR);
     const byZone = new Map();
@@ -1067,11 +1129,24 @@ function App() {
     setEditing(null);
   };
   const bulkAdd = rows => {
-    setActs(p => [...p, ...rows.map(a => ({
-      ...a,
-      realLocation: a.realLocation || a.location || (!ZONES.includes(a.zone) ? a.zone : ""),
-      zone: findZoneBucket(a.zone || a.realLocation || a.location) || a.zone
-    }))]);
+    setActs(p => [...p, ...rows.map(a => {
+      const zone = findZoneBucket(a.zone || a.realLocation || a.location) || a.zone || ZONES[0];
+      const realLocation = a.realLocation || a.location || (!ZONES.includes(a.zone) ? a.zone : "");
+      const type = safeTypeForZone(a.type, zone);
+      return {
+        ...a,
+        zone,
+        realLocation,
+        type,
+        adjustName: a.adjustName && !isLegacyAdjustName(a.adjustName) ? a.adjustName : adjustNameFor({
+          ...a,
+          zone,
+          realLocation,
+          type,
+          adjustName: ""
+        })
+      };
+    })]);
     setImporting(false);
     setTab("activations");
   };
@@ -1441,7 +1516,7 @@ function Filters({
     style: S.select
   }, /*#__PURE__*/React.createElement("option", {
     value: "all"
-  }, "Todos"), TYPES.map(t => /*#__PURE__*/React.createElement("option", {
+  }, "Todos"), ACTIVE_TYPES.map(t => /*#__PURE__*/React.createElement("option", {
     key: t.id,
     value: t.id
   }, t.label))))));
@@ -1471,7 +1546,7 @@ function Global({
   const redemptions = directRedemptions || qr.reduce((s, q) => s + (q.promoRedemptions || 0), 0);
   const cpi = qrT.installs ? totalCost / qrT.installs : 0;
   const cpt = qrT.firstTrips ? totalCost / qrT.firstTrips : 0;
-  const byType = TYPES.map(t => {
+  const byType = ACTIVE_TYPES.map(t => {
     const r = done.filter(a => a.type === t.id);
     const inst = r.reduce((s, a) => s + (alloc[a.id]?.installs || 0), 0);
     return {
@@ -1914,7 +1989,7 @@ function QRZones({
       color: "#64748B",
       marginTop: 2
     }
-  }, "Cada QR debe tener un nombre Adjust único: bucket_tipo_fecha. Ejemplo: este_cafe_2026-06-24. El reporte de Adjust también puede venir por bucket: Petare, Centro, Este…")), /*#__PURE__*/React.createElement("button", {
+  }, "Cada QR debe tener un nombre Adjust único por ubicación y tipo, sin fecha. Ejemplo: SabanaGrandeHelados. El reporte de Adjust también puede venir por bucket: Petare, Centro, Este…")), /*#__PURE__*/React.createElement("button", {
     className: "primarybtn",
     style: S.primaryBtn,
     onClick: onImportResults
@@ -1932,7 +2007,7 @@ function QRZones({
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: S.colHint
-  }, /*#__PURE__*/React.createElement("b", null, "Formato:"), " bucket_tipo_fecha", /*#__PURE__*/React.createElement("br", null), "Ej: ", /*#__PURE__*/React.createElement("code", null, "este_cafe_2026-06-24")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("b", null, "Formato:"), " UbicacionTipo", /*#__PURE__*/React.createElement("br", null), "Ej: ", /*#__PURE__*/React.createElement("code", null, "SabanaGrandeHelados")), /*#__PURE__*/React.createElement("div", {
     style: S.colHint
   }, /*#__PURE__*/React.createElement("b", null, "Adjust export:"), " campaign · adgroup · installs · attribution_clicks · registration_events · custom_sfo_yango_venezuela · success_first_order_events"))), /*#__PURE__*/React.createElement(Card, {
     title: "QR, promo codes y métricas",
@@ -2108,7 +2183,7 @@ function MapView({
     }
   }, approximate, " activación", approximate !== 1 ? "es usan" : " usa", " una coordenada aproximada de la zona. Abre la ficha y busca la dirección para ubicarla exactamente."), /*#__PURE__*/React.createElement("div", {
     style: S.legend
-  }, TYPES.map(t => /*#__PURE__*/React.createElement("div", {
+  }, ACTIVE_TYPES.map(t => /*#__PURE__*/React.createElement("div", {
     key: t.id,
     style: S.legItem
   }, /*#__PURE__*/React.createElement("span", {
@@ -2807,7 +2882,7 @@ function calendarRows(objects) {
     const bucketRaw = String(pick("bucketadjust", "bucket", "zonaadjust", "zona", "flyer") || "").trim();
     const zone = findZoneBucket(bucketRaw || realLocation) || ZONES[0];
     const typeRaw = String(pick("tipo", "type", "tipodeactivacion") || "").trim();
-    const typeObj = TYPES.find(t => t.id === typeRaw || t.label.toLowerCase() === typeRaw.toLowerCase()) || TYPES[0];
+    const type = safeTypeForZone(typeRaw, zone);
     const start = String(pick("horainicio", "inicio", "starttime", "hora") || "").trim();
     const end = String(pick("horafin", "fin", "endtime") || "").trim();
     const notes = String(pick("notas", "notes", "comentarios") || "").trim();
@@ -2817,7 +2892,7 @@ function calendarRows(objects) {
       name: String(pick("nombre", "activacion", "name", "activation") || "").trim() || `Activación ${realLocation || zone}`,
       zone,
       realLocation: realLocation || "",
-      type: typeObj.id,
+      type,
       promoters: toNumber(pick("promotoras", "promoters")) || 3,
       hours: 4,
       flyers: toNumber(pick("flyersestimados", "flyers", "volantes", "flyersentregados")),
@@ -2847,7 +2922,7 @@ function BulkImport({
 }) {
   const [text, setText] = useState("");
   const [msg, setMsg] = useState("");
-  const example = "Fecha\tNombre\tUbicación real\tBucket Adjust\tTipo\tDirección\tHora inicio\tHora fin\tPromotoras\tFlyers estimados\tCosto USD\tVoucher\tLink QR\tResponsable\tNotas\n2026-07-01\tCafé Altamira\tAltamira\t\tcafe\tPlaza Altamira\t08:00\t12:00\t4\t1200\t320\tALTAMIRA20\t\tAgencia BTL\t";
+  const example = "Fecha\tNombre\tUbicación real\tBucket Adjust\tTipo\tDirección\tHora inicio\tHora fin\tPromotoras\tFlyers estimados\tCosto USD\tVoucher\tLink QR\tResponsable\tNotas\n2026-07-01\tHelados Sabana Grande\tSabana Grande\t\thelado\tBoulevard de Sabana Grande\t08:00\t12:00\t4\t1200\t320\tSABANA20\t\tAgencia BTL\t";
   const readFile = async event => {
     const file = event.target.files[0];
     if (!file) return;
@@ -2950,7 +3025,7 @@ function BulkImport({
       color: "#94A3B8",
       margin: "8px 0"
     }
-  }, "Fecha AAAA-MM-DD. Tipo: flyer, cafe, helado, universidad, evento. Ubicación real: Altamira, Los Ruices, UCAB, Las Mercedes, etc. Bucket Adjust: ", ZONES.join(", "), "."), /*#__PURE__*/React.createElement("textarea", {
+  }, "Fecha AAAA-MM-DD. Tipo: flyer, cafe, helado, material_pop. Café/Helados/Material POP solo aplican para Sabana Grande, Petare, Centro, Universidades y Oeste; las demás zonas se guardan como flyers. Ubicación real: Altamira, Los Ruices, UCAB, Las Mercedes, etc. Bucket Adjust: ", ZONES.join(", "), "."), /*#__PURE__*/React.createElement("textarea", {
     style: {
       ...S.input,
       minHeight: 160,
@@ -3023,12 +3098,14 @@ function resultRows(objects) {
     const adjustName = String(pick("adjustname", "nombreadjust", "nombreadjust", "activationname", "activacion", "activation", "campaignid") || adgroup || campaign || "").trim();
     const parsedName = parseAdjustName(adjustName);
     const zoneName = String(pick("zona", "ubicacion", "location", "flyer") || "").trim();
+    const zone = findZoneBucket(zoneName || parsedName.zone || adjustName || campaign) || "";
+    const type = safeTypeForZone(String(pick("tipo", "type") || parsedName.type || "").trim(), zone);
     const lowerName = adjustName.toLowerCase().trim();
     return {
       date: isoDate(pick("fecha", "date", "day", "dia")) || parsedName.date,
       qrUrl: String(pick("linkdelcodigoqr", "linkqr", "qrurl", "link", "url") || "").trim(),
-      zone: findZoneBucket(zoneName || parsedName.zone || adjustName || campaign) || "",
-      type: String(pick("tipo", "type") || parsedName.type || "").trim(),
+      zone,
+      type,
       campaign,
       adgroup,
       adjustName,
@@ -3119,7 +3196,7 @@ function ResultsImport({
       lineHeight: 1.6,
       marginTop: 0
     }
-  }, "Sube el CSV exportado de Adjust tal cual. Si el adgroup viene como Petare, Centro, Este, Sureste, Universidades, Oeste, Sur, Norte, Satelites o Sabana Grande, la herramienta actualiza automáticamente los resultados QR por bucket."), /*#__PURE__*/React.createElement("div", {
+  }, "Sube el CSV exportado de Adjust tal cual. Si el adgroup viene como SabanaGrandeHelados, PetareCafe, AltamiraFlyers o como bucket completo (Petare, Centro, Este…), la herramienta actualiza automáticamente los resultados QR por bucket."), /*#__PURE__*/React.createElement("div", {
     style: S.colHint
   }, /*#__PURE__*/React.createElement("b", null, "Columnas Adjust:"), " campaign · adgroup · installs · attribution_clicks · registration_events · custom_sfo_yango_venezuela · success_first_order_events"), /*#__PURE__*/React.createElement("p", {
     style: {
@@ -3127,7 +3204,7 @@ function ResultsImport({
       color: "#94A3B8",
       margin: "8px 0 0"
     }
-  }, "El adgroup puede ser el bucket completo (ej. Este) o una ubicación interna (ej. Altamira); la app lo normaliza al bucket correcto."), /*#__PURE__*/React.createElement("div", {
+  }, "El adgroup puede ser ubicación+tipo (ej. SabanaGrandeHelados), bucket completo (ej. Este) o una ubicación interna (ej. Altamira); la app lo normaliza al bucket correcto."), /*#__PURE__*/React.createElement("div", {
     style: {
       ...S.colHint,
       background: "#F8FAFC",
@@ -3533,7 +3610,15 @@ function Editor({
     notes: "",
     confExec: null
   };
-  const [f, setF] = useState(act || blank);
+  const [f, setF] = useState(() => {
+    const initial = act || blank;
+    const zone = findZoneBucket(initial.zone || initial.realLocation || initial.location) || initial.zone || ZONES[0];
+    return {
+      ...initial,
+      zone,
+      type: safeTypeForZone(initial.type, zone)
+    };
+  });
   const [geoMsg, setGeoMsg] = useState("");
   const [geoLoading, setGeoLoading] = useState(false);
   const isNew = !act,
@@ -3581,6 +3666,7 @@ function Editor({
   };
   const al = act ? alloc[act.id] : null;
   const suggestedAdjustName = adjustNameFor(f);
+  const editorTypes = allowedTypesForZone(f.zone);
   return /*#__PURE__*/React.createElement("div", {
     style: S.overlay,
     onClick: onClose
@@ -3617,10 +3703,12 @@ function Editor({
     value: f.realLocation || "",
     onChange: e => setF(p => {
       const realLocation = e.target.value;
+      const zone = findZoneBucket(realLocation) || p.zone;
       return {
         ...p,
         realLocation,
-        zone: findZoneBucket(realLocation) || p.zone
+        zone,
+        type: safeTypeForZone(p.type, zone)
       };
     }),
     placeholder: "Ej: Altamira, Los Ruices, UCAB, Las Mercedes"
@@ -3631,7 +3719,11 @@ function Editor({
   }, /*#__PURE__*/React.createElement("select", {
     style: S.input,
     value: f.zone,
-    onChange: e => set("zone", e.target.value)
+    onChange: e => setF(p => ({
+      ...p,
+      zone: e.target.value,
+      type: safeTypeForZone(p.type, e.target.value)
+    }))
   }, ZONES.map(z => /*#__PURE__*/React.createElement("option", {
     key: z
   }, z)))), /*#__PURE__*/React.createElement(Field, {
@@ -3639,8 +3731,8 @@ function Editor({
   }, /*#__PURE__*/React.createElement("select", {
     style: S.input,
     value: f.type,
-    onChange: e => set("type", e.target.value)
-  }, TYPES.map(t => /*#__PURE__*/React.createElement("option", {
+    onChange: e => set("type", safeTypeForZone(e.target.value, f.zone))
+  }, editorTypes.map(t => /*#__PURE__*/React.createElement("option", {
     key: t.id,
     value: t.id
   }, t.label))))), /*#__PURE__*/React.createElement(Field, {
@@ -3788,8 +3880,8 @@ function Editor({
       fontFamily: "monospace"
     },
     value: f.adjustName || suggestedAdjustName,
-    onChange: e => set("adjustName", slugify(e.target.value)),
-    placeholder: "sabanagrande_cafe_2026-06-24"
+    onChange: e => set("adjustName", e.target.value.replace(/\s+/g, "").trim()),
+    placeholder: "SabanaGrandeHelados"
   }), /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "ghostbtn",
@@ -3805,7 +3897,7 @@ function Editor({
       color: "#94A3B8",
       marginTop: 5
     }
-  }, "Usa este texto en Adjust para que el reporte se cruce solo con ubicación, tipo y fecha.")), /*#__PURE__*/React.createElement(Field, {
+  }, "Usa este texto en Adjust para que el reporte se cruce solo con ubicación real y tipo.")), /*#__PURE__*/React.createElement(Field, {
     label: "Link rastreable (compartido por las activaciones de la zona)"
   }, /*#__PURE__*/React.createElement("input", {
     style: S.input,
