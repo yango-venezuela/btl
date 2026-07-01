@@ -769,6 +769,7 @@ const STORE_KEY = "yango_btl_h1",
 function seed() {
   const base = over => ({
     promoters: 3,
+    promoterNames: "",
     hours: 4,
     flyers: 0,
     cost: 0,
@@ -1204,7 +1205,7 @@ function App() {
       } : a;
     }));
     setImportingResults(false);
-    setTab("qr");
+    setTab("results");
   };
   const filtered = acts.filter(a => (zoneFilter === "all" || a.zone === zoneFilter) && (typeFilter === "all" || a.type === typeFilter) && inRange(a.date, from, to));
   const alloc = useMemo(() => allocate(acts, qr), [acts, qr]);
@@ -1240,7 +1241,7 @@ function App() {
     onMenu: () => setMenuOpen(v => !v)
   }), /*#__PURE__*/React.createElement("div", {
     style: S.content
-  }, tab !== "mystery" && tab !== "settings" && /*#__PURE__*/React.createElement(Filters, {
+  }, tab !== "mystery" && /*#__PURE__*/React.createElement(Filters, {
     zoneFilter,
     setZoneFilter,
     typeFilter,
@@ -1264,7 +1265,8 @@ function App() {
     onOpen: setEditing
   }), tab === "calendar" && /*#__PURE__*/React.createElement(CalendarView, {
     acts: filtered,
-    onOpen: setEditing
+    onOpen: setEditing,
+    mystery: mystery
   }), tab === "activations" && /*#__PURE__*/React.createElement(ActivationList, {
     acts: filtered,
     alloc: alloc,
@@ -1286,9 +1288,6 @@ function App() {
     setMystery: setMystery,
     acts: acts,
     cfg: cfg
-  }), tab === "settings" && /*#__PURE__*/React.createElement(Settings, {
-    cfg: cfg,
-    setCfg: setCfg
   }))), editing && /*#__PURE__*/React.createElement(Editor, {
     act: editing === "new" ? null : editing,
     alloc: alloc,
@@ -1334,21 +1333,13 @@ function Sidebar({
     label: "Activaciones",
     icon: IconPin
   }, {
-    id: "qr",
-    label: "QR y promo codes",
-    icon: IconQr
-  }, {
     id: "agency",
-    label: "Portal de agencia",
+    label: "Admin agencia",
     icon: IconImage
   }, {
     id: "mystery",
     label: "Mystery Shopper",
     icon: IconShield
-  }, {
-    id: "settings",
-    label: "Configuración",
-    icon: IconRefresh
   }];
   return /*#__PURE__*/React.createElement("aside", {
     style: S.sidebar,
@@ -1425,10 +1416,8 @@ function Header({
     map: "Mapa de activaciones",
     calendar: "Calendario",
     activations: "Activaciones y validación",
-    qr: "QR y promo codes por activación",
-    agency: "Portal de agencia y evidencias",
-    mystery: "Mystery Shopper",
-    settings: "Configuración"
+    agency: "Admin agencia y evidencias",
+    mystery: "Mystery Shopper"
   };
   return /*#__PURE__*/React.createElement("header", {
     style: S.header
@@ -1547,14 +1536,17 @@ function Global({
   const cpi = qrT.installs ? totalCost / qrT.installs : 0;
   const cpt = qrT.firstTrips ? totalCost / qrT.firstTrips : 0;
   const byType = ACTIVE_TYPES.map(t => {
-    const r = done.filter(a => a.type === t.id);
-    const inst = r.reduce((s, a) => s + (alloc[a.id]?.installs || 0), 0);
+    const rows = done.filter(a => a.type === t.id);
+    const installs = rows.reduce((s, a) => s + (alloc[a.id]?.installs || 0), 0);
+    const cost = rows.reduce((s, a) => s + (a.cost || 0), 0);
     return {
       ...t,
-      installs: inst,
-      count: r.length
+      rows,
+      installs,
+      cost,
+      count: rows.length
     };
-  }).filter(t => t.count);
+  }).filter(t => t.count).sort((a, b) => b.installs - a.installs);
   const byLocation = ZONES.map(zone => {
     const rows = done.filter(a => a.zone === zone);
     const metrics = rows.reduce((s, a) => {
@@ -1575,152 +1567,152 @@ function Global({
       ...metrics
     };
   }).filter(x => x.count).sort((a, b) => b.installs - a.installs);
-  const maxInst = Math.max(...byType.map(t => t.installs), 1);
-  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    style: S.kpiGrid
-  }, /*#__PURE__*/React.createElement(Kpi, {
-    icon: IconPin,
-    label: "Ejecutadas",
-    value: fmt(done.length),
-    accent: "#E30613"
-  }), /*#__PURE__*/React.createElement(Kpi, {
-    icon: IconPhone,
-    label: "Installs (est.)",
-    value: fmt(qrT.installs),
-    accent: "#0EA5E9"
-  }), /*#__PURE__*/React.createElement(Kpi, {
-    icon: IconTicket,
-    label: "Promo canjes",
-    value: fmt(redemptions),
-    accent: "#16A34A"
-  }), /*#__PURE__*/React.createElement(Kpi, {
-    icon: IconDollar,
-    label: "Invertido",
-    value: usd(totalCost),
-    accent: "#B45309"
-  }), /*#__PURE__*/React.createElement(Kpi, {
-    icon: IconTrend,
-    label: "Costo / install",
-    value: usd(cpi),
-    accent: "#7C3AED"
-  }), /*#__PURE__*/React.createElement(Kpi, {
-    icon: IconNav,
-    label: "Costo / 1er viaje",
-    value: usd(cpt),
-    accent: "#DB2777"
-  })), /*#__PURE__*/React.createElement("div", {
-    style: S.twoCol
-  }, /*#__PURE__*/React.createElement(Card, {
-    title: "Installs por tipo de activación",
-    hint: "Resultados directos por activación; si faltan, usa la estimación por zona"
-  }, /*#__PURE__*/React.createElement("div", {
+  const maxTypeInstalls = Math.max(...byType.map(t => t.installs), 1);
+  const maxLocationInstalls = Math.max(...byLocation.map(z => z.installs), 1);
+  const barList = (items, max, colorFor, metaFor) => React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
       gap: 14,
       marginTop: 6
     }
-  }, byType.sort((a, b) => b.installs - a.installs).map(t => /*#__PURE__*/React.createElement("div", {
-    key: t.id
-  }, /*#__PURE__*/React.createElement("div", {
+  }, items.map(item => React.createElement("div", {
+    key: item.id || item.zone
+  }, React.createElement("div", {
     style: S.barTop
-  }, /*#__PURE__*/React.createElement("span", {
+  }, React.createElement("span", {
     style: {
       fontWeight: 600,
       fontSize: 13
     }
-  }, t.label), /*#__PURE__*/React.createElement("span", {
+  }, item.label || item.zone), React.createElement("span", {
     style: {
       fontWeight: 700,
       fontSize: 13
     }
-  }, fmt(t.installs))), /*#__PURE__*/React.createElement("div", {
+  }, fmt(item.installs))), React.createElement("div", {
     style: S.barTrack
-  }, /*#__PURE__*/React.createElement("div", {
+  }, React.createElement("div", {
     style: {
       ...S.barFill,
-      width: `${t.installs / maxInst * 100}%`,
-      background: t.color
+      width: `${item.installs / max * 100}%`,
+      background: colorFor(item)
     }
-  })), /*#__PURE__*/React.createElement("div", {
+  })), React.createElement("div", {
     style: {
       fontSize: 11,
       color: "#94A3B8",
       marginTop: 3
     }
-  }, t.count, " activaciones"))))), /*#__PURE__*/React.createElement(Card, {
+  }, metaFor(item)))));
+  return React.createElement(React.Fragment, null, React.createElement("div", {
+    style: S.kpiGrid
+  }, React.createElement(Kpi, {
+    icon: IconPin,
+    label: "Ejecutadas",
+    value: fmt(done.length),
+    accent: "#E30613"
+  }), React.createElement(Kpi, {
+    icon: IconPhone,
+    label: "Installs (est.)",
+    value: fmt(qrT.installs),
+    accent: "#0EA5E9"
+  }), React.createElement(Kpi, {
+    icon: IconTicket,
+    label: "Promo canjes",
+    value: fmt(redemptions),
+    accent: "#16A34A"
+  }), React.createElement(Kpi, {
+    icon: IconDollar,
+    label: "Invertido",
+    value: usd(totalCost),
+    accent: "#B45309"
+  }), React.createElement(Kpi, {
+    icon: IconTrend,
+    label: "Costo / install",
+    value: usd(cpi),
+    accent: "#7C3AED"
+  }), React.createElement(Kpi, {
+    icon: IconNav,
+    label: "Costo / 1er viaje",
+    value: usd(cpt),
+    accent: "#DB2777"
+  })), React.createElement("div", {
+    style: S.twoCol
+  }, React.createElement(Card, {
+    title: "Installs por tipo de activación",
+    hint: "Resultados directos por activación; si faltan, usa la estimación por zona"
+  }, barList(byType, maxTypeInstalls, t => t.color, t => `${t.count} activaciones`)), React.createElement(Card, {
+    title: "Installs por ubicación",
+    hint: "Misma lectura del resumen por ubicación, pero en formato rápido"
+  }, barList(byLocation, maxLocationInstalls, () => "#E30613", z => `${z.count} activaciones · ${fmt(z.flyers)} flyers`)), React.createElement(Card, {
     title: "Inversión por tipo",
     hint: "Cuánto cuesta cada mecánica y qué trae"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
       gap: 12,
       marginTop: 6
     }
-  }, byType.map(t => {
-    const r = done.filter(a => a.type === t.id);
-    const c = r.reduce((s, a) => s + (a.cost || 0), 0);
-    const cpiT = t.installs ? c / t.installs : 0;
-    return /*#__PURE__*/React.createElement("div", {
-      key: t.id,
-      style: S.costRow
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        width: 9,
-        height: 9,
-        borderRadius: 99,
-        background: t.color,
-        flexShrink: 0
-      }
-    }), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontWeight: 600,
-        fontSize: 13,
-        flex: 1
-      }
-    }, t.label), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 12,
-        color: "#64748B"
-      }
-    }, usd(c)), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 12,
-        fontWeight: 700,
-        color: "#E30613",
-        width: 90,
-        textAlign: "right"
-      }
-    }, usd(cpiT), " / inst."));
-  })))), /*#__PURE__*/React.createElement(Card, {
+  }, byType.map(t => React.createElement("div", {
+    key: t.id,
+    style: S.costRow
+  }, React.createElement("span", {
+    style: {
+      width: 9,
+      height: 9,
+      borderRadius: 99,
+      background: t.color,
+      flexShrink: 0
+    }
+  }), React.createElement("span", {
+    style: {
+      fontWeight: 600,
+      fontSize: 13,
+      flex: 1
+    }
+  }, t.label), React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "#64748B"
+    }
+  }, usd(t.cost)), React.createElement("span", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#E30613",
+      width: 90,
+      textAlign: "right"
+    }
+  }, t.installs ? usd(t.cost / t.installs) : "—", " / inst.")))))), React.createElement(Card, {
     title: "Resumen por ubicación",
     hint: "Activaciones, flyers y resultados acumulados por zona"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, React.createElement("div", {
     style: {
       overflowX: "auto",
       marginTop: 8
     }
-  }, /*#__PURE__*/React.createElement("table", {
+  }, React.createElement("table", {
     style: S.table
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Ubicación", "Activaciones", "Flyers", "Installs", "1ros viajes", "Invertido", "Costo/install"].map(h => /*#__PURE__*/React.createElement("th", {
+  }, React.createElement("thead", null, React.createElement("tr", null, ["Ubicación", "Activaciones", "Flyers", "Installs", "1ros viajes", "Invertido", "Costo/install"].map(h => React.createElement("th", {
     key: h,
     style: S.th
-  }, h)))), /*#__PURE__*/React.createElement("tbody", null, byLocation.map(row => /*#__PURE__*/React.createElement("tr", {
+  }, h)))), React.createElement("tbody", null, byLocation.map(row => React.createElement("tr", {
     key: row.zone
-  }, /*#__PURE__*/React.createElement("td", {
+  }, React.createElement("td", {
     style: S.td
-  }, /*#__PURE__*/React.createElement("b", null, row.zone)), /*#__PURE__*/React.createElement("td", {
+  }, React.createElement("b", null, row.zone)), React.createElement("td", {
     style: S.td
-  }, fmt(row.count)), /*#__PURE__*/React.createElement("td", {
+  }, fmt(row.count)), React.createElement("td", {
     style: S.td
-  }, fmt(row.flyers)), /*#__PURE__*/React.createElement("td", {
+  }, fmt(row.flyers)), React.createElement("td", {
     style: S.td
-  }, fmt(row.installs)), /*#__PURE__*/React.createElement("td", {
+  }, fmt(row.installs)), React.createElement("td", {
     style: S.td
-  }, fmt(row.firstTrips)), /*#__PURE__*/React.createElement("td", {
+  }, fmt(row.firstTrips)), React.createElement("td", {
     style: S.td
-  }, usd(row.cost)), /*#__PURE__*/React.createElement("td", {
+  }, usd(row.cost)), React.createElement("td", {
     style: {
       ...S.td,
       color: "#E30613",
@@ -1835,6 +1827,14 @@ function Results({
     size: 42,
     opacity: .5
   })), /*#__PURE__*/React.createElement(Card, {
+    title: "Chuleta de ubicaciones",
+    hint: "Qué lugares incluye cada bucket del reporte de Adjust y del calendario"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.zoneCheatGrid
+  }, LOCATION_GROUPS.map(g => /*#__PURE__*/React.createElement("div", {
+    key: g.zone,
+    style: S.zoneCheat
+  }, /*#__PURE__*/React.createElement("b", null, g.zone), /*#__PURE__*/React.createElement("span", null, g.locations.join(", ")))))), /*#__PURE__*/React.createElement(Card, {
     title: "Captura digital por QR",
     hint: "Embudo agregado del periodo (clic → install → registro → primer viaje)"
   }, /*#__PURE__*/React.createElement("div", {
@@ -2183,7 +2183,9 @@ function MapView({
     }
   }, approximate, " activación", approximate !== 1 ? "es usan" : " usa", " una coordenada aproximada de la zona. Abre la ficha y busca la dirección para ubicarla exactamente."), /*#__PURE__*/React.createElement("div", {
     style: S.legend
-  }, ACTIVE_TYPES.map(t => /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.legendTitle
+  }, "Leyenda de colores"), ACTIVE_TYPES.map(t => /*#__PURE__*/React.createElement("div", {
     key: t.id,
     style: S.legItem
   }, /*#__PURE__*/React.createElement("span", {
@@ -2199,7 +2201,8 @@ function MapView({
 /* ============================ CALENDAR ============================ */
 function CalendarView({
   acts,
-  onOpen
+  onOpen,
+  mystery = []
 }) {
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
@@ -2235,6 +2238,7 @@ function CalendarView({
     };
   });
   const todayStr = new Date().toISOString().slice(0, 10);
+  const mysteryIds = new Set(mystery.map(m => m.actId).filter(Boolean));
   return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     style: S.calHead
   }, /*#__PURE__*/React.createElement("h3", {
@@ -2292,6 +2296,7 @@ function CalendarView({
       }
     }, list.map(a => {
       const t = typeOf(a.type);
+      const verified = mysteryIds.has(a.id);
       return /*#__PURE__*/React.createElement("button", {
         key: a.id,
         className: "calchip",
@@ -2299,14 +2304,17 @@ function CalendarView({
         style: {
           ...S.calChip,
           background: STATUS[a.status].bg,
-          borderLeft: `3px solid ${t.color}`
+          borderLeft: `3px solid ${t.color}`,
+          boxShadow: verified ? "0 0 0 1px #F59E0B inset" : "none"
         }
       }, /*#__PURE__*/React.createElement("span", {
         style: {
           color: STATUS[a.status].color,
           fontWeight: 600
         }
-      }, displayLocation(a)));
+      }, displayLocation(a)), verified && /*#__PURE__*/React.createElement("span", {
+        style: S.mysteryTag
+      }, "Mystery"));
     })));
   })));
 }
@@ -2330,7 +2338,7 @@ function ActivationList({
   });
   return /*#__PURE__*/React.createElement(React.Fragment, null, pending.length > 0 && /*#__PURE__*/React.createElement(Card, {
     title: "Por validar",
-    hint: "Confirma si la activación se dio. Luego abre la ficha para cargar flyers y costos."
+    hint: "La fecha viene del calendario cargado. Adjust/QR se cruza por ubicación + tipo, no por fecha."
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -2357,7 +2365,7 @@ function ActivationList({
         fontSize: 12,
         color: "#64748B"
       }
-    }, a.zone, " · ", t.label, " · ", new Date(a.date + "T00:00").toLocaleDateString("es-VE", {
+    }, displayLocation(a), " · ", t.label, " · fecha calendario: ", new Date(a.date + "T00:00").toLocaleDateString("es-VE", {
       day: "numeric",
       month: "short"
     })), /*#__PURE__*/React.createElement("div", {
@@ -2379,7 +2387,7 @@ function ActivationList({
     }), " No se dio"));
   }))), /*#__PURE__*/React.createElement(Card, {
     title: "Activaciones",
-    hint: "Toca cualquiera para cargar flyers entregados, costo y resultados."
+    hint: "El calendario trae fecha, ubicación, tipo, promotoras planificadas, flyers estimados, costo y dirección. La agencia luego cierra lo real en Admin agencia."
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -2418,7 +2426,7 @@ function ActivationList({
         color: "#64748B",
         marginTop: 2
       }
-    }, a.zone, " · ", t.label, " · ", new Date(a.date + "T00:00").toLocaleDateString("es-VE", {
+    }, displayLocation(a), " · ", t.label, " · fecha calendario: ", new Date(a.date + "T00:00").toLocaleDateString("es-VE", {
       day: "numeric",
       month: "short"
     }))), /*#__PURE__*/React.createElement("div", {
@@ -2488,7 +2496,7 @@ function Mystery({
   const [msg, setMsg] = useState("");
   const sync = async () => {
     if (!cfg.appsScriptUrl) {
-      setMsg("Configura primero el link de Apps Script en Configuración.");
+      setMsg("La conexión automática del formulario aún no está configurada.");
       return;
     }
     setLoading(true);
@@ -2501,7 +2509,7 @@ function Mystery({
         setMsg(`Sincronizado: ${data.length} respuestas.`);
       } else setMsg("El link respondió pero no trajo respuestas.");
     } catch (e) {
-      setMsg("No se pudo conectar. Revisa el link en Configuración.");
+      setMsg("No se pudo conectar con el formulario. Revisa el link de Apps Script.");
     }
     setLoading(false);
   };
@@ -2746,7 +2754,7 @@ function SyncBar({
       color: "#64748B",
       marginTop: 2
     }
-  }, configured ? "Trae las respuestas más recientes del form (Google Sheets vía Apps Script)." : "Aún no configurado. Ve a Configuración para pegar el link de Apps Script."), msg && /*#__PURE__*/React.createElement("div", {
+  }, configured ? "Trae las respuestas más recientes del form (Google Sheets vía Apps Script)." : "Conexión automática pendiente. Por ahora se muestran las verificaciones cargadas en la herramienta."), msg && /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: "#E30613",
@@ -2990,7 +2998,7 @@ function BulkImport({
       lineHeight: 1.6,
       marginTop: 0
     }
-  }, "Sube el template de calendario o pega las filas desde Excel/Sheets. El calendario usa Ubicación real; resultados/Adjust usan Bucket Adjust."), /*#__PURE__*/React.createElement("label", {
+  }, "Sube el template de calendario o pega las filas desde Excel/Sheets. La fecha, flyers estimados, costo, promotoras planificadas y dirección vienen de este archivo. Con Ubicación real la app detecta el bucket; lat/lng son opcionales solo para pin exacto en mapa."), /*#__PURE__*/React.createElement("label", {
     className: "primarybtn",
     style: {
       ...S.primaryBtn,
@@ -3338,7 +3346,9 @@ async function buildActivationReport(acts, alloc, from, to) {
     doc.text(`${activationLabel(a)} · ${a.address || "Dirección no cargada"}`, 16, y + 9, {
       maxWidth: 175
     });
-    doc.text(`Flyers: ${fmt(a.flyers)} · Promotoras: ${fmt(a.promoters)} · Costo: ${usd(a.cost)}`, 16, y + 16);
+    doc.text(`Flyers: ${fmt(a.flyers)} · Promotoras: ${a.promoterNames || fmt(a.promoters)} · Costo: ${usd(a.cost)}`, 16, y + 16, {
+      maxWidth: 175
+    });
     doc.text(`Clicks: ${fmt(metrics.clicks)} · Installs: ${fmt(metrics.installs)} · Registros: ${fmt(metrics.registrations)} · 1ros viajes: ${fmt(metrics.firstTrips)}`, 16, y + 23);
     doc.text(`Promo: ${a.voucherCode || "—"} · Canjes: ${fmt(a.promoRedemptions)} · Evidencias: ${(a.photos || []).length}`, 16, y + 30);
     y += 42;
@@ -3378,13 +3388,13 @@ function AgencyPortal({
       fontWeight: 800,
       fontSize: 20
     }
-  }, "Portal operativo de agencia"), /*#__PURE__*/React.createElement("div", {
+  }, "Admin de agencia"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12.5,
       opacity: .82,
       marginTop: 4
     }
-  }, "Carga flyers entregados y evidencias fotográficas por activación.")), /*#__PURE__*/React.createElement("button", {
+  }, "La agencia abre cada activación del calendario y carga promotoras, flyers reales y fotos de prueba.")), /*#__PURE__*/React.createElement("button", {
     className: "primarybtn",
     style: {
       ...S.primaryBtn,
@@ -3423,6 +3433,7 @@ function AgencyRow({
   onSave
 }) {
   const [flyers, setFlyers] = useState(act.flyers || 0);
+  const [promoterNames, setPromoterNames] = useState(act.promoterNames || "");
   const [photos, setPhotos] = useState(act.photos || []);
   const [saved, setSaved] = useState(false);
   const add = async event => {
@@ -3438,6 +3449,7 @@ function AgencyRow({
     onSave({
       ...act,
       flyers: Math.max(0, Number(flyers) || 0),
+      promoterNames: promoterNames.trim(),
       photos
     });
     setSaved(true);
@@ -3465,11 +3477,18 @@ function AgencyRow({
       color: "#64748B",
       marginTop: 4
     }
-  }, act.address || "Dirección pendiente", " · ", STATUS[act.status]?.label || act.status)), /*#__PURE__*/React.createElement("div", {
+  }, displayLocation(act), " · ", act.address || "Dirección pendiente", " · ", STATUS[act.status]?.label || act.status)), /*#__PURE__*/React.createElement("div", {
     style: {
-      width: 180
+      width: 220
     }
   }, /*#__PURE__*/React.createElement(Field, {
+    label: "Promotoras que asistieron"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: promoterNames,
+    onChange: e => setPromoterNames(e.target.value),
+    placeholder: "Ej: María, Ana, Sofía"
+  })), /*#__PURE__*/React.createElement(Field, {
     label: "Flyers entregados"
   }, /*#__PURE__*/React.createElement("input", {
     type: "number",
@@ -3590,6 +3609,7 @@ function Editor({
     date: new Date().toISOString().slice(0, 10),
     status: "planned",
     promoters: 3,
+    promoterNames: "",
     hours: 4,
     flyers: 0,
     cost: 0,
@@ -3665,7 +3685,6 @@ function Editor({
     event.target.value = "";
   };
   const al = act ? alloc[act.id] : null;
-  const suggestedAdjustName = adjustNameFor(f);
   const editorTypes = allowedTypesForZone(f.zone);
   return /*#__PURE__*/React.createElement("div", {
     style: S.overlay,
@@ -3865,39 +3884,19 @@ function Editor({
       color: "#94A3B8",
       margin: "6px 0 0"
     }
-  }, "Repartido desde el QR de ", f.zone, " según los flyers de esta activación.")), /*#__PURE__*/React.createElement(Divider, {
-    label: "QR de esta activación"
-  }), /*#__PURE__*/React.createElement(Field, {
-    label: "Nombre para Adjust (Campaign o Adgroup)"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, "Repartido desde el bucket de ", f.zone, " según los flyers de esta activación.")), /*#__PURE__*/React.createElement(Divider, {
+    label: "Tracking y promo (opcional)"
+  }), /*#__PURE__*/React.createElement("p", {
     style: {
-      display: "flex",
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement("input", {
-    style: {
-      ...S.input,
-      fontFamily: "monospace"
-    },
-    value: f.adjustName || suggestedAdjustName,
-    onChange: e => set("adjustName", e.target.value.replace(/\s+/g, "").trim()),
-    placeholder: "SabanaGrandeHelados"
-  }), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    className: "ghostbtn",
-    style: {
-      ...S.ghostBtn,
-      padding: "9px 12px",
-      whiteSpace: "nowrap"
-    },
-    onClick: () => set("adjustName", suggestedAdjustName)
-  }, "Usar sugerido")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10.5,
+      fontSize: 11.5,
       color: "#94A3B8",
-      marginTop: 5
+      lineHeight: 1.5,
+      margin: "-2px 0 10px"
     }
-  }, "Usa este texto en Adjust para que el reporte se cruce solo con ubicación real y tipo.")), /*#__PURE__*/React.createElement(Field, {
+  }, "El nombre de Adjust se calcula automáticamente como ubicación + tipo. Ejemplo: ", /*#__PURE__*/React.createElement("code", null, adjustNameFor({
+    ...f,
+    adjustName: ""
+  })), "."), /*#__PURE__*/React.createElement(Field, {
     label: "Link rastreable (compartido por las activaciones de la zona)"
   }, /*#__PURE__*/React.createElement("input", {
     style: S.input,
@@ -3987,7 +3986,13 @@ function Editor({
   }, "Cancelar"), /*#__PURE__*/React.createElement("button", {
     className: "primarybtn",
     style: S.primaryBtn,
-    onClick: () => onSave(f)
+    onClick: () => onSave({
+      ...f,
+      adjustName: adjustNameFor({
+        ...f,
+        adjustName: ""
+      })
+    })
   }, /*#__PURE__*/React.createElement(IconCheck, {
     size: 16
   }), " Guardar"))));
@@ -4289,6 +4294,24 @@ const S = {
     gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
     gap: 18
   },
+  zoneCheatGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 10,
+    marginTop: 10
+  },
+  zoneCheat: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    background: "#F8FAFC",
+    border: "1px solid #E2E8F0",
+    borderRadius: 10,
+    padding: "10px 12px",
+    fontSize: 12,
+    color: "#64748B",
+    lineHeight: 1.4
+  },
   card: {
     background: "#fff",
     border: "1px solid #E2E8F0",
@@ -4481,6 +4504,14 @@ const S = {
     paddingTop: 14,
     borderTop: "1px solid #F1F5F9"
   },
+  legendTitle: {
+    flexBasis: "100%",
+    fontSize: 11,
+    fontWeight: 800,
+    color: "#0F172A",
+    textTransform: "uppercase",
+    letterSpacing: ".04em"
+  },
   legItem: {
     display: "flex",
     alignItems: "center",
@@ -4535,6 +4566,17 @@ const S = {
     overflow: "hidden",
     whiteSpace: "nowrap",
     textOverflow: "ellipsis"
+  },
+  mysteryTag: {
+    display: "inline-block",
+    marginLeft: 5,
+    padding: "1px 4px",
+    borderRadius: 999,
+    background: "#FEF3C7",
+    color: "#B45309",
+    fontSize: 9,
+    fontWeight: 800,
+    verticalAlign: "middle"
   },
   actRow: {
     display: "flex",
