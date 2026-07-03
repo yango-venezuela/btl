@@ -1436,7 +1436,10 @@ function App() {
     saves: 0,
     comments: 0,
     notes: "",
-    ...i
+    ...i,
+    budget: Number(i.budget ?? i.closedBudget ?? i.negotiatedBudget) || 0,
+    sameTiktokHandle: i.sameTiktokHandle !== false,
+    tiktokHandle: i.sameTiktokHandle === false ? i.tiktokHandle || "" : ""
   })));
   const [socialReport, setSocialReport] = useState(() => {
     const saved = load(SOC_KEY, socialReportSeed);
@@ -4814,7 +4817,10 @@ function influencerTemplate(over = {}) {
     saves: 0,
     comments: 0,
     notes: "",
-    ...over
+    ...over,
+    budget: Number(over.budget ?? over.closedBudget ?? over.negotiatedBudget) || 0,
+    sameTiktokHandle: over.sameTiktokHandle !== false,
+    tiktokHandle: over.sameTiktokHandle === false ? over.tiktokHandle || "" : ""
   };
 }
 function influencerStatus(label, active, color) {
