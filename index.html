@@ -778,7 +778,7 @@ const INFLUENCER_TIERS = [{
   color: "#E30613"
 }];
 const SOCIAL_PLATFORMS = ["Instagram", "TikTok", "IG + TikTok"];
-const SOCIAL_DELIVERABLES = ["Stories", "Reel", "Post", "TikTok", "Live", "Whitelisting"];
+const SOCIAL_DELIVERABLES = ["Stories", "Reel", "Post", "TikTok", "Live"];
 const SOCIAL_RESULT_FIELDS = ["Reach", "Likes", "Comments", "Shares", "Saves"];
 const SOCIAL_REPORT_MONTHS = ["Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026", "Junio 2026", "Julio 2026", "Agosto 2026", "Septiembre 2026"];
 const SOCIAL_REPORT_LEGACY_MONTHS = {
@@ -915,10 +915,10 @@ function socialReportSeed() {
       clicks_facebook: v(["222,828", "91,215", "83,539", "51,184", "94,000"]),
       aorp_instagram: v(["569", "261", "307", "700", "13,611"]),
       arp_instagram: v(["217,867", "39,677", "64,070", "73,619", "72,324"]),
-      ors_instagram: v(["0.26%", "0.66%", "0.48%", "0.95%", "0.57%"]),
+      ors_instagram: v(["0,26%", "0,66%", "0,48%", "0,95%", "0,57%"]),
       aorp_facebook: v(["2,091", "262", "797", "1,262", "1,222"]),
       arp_facebook: v(["6,235,628", "1,292,422", "2,286,091", "1,863,535", "1,446,818"]),
-      ors_facebook: v(["0.03%", "4.85%", "3.49%", "6.77%", "8.45%"]),
+      ors_facebook: v(["0,03%", "4,85%", "3,49%", "6,77%", "8,45%"]),
       aorp_tiktok: v(["2,133", "5,643", "1,933", "1,667", "1,800"]),
       arp_tiktok: v(["2,133", "5,643", "1,933", "1,667", "1,800"]),
       ors_tiktok: v(["100%", "100%", "100%", "100%", "100%"])
@@ -948,7 +948,19 @@ function normalizeSocialReport(report) {
   };
 }
 function parseMetricValue(value) {
-  const cleaned = String(value || "").replace(/%/g, "").replace(/,/g, "").trim();
+  let cleaned = String(value || "").replace(/%/g, "").replace(/\s/g, "").trim();
+  if (!cleaned) return 0;
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+  if (lastComma >= 0 && lastDot >= 0) {
+    cleaned = lastComma > lastDot ? cleaned.replace(/\./g, "").replace(",", ".") : cleaned.replace(/,/g, "");
+  } else if (lastComma >= 0) {
+    const parts = cleaned.split(",");
+    cleaned = parts.length > 2 || parts[1]?.length === 3 ? cleaned.replace(/,/g, "") : cleaned.replace(",", ".");
+  } else if (lastDot >= 0) {
+    const parts = cleaned.split(".");
+    cleaned = parts.length > 2 || parts[1]?.length === 3 ? cleaned.replace(/\./g, "") : cleaned;
+  }
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : 0;
 }
@@ -982,7 +994,7 @@ function influencerMetrics(i) {
   const split = hasSplitSocialResults(i);
   const engagement = split ? ig.engagement + tiktok.engagement : (Number(i.likes) || 0) + (Number(i.comments) || 0) + (Number(i.shares) || 0) + (Number(i.saves) || 0);
   const reach = split ? ig.reach + tiktok.reach : Number(i.reach) || 0;
-  const cost = Number(i.closedBudget) || 0;
+  const cost = influencerBudget(i);
   const redemptions = Number(i.redemptions) || 0;
   return {
     engagement,
@@ -994,6 +1006,9 @@ function influencerMetrics(i) {
     cpr: redemptions ? cost / redemptions : 0
   };
 }
+function influencerBudget(i) {
+  return Number(i.budget ?? i.closedBudget ?? i.negotiatedBudget) || 0;
+}
 const seedInfluencers = () => [{
   id: "inf1",
   name: "Ana López",
@@ -1003,8 +1018,7 @@ const seedInfluencers = () => [{
   igFollowers: 8500,
   tiktokFollowers: 0,
   deliverables: ["Stories", "Reel"],
-  negotiatedBudget: 180,
-  closedBudget: 150,
+  budget: 150,
   paid: false,
   recorded: true,
   published: false,
@@ -1033,8 +1047,7 @@ const seedInfluencers = () => [{
   igFollowers: 92000,
   tiktokFollowers: 135000,
   deliverables: ["Reel", "TikTok", "Stories"],
-  negotiatedBudget: 900,
-  closedBudget: 800,
+  budget: 800,
   paid: true,
   recorded: true,
   published: true,
@@ -1197,10 +1210,11 @@ function load(key, fb) {
 }
 const typeOf = id => TYPES.find(t => t.id === id) || TYPES[0];
 const fmt = n => new Intl.NumberFormat("es-VE").format(Math.round(n) || 0);
-const usd = n => "$" + new Intl.NumberFormat("en-US", {
+const usd = n => "$" + new Intl.NumberFormat("es-VE", {
   maximumFractionDigits: 0
 }).format(Math.round(n) || 0);
-const pct = n => (n * 100).toFixed(1) + "%";
+const dec = (n, digits = 1) => (Number(n) || 0).toFixed(digits).replace(".", ",");
+const pct = n => dec(n * 100, 1) + "%";
 const monthName = m => ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][m];
 const shortDate = date => date ? new Date(date + "T00:00:00").toLocaleDateString("es-VE", {
   day: "2-digit",
@@ -1394,9 +1408,10 @@ function App() {
     platform: "Instagram",
     igFollowers: 0,
     tiktokFollowers: 0,
+    sameTiktokHandle: true,
+    tiktokHandle: "",
     deliverables: [],
-    negotiatedBudget: 0,
-    closedBudget: 0,
+    budget: 0,
     paid: false,
     recorded: false,
     published: false,
@@ -2996,7 +3011,7 @@ function Mystery({
   }, /*#__PURE__*/React.createElement(Kpi, {
     icon: IconStar,
     label: "Calificación general",
-    value: calif.toFixed(1) + " / 5",
+    value: dec(calif, 1) + " / 5",
     accent: "#D97706"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconShield,
@@ -3041,7 +3056,7 @@ function Mystery({
         fontWeight: 700,
         fontSize: 13
       }
-    }, v.toFixed(1))), /*#__PURE__*/React.createElement("div", {
+    }, dec(v, 1))), /*#__PURE__*/React.createElement("div", {
       style: S.barTrack
     }, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -4191,8 +4206,9 @@ function socialReportSumForMonths(report, rowIds, months) {
 function compactMetric(value) {
   const n = Number(value) || 0;
   const abs = Math.abs(n);
-  if (abs >= 1000000) return `${(n / 1000000).toFixed(abs >= 10000000 ? 1 : 2).replace(/\.0+$/, "").replace(/(\.\d)0$/, "$1")}M`;
-  if (abs >= 1000) return `${(n / 1000).toFixed(abs >= 100000 ? 0 : 1).replace(/\.0$/, "")}K`;
+  const dec = v => String(v).replace(".", ",");
+  if (abs >= 1000000) return `${dec((n / 1000000).toFixed(abs >= 10000000 ? 1 : 2).replace(/\.0+$/, "").replace(/(\.\d)0$/, "$1"))}M`;
+  if (abs >= 1000) return `${dec((n / 1000).toFixed(abs >= 100000 ? 0 : 1).replace(/\.0$/, ""))}K`;
   return fmt(n);
 }
 function socialMetricDelta(report, rowId, months, month) {
@@ -4481,7 +4497,11 @@ function SocialMediaReport({
   }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
     style: {
       ...S.th,
-      minWidth: 160
+      minWidth: 160,
+      position: "sticky",
+      left: 0,
+      background: "#F8FAFC",
+      zIndex: 2
     }
   }, "Métrica"), visibleMonths.map(month => /*#__PURE__*/React.createElement("th", {
     key: month,
@@ -4496,7 +4516,11 @@ function SocialMediaReport({
     }, /*#__PURE__*/React.createElement("td", {
       style: {
         ...S.td,
-        fontWeight: 900
+        fontWeight: 900,
+        position: "sticky",
+        left: 0,
+        background: "#fff",
+        zIndex: 1
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -4601,13 +4625,7 @@ function SocialMediaReport({
       fontWeight: 900,
       fontSize: 20
     }
-  }, "Reporte Social Media · Venezuela"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12.5,
-      opacity: .86,
-      marginTop: 4
-    }
-  }, "Lectura mensual por plataforma, con crecimiento Month over Month debajo de cada dato.")), /*#__PURE__*/React.createElement("div", {
+  }, "Reporte Social Media · Venezuela")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -4621,8 +4639,11 @@ function SocialMediaReport({
       minWidth: 150,
       background: "#fff",
       color: "#172554",
-      border: "none",
-      fontWeight: 900
+      border: "1px solid rgba(255,255,255,.85)",
+      borderRadius: 999,
+      padding: "10px 34px 10px 14px",
+      fontWeight: 900,
+      boxShadow: "0 8px 20px rgba(15,23,42,.16)"
     },
     value: monthFilter,
     onChange: e => setMonthFilter(e.target.value)
@@ -4765,9 +4786,10 @@ function influencerTemplate(over = {}) {
     platform: "Instagram",
     igFollowers: 0,
     tiktokFollowers: 0,
+    sameTiktokHandle: true,
+    tiktokHandle: "",
     deliverables: ["Stories"],
-    negotiatedBudget: 0,
-    closedBudget: 0,
+    budget: 0,
     paid: false,
     recorded: false,
     published: false,
@@ -4840,11 +4862,16 @@ function influencerFollowers(i) {
     }
   }, "IG ", fmt(ig), " followers", /*#__PURE__*/React.createElement("br", null), "TikTok ", fmt(tiktok), " followers");
 }
+function influencerHandleText(i) {
+  const ig = i.handle || "—";
+  const tiktok = i.sameTiktokHandle === false && i.tiktokHandle ? ` · TikTok ${i.tiktokHandle}` : "";
+  return `${ig}${tiktok}`;
+}
 function downloadInfluencerCSV(items) {
-  const headers = ["Nombre", "Usuario", "Tipo", "Plataforma", "Followers IG", "Followers TikTok", "Entregables", "Presupuesto negociado", "Presupuesto cerrado", "Pagado", "Grabó", "Publicó", "Fecha publicación", "Link", "Tiene Promo Code", "Promo Code", "Redenciones", "IG Reach", "IG Likes", "IG Comentarios", "IG Shares", "IG Saves", "TikTok Reach", "TikTok Likes", "TikTok Comentarios", "TikTok Shares", "TikTok Saves", "Reach total", "Engagement total", "Engagement rate", "Costo por engagement", "CPM", "Costo por redención", "Notas"];
+  const headers = ["Nombre", "Usuario IG", "Usuario TikTok", "Tipo", "Plataforma", "Followers IG", "Followers TikTok", "Entregables", "Presupuesto", "Pagado", "Grabó", "Publicó", "Fecha publicación", "Link", "Tiene Promo Code", "Promo Code", "Redenciones", "IG Reach", "IG Likes", "IG Comentarios", "IG Shares", "IG Saves", "TikTok Reach", "TikTok Likes", "TikTok Comentarios", "TikTok Shares", "TikTok Saves", "Reach total", "Engagement total", "Engagement rate", "Costo por engagement", "CPM", "Costo por redención", "Notas"];
   const rows = items.map(i => {
     const m = influencerMetrics(i);
-    return [i.name, i.handle, tierOf(i.tier).label, i.platform, Number(i.igFollowers) || 0, Number(i.tiktokFollowers) || 0, (i.deliverables || []).join(" + "), Number(i.negotiatedBudget) || 0, Number(i.closedBudget) || 0, i.paid ? "Sí" : "No", i.recorded ? "Sí" : "No", i.published ? "Sí" : "No", i.publishDate || "", i.link || "", i.hasPromoCode ? "Sí" : "No", i.promoCode || "", Number(i.redemptions) || 0, m.ig.reach, m.ig.likes, m.ig.comments, m.ig.shares, m.ig.saves, m.tiktok.reach, m.tiktok.likes, m.tiktok.comments, m.tiktok.shares, m.tiktok.saves, m.ig.reach + m.tiktok.reach || Number(i.reach) || 0, m.engagement, pct(m.er), m.cpe ? usd(m.cpe) : "", m.cpm ? usd(m.cpm) : "", m.cpr ? usd(m.cpr) : "", i.notes || ""];
+    return [i.name, i.handle, i.sameTiktokHandle === false ? i.tiktokHandle || "" : i.handle || "", tierOf(i.tier).label, i.platform, Number(i.igFollowers) || 0, Number(i.tiktokFollowers) || 0, (i.deliverables || []).join(" + "), influencerBudget(i), i.paid ? "Sí" : "No", i.recorded ? "Sí" : "No", i.published ? "Sí" : "No", i.publishDate || "", i.link || "", i.hasPromoCode ? "Sí" : "No", i.promoCode || "", Number(i.redemptions) || 0, m.ig.reach, m.ig.likes, m.ig.comments, m.ig.shares, m.ig.saves, m.tiktok.reach, m.tiktok.likes, m.tiktok.comments, m.tiktok.shares, m.tiktok.saves, m.ig.reach + m.tiktok.reach || Number(i.reach) || 0, m.engagement, pct(m.er), m.cpe ? usd(m.cpe) : "", m.cpm ? usd(m.cpm) : "", m.cpr ? usd(m.cpr) : "", i.notes || ""];
   });
   const csv = [headers, ...rows].map(row => row.map(value => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
   const blob = new Blob(["\uFEFF" + csv], {
@@ -4870,9 +4897,9 @@ function InfluencerTracker({
   const rows = items.filter(i => (tierFilter === "all" || i.tier === tierFilter) && (platformFilter === "all" || i.platform === platformFilter) && inRange(i.publishDate, fromPub, toPub));
   const totals = rows.reduce((acc, i) => {
     const m = influencerMetrics(i);
-    acc.negotiated += Number(i.negotiatedBudget) || 0;
-    acc.closed += Number(i.closedBudget) || 0;
-    acc.paid += i.paid ? Number(i.closedBudget) || 0 : 0;
+    const budget = influencerBudget(i);
+    acc.budget += budget;
+    acc.paid += i.paid ? budget : 0;
     acc.recorded += i.recorded ? 1 : 0;
     acc.published += i.published ? 1 : 0;
     acc.influencers += i.tier === "influencer" ? 1 : 0;
@@ -4884,8 +4911,7 @@ function InfluencerTracker({
     acc.redemptions += Number(i.redemptions) || 0;
     return acc;
   }, {
-    negotiated: 0,
-    closed: 0,
+    budget: 0,
     paid: 0,
     recorded: 0,
     published: 0,
@@ -4983,8 +5009,8 @@ function InfluencerTracker({
     accent: "#F97316"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconDollar,
-    label: "Presupuesto cerrado",
-    value: usd(totals.closed),
+    label: "Presupuesto",
+    value: usd(totals.budget),
     accent: "#111827"
   })), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -5053,7 +5079,7 @@ function InfluencerTracker({
         fontSize: 11,
         marginTop: 2
       }
-    }, i.handle || "—", " · ", i.platform || "—"), influencerFollowers(i)), /*#__PURE__*/React.createElement("td", {
+    }, influencerHandleText(i), " · ", i.platform || "—"), influencerFollowers(i)), /*#__PURE__*/React.createElement("td", {
       style: S.td
     }, /*#__PURE__*/React.createElement("span", {
       style: {
@@ -5075,13 +5101,13 @@ function InfluencerTracker({
       }
     }, shortDate(i.publishDate)) : null), /*#__PURE__*/React.createElement("td", {
       style: S.td
-    }, /*#__PURE__*/React.createElement("b", null, usd(Number(i.closedBudget) || 0)), /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("b", null, usd(influencerBudget(i))), /*#__PURE__*/React.createElement("div", {
       style: {
         color: "#94A3B8",
         fontSize: 11,
         marginTop: 2
       }
-    }, "Neg. ", usd(Number(i.negotiatedBudget) || 0))), /*#__PURE__*/React.createElement("td", {
+    }, i.paid ? "Pagado" : "Pendiente pago")), /*#__PURE__*/React.createElement("td", {
       style: S.td
     }, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -5142,6 +5168,8 @@ function InfluencerEditor({
   onDelete
 }) {
   const [form, setForm] = useState(() => influencerTemplate(item));
+  const currentBudget = form.budget ?? form.closedBudget ?? form.negotiatedBudget ?? 0;
+  const sameTiktokHandle = form.sameTiktokHandle !== false;
   const set = (key, value) => setForm(previous => ({
     ...previous,
     [key]: value
@@ -5158,8 +5186,9 @@ function InfluencerEditor({
     ...form,
     igFollowers: Number(form.igFollowers) || 0,
     tiktokFollowers: Number(form.tiktokFollowers) || 0,
-    negotiatedBudget: Number(form.negotiatedBudget) || 0,
-    closedBudget: Number(form.closedBudget) || 0,
+    budget: Number(form.budget ?? form.closedBudget ?? form.negotiatedBudget) || 0,
+    sameTiktokHandle: form.sameTiktokHandle !== false,
+    tiktokHandle: form.sameTiktokHandle === false ? (form.tiktokHandle || "").trim() : "",
     redemptions: form.hasPromoCode ? Number(form.redemptions) || 0 : 0,
     igReach: Number(form.igReach) || 0,
     igLikes: Number(form.igLikes) || 0,
@@ -5216,13 +5245,37 @@ function InfluencerEditor({
     onChange: e => set("name", e.target.value),
     placeholder: "Ej. María Pérez"
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "Usuario"
+    label: "Usuario Instagram"
   }, /*#__PURE__*/React.createElement("input", {
     style: S.input,
     value: form.handle,
     onChange: e => set("handle", e.target.value),
-    placeholder: "@usuario"
-  }))), /*#__PURE__*/React.createElement("div", {
+    placeholder: "@usuario_ig"
+  }))), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8,
+      margin: "-2px 0 12px",
+      fontSize: 13,
+      fontWeight: 750
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: sameTiktokHandle,
+    onChange: e => setForm(previous => ({
+      ...previous,
+      sameTiktokHandle: e.target.checked,
+      tiktokHandle: e.target.checked ? "" : previous.tiktokHandle || previous.handle || ""
+    }))
+  }), "El usuario de TikTok es el mismo"), !sameTiktokHandle && /*#__PURE__*/React.createElement(Field, {
+    label: "Usuario TikTok"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: form.tiktokHandle || "",
+    onChange: e => set("tiktokHandle", e.target.value),
+    placeholder: "@usuario_tiktok"
+  })), /*#__PURE__*/React.createElement("div", {
     style: S.row2
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Tipo"
@@ -5289,25 +5342,15 @@ function InfluencerEditor({
     onChange: () => toggleDeliverable(label)
   }), label)))), /*#__PURE__*/React.createElement(Divider, {
     label: "Presupuesto y estado"
-  }), /*#__PURE__*/React.createElement("div", {
-    style: S.row2
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "Presupuesto negociado"
+  }), /*#__PURE__*/React.createElement(Field, {
+    label: "Presupuesto"
   }, /*#__PURE__*/React.createElement("input", {
     type: "number",
     min: "0",
     style: S.input,
-    value: form.negotiatedBudget,
-    onChange: numberField("negotiatedBudget")
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "Presupuesto cerrado"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    min: "0",
-    style: S.input,
-    value: form.closedBudget,
-    onChange: numberField("closedBudget")
-  }))), /*#__PURE__*/React.createElement("div", {
+    value: currentBudget,
+    onChange: e => set("budget", e.target.value)
+  })), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexWrap: "wrap",
@@ -5709,7 +5752,7 @@ function Editor({
       color: "#94A3B8",
       marginTop: 4
     }
-  }, "Coordenadas: ", Number(f.lat).toFixed(5), ", ", Number(f.lng).toFixed(5))), /*#__PURE__*/React.createElement("div", {
+  }, "Coordenadas: ", dec(Number(f.lat), 5), " / ", dec(Number(f.lng), 5))), /*#__PURE__*/React.createElement("div", {
     style: S.row2
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Fecha"
