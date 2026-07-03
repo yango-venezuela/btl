@@ -584,7 +584,7 @@ const TYPES = [{
   label: "Evento",
   color: "#EC4899"
 }];
-const ACTIVE_TYPES = TYPES.filter(t => ["flyer", "cafe", "helado", "material_pop"].includes(t.id));
+const ACTIVE_TYPES = TYPES.filter(t => ["flyer", "cafe", "helado", "material_pop", "universidad", "evento"].includes(t.id));
 const EXPANDED_TYPE_ZONES = ["Sabana Grande", "Petare", "Centro", "Universidades", "Oeste"];
 const TYPE_NAME_ALIASES = {
   flyers: "flyer",
@@ -611,7 +611,7 @@ function normalizeTypeId(value) {
   return TYPE_NAME_ALIASES[key] || TYPES.find(t => t.id === value || compactSlug(t.id) === key || compactSlug(t.label) === key)?.id || "";
 }
 function allowedTypesForZone(zone) {
-  return EXPANDED_TYPE_ZONES.includes(zone) ? ACTIVE_TYPES : ACTIVE_TYPES.filter(t => t.id === "flyer");
+  return EXPANDED_TYPE_ZONES.includes(zone) ? ACTIVE_TYPES : ACTIVE_TYPES.filter(t => ["flyer", "universidad", "evento"].includes(t.id));
 }
 function safeTypeForZone(type, zone) {
   const normalized = normalizeTypeId(type) || "flyer";
@@ -765,7 +765,82 @@ const seedMystery = () => [{
 const STORE_KEY = "yango_btl_h1",
   QR_KEY = "yango_btl_qr_h1",
   MYS_KEY = "yango_btl_mys_h1",
-  CFG_KEY = "yango_btl_cfg_h1";
+  CFG_KEY = "yango_btl_cfg_h1",
+  INF_KEY = "yango_influencers_h1";
+const INFLUENCER_TIERS = [{
+  id: "micro",
+  label: "Microinfluencer",
+  color: "#0EA5E9"
+}, {
+  id: "influencer",
+  label: "Influencer",
+  color: "#E30613"
+}];
+const SOCIAL_PLATFORMS = ["Instagram", "TikTok", "IG + TikTok"];
+const SOCIAL_DELIVERABLES = ["Stories", "Reel", "Post", "TikTok", "Live", "Whitelisting"];
+function tierOf(id) {
+  return INFLUENCER_TIERS.find(t => t.id === id) || INFLUENCER_TIERS[0];
+}
+function influencerMetrics(i) {
+  const engagement = (Number(i.likes) || 0) + (Number(i.comments) || 0) + (Number(i.shares) || 0) + (Number(i.saves) || 0);
+  const reach = Number(i.reach) || 0;
+  const cost = Number(i.closedBudget) || 0;
+  const redemptions = Number(i.redemptions) || 0;
+  return {
+    engagement,
+    er: reach ? engagement / reach : 0,
+    cpe: engagement ? cost / engagement : 0,
+    cpm: reach ? cost / reach * 1000 : 0,
+    cpr: redemptions ? cost / redemptions : 0
+  };
+}
+const seedInfluencers = () => [{
+  id: "inf1",
+  name: "Ana López",
+  handle: "@analopez",
+  tier: "micro",
+  platform: "Instagram",
+  deliverables: ["Stories", "Reel"],
+  negotiatedBudget: 180,
+  closedBudget: 150,
+  paid: false,
+  recorded: true,
+  published: false,
+  publishDate: offset(6),
+  link: "",
+  promoCode: "",
+  hasPromoCode: false,
+  redemptions: 0,
+  likes: 0,
+  shares: 0,
+  reach: 0,
+  saves: 0,
+  comments: 0,
+  notes: "Pendiente publicación."
+}, {
+  id: "inf2",
+  name: "Carlos Rides",
+  handle: "@carlosrides",
+  tier: "influencer",
+  platform: "IG + TikTok",
+  deliverables: ["Reel", "TikTok", "Stories"],
+  negotiatedBudget: 900,
+  closedBudget: 800,
+  paid: true,
+  recorded: true,
+  published: true,
+  publishDate: offset(-2),
+  link: "",
+  promoCode: "CARLOSYANGO",
+  hasPromoCode: true,
+  redemptions: 38,
+  likes: 1240,
+  shares: 86,
+  reach: 42000,
+  saves: 220,
+  comments: 74,
+  notes: "Buen fit para adquisición."
+}];
 function seed() {
   const base = over => ({
     promoters: 3,
@@ -990,6 +1065,7 @@ function fileToPhoto(file) {
     reader.readAsDataURL(file);
   });
 }
+const uid = prefix => `${prefix || "id"}${Date.now()}${Math.random().toString(36).slice(2, 7)}`;
 const activationMetrics = a => ({
   clicks: Number(a.clicks) || 0,
   installs: Number(a.installs) || 0,
@@ -1096,6 +1172,31 @@ function App() {
   const [cfg, setCfg] = useState(() => load(CFG_KEY, () => ({
     appsScriptUrl: ""
   })));
+  const [influencers, setInfluencers] = useState(() => load(INF_KEY, seedInfluencers).map(i => ({
+    id: i.id || uid(),
+    name: "",
+    handle: "",
+    tier: "micro",
+    platform: "Instagram",
+    deliverables: [],
+    negotiatedBudget: 0,
+    closedBudget: 0,
+    paid: false,
+    recorded: false,
+    published: false,
+    publishDate: "",
+    link: "",
+    promoCode: "",
+    hasPromoCode: false,
+    redemptions: 0,
+    likes: 0,
+    shares: 0,
+    reach: 0,
+    saves: 0,
+    comments: 0,
+    notes: "",
+    ...i
+  })));
   const [tab, setTab] = useState("global");
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -1125,6 +1226,11 @@ function App() {
       localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
     } catch (e) {}
   }, [cfg]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(INF_KEY, JSON.stringify(influencers));
+    } catch (e) {}
+  }, [influencers]);
   const save = a => {
     setActs(p => p.find(x => x.id === a.id) ? p.map(x => x.id === a.id ? a : x) : [...p, a]);
     setEditing(null);
@@ -1133,6 +1239,10 @@ function App() {
     setActs(p => p.filter(x => x.id !== id));
     setEditing(null);
   };
+  const saveInfluencer = item => {
+    setInfluencers(previous => previous.find(x => x.id === item.id) ? previous.map(x => x.id === item.id ? item : x) : [...previous, item]);
+  };
+  const removeInfluencer = id => setInfluencers(previous => previous.filter(x => x.id !== id));
   const bulkAdd = rows => {
     setActs(p => [...p, ...rows.map(a => {
       const zone = findZoneBucket(a.zone || a.realLocation || a.location) || a.zone || ZONES[0];
@@ -1246,11 +1356,11 @@ function App() {
     style: S.main
   }, /*#__PURE__*/React.createElement(Header, {
     tab: tab,
-    count: acts.length,
+    count: tab === "influencers" ? influencers.length : acts.length,
     onMenu: () => setMenuOpen(v => !v)
   }), /*#__PURE__*/React.createElement("div", {
     style: S.content
-  }, tab !== "mystery" && /*#__PURE__*/React.createElement(Filters, {
+  }, !["mystery", "influencers"].includes(tab) && /*#__PURE__*/React.createElement(Filters, {
     zoneFilter,
     setZoneFilter,
     typeFilter,
@@ -1292,6 +1402,10 @@ function App() {
     alloc: alloc,
     from: from,
     to: to
+  }), tab === "influencers" && /*#__PURE__*/React.createElement(InfluencerTracker, {
+    items: influencers,
+    onSave: saveInfluencer,
+    onDelete: removeInfluencer
   }), tab === "mystery" && /*#__PURE__*/React.createElement(Mystery, {
     mystery: mystery,
     setMystery: setMystery,
@@ -1345,6 +1459,10 @@ function Sidebar({
     id: "agency",
     label: "Admin agencia",
     icon: IconImage
+  }, {
+    id: "influencers",
+    label: "Influencers",
+    icon: IconUserPlus
   }, {
     id: "mystery",
     label: "Mystery Shopper",
@@ -1426,6 +1544,7 @@ function Header({
     calendar: "Calendario",
     activations: "Activaciones y validación",
     agency: "Admin agencia y evidencias",
+    influencers: "IG, TikTok e Influencers",
     mystery: "Mystery Shopper"
   };
   return /*#__PURE__*/React.createElement("header", {
@@ -3778,6 +3897,598 @@ function AgencyRow({
   }, /*#__PURE__*/React.createElement(IconCheck, {
     size: 16
   }), saved ? " Guardado" : " Guardar evidencia")));
+}
+
+/* ============================ INFLUENCERS + SOCIAL ============================ */
+function influencerTemplate(over = {}) {
+  return {
+    id: uid("inf"),
+    name: "",
+    handle: "",
+    tier: "micro",
+    platform: "Instagram",
+    deliverables: ["Stories"],
+    negotiatedBudget: 0,
+    closedBudget: 0,
+    paid: false,
+    recorded: false,
+    published: false,
+    publishDate: "",
+    link: "",
+    hasPromoCode: false,
+    promoCode: "",
+    redemptions: 0,
+    likes: 0,
+    shares: 0,
+    reach: 0,
+    saves: 0,
+    comments: 0,
+    notes: "",
+    ...over
+  };
+}
+function influencerStatus(label, active, color) {
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 5,
+      padding: "5px 9px",
+      borderRadius: 999,
+      background: active ? `${color}18` : "#F1F5F9",
+      color: active ? color : "#64748B",
+      fontSize: 11,
+      fontWeight: 800
+    }
+  }, active ? "✓" : "·", " ", label);
+}
+function downloadInfluencerCSV(items) {
+  const headers = ["Nombre", "Usuario", "Tipo", "Plataforma", "Entregables", "Presupuesto negociado", "Presupuesto cerrado", "Pagado", "Grabó", "Publicó", "Fecha publicación", "Link", "Tiene promo code", "Promo code", "Redenciones", "Reach", "Likes", "Comentarios", "Shares", "Saves", "Engagement", "Engagement rate", "Costo por engagement", "CPM", "Costo por redención", "Notas"];
+  const rows = items.map(i => {
+    const m = influencerMetrics(i);
+    return [i.name, i.handle, tierOf(i.tier).label, i.platform, (i.deliverables || []).join(" + "), Number(i.negotiatedBudget) || 0, Number(i.closedBudget) || 0, i.paid ? "Sí" : "No", i.recorded ? "Sí" : "No", i.published ? "Sí" : "No", i.publishDate || "", i.link || "", i.hasPromoCode ? "Sí" : "No", i.promoCode || "", Number(i.redemptions) || 0, Number(i.reach) || 0, Number(i.likes) || 0, Number(i.comments) || 0, Number(i.shares) || 0, Number(i.saves) || 0, m.engagement, pct(m.er), m.cpe ? usd(m.cpe) : "", m.cpm ? usd(m.cpm) : "", m.cpr ? usd(m.cpr) : "", i.notes || ""];
+  });
+  const csv = [headers, ...rows].map(row => row.map(value => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
+  const blob = new Blob(["\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `yango_influencers_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function InfluencerTracker({
+  items,
+  onSave,
+  onDelete
+}) {
+  const [tierFilter, setTierFilter] = useState("all");
+  const [platformFilter, setPlatformFilter] = useState("all");
+  const [editing, setEditing] = useState(null);
+  const rows = items.filter(i => (tierFilter === "all" || i.tier === tierFilter) && (platformFilter === "all" || i.platform === platformFilter));
+  const totals = rows.reduce((acc, i) => {
+    const m = influencerMetrics(i);
+    acc.negotiated += Number(i.negotiatedBudget) || 0;
+    acc.closed += Number(i.closedBudget) || 0;
+    acc.paid += i.paid ? Number(i.closedBudget) || 0 : 0;
+    acc.recorded += i.recorded ? 1 : 0;
+    acc.published += i.published ? 1 : 0;
+    acc.reach += Number(i.reach) || 0;
+    acc.engagement += m.engagement;
+    acc.redemptions += Number(i.redemptions) || 0;
+    return acc;
+  }, {
+    negotiated: 0,
+    closed: 0,
+    paid: 0,
+    recorded: 0,
+    published: 0,
+    reach: 0,
+    engagement: 0,
+    redemptions: 0
+  });
+  const er = totals.reach ? totals.engagement / totals.reach : 0;
+  const saveAndClose = item => {
+    onSave(item);
+    setEditing(null);
+  };
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.resultBanner,
+      background: "linear-gradient(135deg,#111827,#E30613)"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 900,
+      fontSize: 20
+    }
+  }, "Tracking de IG, TikTok e Influencers"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      opacity: .85,
+      marginTop: 4
+    }
+  }, "Controla acuerdos, entregables, pago, publicación, resultados y promo codes por creador.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "primarybtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#172554"
+    },
+    onClick: () => setEditing(influencerTemplate())
+  }, /*#__PURE__*/React.createElement(IconPlus, {
+    size: 16
+  }), " Nuevo influencer"), /*#__PURE__*/React.createElement("button", {
+    className: "ghostbtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#172554"
+    },
+    onClick: () => downloadInfluencerCSV(rows)
+  }, /*#__PURE__*/React.createElement(IconDownload, {
+    size: 16
+  }), " Descargar CSV"))), /*#__PURE__*/React.createElement("div", {
+    style: S.kpiGrid
+  }, /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconDollar,
+    label: "Presupuesto cerrado",
+    value: usd(totals.closed),
+    accent: "#E30613"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconCheck,
+    label: "Publicados",
+    value: `${totals.published}/${rows.length}`,
+    accent: "#16A34A"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconEye,
+    label: "Reach total",
+    value: fmt(totals.reach),
+    accent: "#0EA5E9"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconTrend,
+    label: "Engagement rate",
+    value: pct(er),
+    accent: "#7C3AED"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconTicket,
+    label: "Redenciones promo",
+    value: fmt(totals.redemptions),
+    accent: "#F97316"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconDollar,
+    label: "Costo/redención",
+    value: totals.redemptions ? usd(totals.closed / totals.redemptions) : "—",
+    accent: "#111827"
+  })), /*#__PURE__*/React.createElement(Card, {
+    title: "Qué conviene medir",
+    hint: "Además de likes, estos indicadores ayudan a decidir a quién repetir."
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 10
+    }
+  }, ["Engagement rate", "CPM", "Costo por engagement", "Costo por redención", "Estado de pago", "Grabó / publicó", "Link de publicación"].map(label => /*#__PURE__*/React.createElement("span", {
+    key: label,
+    style: {
+      padding: "7px 10px",
+      borderRadius: 999,
+      background: "#F8FAFC",
+      color: "#475569",
+      fontSize: 12,
+      fontWeight: 750,
+      border: "1px solid #E2E8F0"
+    }
+  }, label)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.filters,
+      marginTop: 0
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Tipo"
+  }, /*#__PURE__*/React.createElement("select", {
+    style: S.select,
+    value: tierFilter,
+    onChange: e => setTierFilter(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "Todos"), INFLUENCER_TIERS.map(t => /*#__PURE__*/React.createElement("option", {
+    key: t.id,
+    value: t.id
+  }, t.label)))), /*#__PURE__*/React.createElement(Field, {
+    label: "Plataforma"
+  }, /*#__PURE__*/React.createElement("select", {
+    style: S.select,
+    value: platformFilter,
+    onChange: e => setPlatformFilter(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "Todas"), SOCIAL_PLATFORMS.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p,
+    value: p
+  }, p))))), rows.length ? /*#__PURE__*/React.createElement(Card, {
+    title: "Influencers",
+    hint: "Cada fila mezcla acuerdo comercial, operación y resultados."
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto",
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: S.table
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Influencer", "Tipo", "Entregables", "Presupuesto", "Estados", "Resultados", "Promo code", "Link", ""].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: S.th
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, rows.map(i => {
+    const tier = tierOf(i.tier);
+    const m = influencerMetrics(i);
+    return /*#__PURE__*/React.createElement("tr", {
+      key: i.id
+    }, /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("b", null, i.name || "Sin nombre"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: "#94A3B8",
+        fontSize: 11,
+        marginTop: 2
+      }
+    }, i.handle || "—", " · ", i.platform || "—")), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: "inline-flex",
+        padding: "5px 9px",
+        borderRadius: 999,
+        background: `${tier.color}18`,
+        color: tier.color,
+        fontSize: 11,
+        fontWeight: 850
+      }
+    }, tier.label)), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, (i.deliverables || []).join(" + ") || "—", i.publishDate ? /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: "#94A3B8",
+        fontSize: 11,
+        marginTop: 2
+      }
+    }, shortDate(i.publishDate)) : null), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("b", null, usd(Number(i.closedBudget) || 0)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: "#94A3B8",
+        fontSize: 11,
+        marginTop: 2
+      }
+    }, "Neg. ", usd(Number(i.negotiatedBudget) || 0))), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 5
+      }
+    }, influencerStatus("Pagado", i.paid, "#16A34A"), influencerStatus("Grabó", i.recorded, "#0EA5E9"), influencerStatus("Publicó", i.published, "#E30613"))), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("b", null, fmt(Number(i.reach) || 0), " reach"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: "#94A3B8",
+        fontSize: 11,
+        marginTop: 2
+      }
+    }, fmt(m.engagement), " engagement · ER ", pct(m.er))), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, i.hasPromoCode ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("b", null, i.promoCode || "Sin código"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: "#94A3B8",
+        fontSize: 11,
+        marginTop: 2
+      }
+    }, fmt(Number(i.redemptions) || 0), " redenciones")) : "No aplica"), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, i.link ? /*#__PURE__*/React.createElement("a", {
+      href: i.link,
+      target: "_blank",
+      rel: "noreferrer",
+      style: {
+        color: "#E30613",
+        fontWeight: 800,
+        textDecoration: "none"
+      }
+    }, "Abrir") : "—"), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "ghostbtn",
+      style: {
+        ...S.ghostBtn,
+        padding: "7px 10px",
+        fontSize: 12
+      },
+      onClick: () => setEditing(influencerTemplate(i))
+    }, "Editar")));
+  }))))) : /*#__PURE__*/React.createElement(Empty, {
+    msg: "Todavía no hay influencers para este filtro."
+  }), editing && /*#__PURE__*/React.createElement(InfluencerEditor, {
+    item: editing,
+    onSave: saveAndClose,
+    onClose: () => setEditing(null),
+    onDelete: id => {
+      onDelete(id);
+      setEditing(null);
+    }
+  }));
+}
+function InfluencerEditor({
+  item,
+  onSave,
+  onClose,
+  onDelete
+}) {
+  const [form, setForm] = useState(() => influencerTemplate(item));
+  const set = (key, value) => setForm(previous => ({
+    ...previous,
+    [key]: value
+  }));
+  const toggleDeliverable = label => setForm(previous => {
+    const current = previous.deliverables || [];
+    return {
+      ...previous,
+      deliverables: current.includes(label) ? current.filter(x => x !== label) : [...current, label]
+    };
+  });
+  const numberField = key => e => set(key, e.target.value);
+  const normalized = () => ({
+    ...form,
+    negotiatedBudget: Number(form.negotiatedBudget) || 0,
+    closedBudget: Number(form.closedBudget) || 0,
+    redemptions: form.hasPromoCode ? Number(form.redemptions) || 0 : 0,
+    likes: Number(form.likes) || 0,
+    shares: Number(form.shares) || 0,
+    reach: Number(form.reach) || 0,
+    saves: Number(form.saves) || 0,
+    comments: Number(form.comments) || 0,
+    promoCode: form.hasPromoCode ? (form.promoCode || "").trim().toUpperCase() : ""
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    style: S.overlay
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.modal,
+      maxWidth: 760
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.modalHead
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", {
+    style: {
+      margin: 0,
+      fontSize: 18,
+      fontWeight: 900
+    }
+  }, form.name ? "Editar influencer" : "Nuevo influencer"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "4px 0 0",
+      fontSize: 12,
+      color: "#64748B"
+    }
+  }, "Acuerdo, operación, publicación y resultados en una sola ficha.")), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    style: S.iconBtn
+  }, /*#__PURE__*/React.createElement(IconX, {
+    size: 18
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: S.modalBody
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.row2
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Nombre"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: form.name,
+    onChange: e => set("name", e.target.value),
+    placeholder: "Ej. María Pérez"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Usuario"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: form.handle,
+    onChange: e => set("handle", e.target.value),
+    placeholder: "@usuario"
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: S.row2
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Tipo"
+  }, /*#__PURE__*/React.createElement("select", {
+    style: S.select,
+    value: form.tier,
+    onChange: e => set("tier", e.target.value)
+  }, INFLUENCER_TIERS.map(t => /*#__PURE__*/React.createElement("option", {
+    key: t.id,
+    value: t.id
+  }, t.label)))), /*#__PURE__*/React.createElement(Field, {
+    label: "Plataforma"
+  }, /*#__PURE__*/React.createElement("select", {
+    style: S.select,
+    value: form.platform,
+    onChange: e => set("platform", e.target.value)
+  }, SOCIAL_PLATFORMS.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p,
+    value: p
+  }, p))))), /*#__PURE__*/React.createElement(Field, {
+    label: "Entregables cerrados"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 8
+    }
+  }, SOCIAL_DELIVERABLES.map(label => /*#__PURE__*/React.createElement("label", {
+    key: label,
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "8px 10px",
+      borderRadius: 999,
+      border: "1px solid #E2E8F0",
+      fontSize: 12,
+      fontWeight: 750,
+      cursor: "pointer",
+      background: (form.deliverables || []).includes(label) ? "#FEF2F2" : "#fff",
+      color: (form.deliverables || []).includes(label) ? "#E30613" : "#475569"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: (form.deliverables || []).includes(label),
+    onChange: () => toggleDeliverable(label)
+  }), label)))), /*#__PURE__*/React.createElement(Divider, {
+    label: "Presupuesto y estado"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: S.row2
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Presupuesto negociado"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    style: S.input,
+    value: form.negotiatedBudget,
+    onChange: numberField("negotiatedBudget")
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Presupuesto cerrado"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    style: S.input,
+    value: form.closedBudget,
+    onChange: numberField("closedBudget")
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 10,
+      marginBottom: 12
+    }
+  }, [["paid", "Pagado"], ["recorded", "Ya grabó"], ["published", "Ya publicó"]].map(([key, label]) => /*#__PURE__*/React.createElement("label", {
+    key,
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 7,
+      padding: "9px 11px",
+      borderRadius: 10,
+      background: "#F8FAFC",
+      border: "1px solid #E2E8F0",
+      fontSize: 12.5,
+      fontWeight: 750
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: !!form[key],
+    onChange: e => set(key, e.target.checked)
+  }), label))), /*#__PURE__*/React.createElement("div", {
+    style: S.row2
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Fecha de publicación"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: S.input,
+    value: form.publishDate,
+    onChange: e => set("publishDate", e.target.value)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Link de publicación / reporte"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: form.link,
+    onChange: e => set("link", e.target.value),
+    placeholder: "https://..."
+  }))), /*#__PURE__*/React.createElement(Divider, {
+    label: "Promo code"
+  }), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 12,
+      fontSize: 13,
+      fontWeight: 750
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: !!form.hasPromoCode,
+    onChange: e => set("hasPromoCode", e.target.checked)
+  }), "Tiene promo code"), form.hasPromoCode && /*#__PURE__*/React.createElement("div", {
+    style: S.row2
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Promo code"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: form.promoCode,
+    onChange: e => set("promoCode", e.target.value),
+    placeholder: "MARIA20"
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Redenciones"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    style: S.input,
+    value: form.redemptions,
+    onChange: numberField("redemptions")
+  }))), /*#__PURE__*/React.createElement(Divider, {
+    label: "Resultados"
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(5,1fr)",
+      gap: 10
+    }
+  }, [["reach", "Reach"], ["likes", "Likes"], ["comments", "Comments"], ["shares", "Shares"], ["saves", "Saves"]].map(([key, label]) => /*#__PURE__*/React.createElement(Field, {
+    key,
+    label
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    style: S.input,
+    value: form[key],
+    onChange: numberField(key)
+  })))), /*#__PURE__*/React.createElement(Field, {
+    label: "Notas"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    style: {
+      ...S.input,
+      minHeight: 80,
+      resize: "vertical"
+    },
+    value: form.notes,
+    onChange: e => set("notes", e.target.value),
+    placeholder: "Ej. Buen fit para estudiantes, pedir story extra, pendiente factura..."
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: S.modalFoot
+  }, item && item.id && /*#__PURE__*/React.createElement("button", {
+    style: {
+      ...S.dangerBtn,
+      marginRight: "auto"
+    },
+    onClick: () => {
+      if (confirm("¿Eliminar este influencer?")) onDelete(form.id);
+    }
+  }, "Eliminar"), /*#__PURE__*/React.createElement("button", {
+    style: S.ghostBtn,
+    onClick: onClose
+  }, "Cancelar"), /*#__PURE__*/React.createElement("button", {
+    style: S.primaryBtn,
+    onClick: () => onSave(normalized())
+  }, /*#__PURE__*/React.createElement(IconCheck, {
+    size: 16
+  }), " Guardar"))));
 }
 
 /* ============================ QR GEN + EDITOR ============================ */
