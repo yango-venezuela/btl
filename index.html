@@ -766,7 +766,8 @@ const STORE_KEY = "yango_btl_h1",
   QR_KEY = "yango_btl_qr_h1",
   MYS_KEY = "yango_btl_mys_h1",
   CFG_KEY = "yango_btl_cfg_h1",
-  INF_KEY = "yango_influencers_h1";
+  INF_KEY = "yango_influencers_h1",
+  SOC_KEY = "yango_social_report_h1";
 const INFLUENCER_TIERS = [{
   id: "micro",
   label: "Microinfluencer",
@@ -779,6 +780,126 @@ const INFLUENCER_TIERS = [{
 const SOCIAL_PLATFORMS = ["Instagram", "TikTok", "IG + TikTok"];
 const SOCIAL_DELIVERABLES = ["Stories", "Reel", "Post", "TikTok", "Live", "Whitelisting"];
 const SOCIAL_RESULT_FIELDS = ["Reach", "Likes", "Comments", "Shares", "Saves"];
+const SOCIAL_REPORT_MONTHS = ["1.26", "2.26", "3.26", "4.26", "5.26", "6.26", "7.26", "8.26", "9.26"];
+const SOCIAL_REPORT_SECTIONS = [{
+  id: "followers",
+  title: "Followers (Growth monthly, +)",
+  rows: [{
+    id: "followers_instagram",
+    label: "Instagram"
+  }, {
+    id: "followers_facebook",
+    label: "Facebook"
+  }, {
+    id: "followers_tiktok",
+    label: "TikTok"
+  }]
+}, {
+  id: "reach",
+  title: "Reach",
+  rows: [{
+    id: "reach_instagram",
+    label: "Instagram"
+  }, {
+    id: "reach_facebook",
+    label: "Facebook"
+  }, {
+    id: "reach_tiktok",
+    label: "TikTok (Video Views)"
+  }]
+}, {
+  id: "performance",
+  title: "Clicks, Installs, Orders",
+  rows: [{
+    id: "clicks_instagram",
+    label: "Clicks IG"
+  }, {
+    id: "installs_instagram",
+    label: "Installs IG"
+  }, {
+    id: "orders_instagram",
+    label: "Orders IG"
+  }, {
+    id: "clicks_facebook",
+    label: "Clicks FB"
+  }, {
+    id: "installs_facebook",
+    label: "Installs FB"
+  }, {
+    id: "orders_facebook",
+    label: "Orders FB"
+  }, {
+    id: "clicks_tiktok",
+    label: "Clicks TT"
+  }, {
+    id: "installs_tiktok",
+    label: "Installs TT"
+  }, {
+    id: "orders_tiktok",
+    label: "Orders TT"
+  }]
+}, {
+  id: "organic",
+  title: "Organic reach efficiency",
+  rows: [{
+    id: "aorp_instagram",
+    label: "AORP · avg. organic reach/post · Instagram"
+  }, {
+    id: "arp_instagram",
+    label: "ARP total · avg. reach/post · Instagram"
+  }, {
+    id: "ors_instagram",
+    label: "ORS % · organic reach share · Instagram"
+  }, {
+    id: "aorp_facebook",
+    label: "AORP · avg. organic reach/post · Facebook"
+  }, {
+    id: "arp_facebook",
+    label: "ARP total · avg. reach/post · Facebook"
+  }, {
+    id: "ors_facebook",
+    label: "ORS % · organic reach share · Facebook"
+  }, {
+    id: "aorp_tiktok",
+    label: "AORP · avg. organic reach/post · TikTok"
+  }, {
+    id: "arp_tiktok",
+    label: "ARP total · avg. reach/post · TikTok"
+  }, {
+    id: "ors_tiktok",
+    label: "ORS % · organic reach share · TikTok"
+  }]
+}];
+function socialReportSeed() {
+  const v = (arr, months = SOCIAL_REPORT_MONTHS) => Object.fromEntries(months.map((m, i) => [m, arr[i] ?? ""]));
+  return {
+    months: SOCIAL_REPORT_MONTHS,
+    values: {
+      followers_instagram: v(["1,866", "1,115", "1,776", "1,943", "2,451"]),
+      followers_facebook: v(["241", "102", "105", "85", "117"]),
+      followers_tiktok: v(["216", "127", "128", "118", "125"]),
+      reach_instagram: v(["2,396,539", "1,071,274", "1,153,256", "883,436", "1,663,454"]),
+      reach_facebook: v(["5,559,294", "3,791,323", "3,461,194", "2,581,494", "4,364,325"]),
+      reach_tiktok: v(["32,000", "79,000", "29,000", "25,000", "27,000"]),
+      clicks_instagram: v(["521", "592", "", "546", "653"]),
+      clicks_facebook: v(["222,828", "91,215", "83,539", "51,184", "94,000"]),
+      aorp_instagram: v(["569", "261", "307", "700", "13,611"]),
+      arp_instagram: v(["217,867", "39,677", "64,070", "73,619", "72,324"]),
+      ors_instagram: v(["0.26%", "0.66%", "0.48%", "0.95%", "0.57%"]),
+      aorp_facebook: v(["2,091", "262", "797", "1,262", "1,222"]),
+      arp_facebook: v(["6,235,628", "1,292,422", "2,286,091", "1,863,535", "1,446,818"]),
+      ors_facebook: v(["0.03%", "4.85%", "3.49%", "6.77%", "8.45%"]),
+      aorp_tiktok: v(["2,133", "5,643", "1,933", "1,667", "1,800"]),
+      arp_tiktok: v(["2,133", "5,643", "1,933", "1,667", "1,800"]),
+      ors_tiktok: v(["100%", "100%", "100%", "100%", "100%"])
+    }
+  };
+}
+function parseMetricValue(value) {
+  const cleaned = String(value || "").replace(/%/g, "").replace(/,/g, "").trim();
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
 function tierOf(id) {
   return INFLUENCER_TIERS.find(t => t.id === id) || INFLUENCER_TIERS[0];
 }
@@ -1250,6 +1371,13 @@ function App() {
     notes: "",
     ...i
   })));
+  const [socialReport, setSocialReport] = useState(() => {
+    const saved = load(SOC_KEY, socialReportSeed);
+    return {
+      months: saved.months && saved.months.length ? saved.months : SOCIAL_REPORT_MONTHS,
+      values: saved.values || socialReportSeed().values
+    };
+  });
   const [tab, setTab] = useState("global");
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -1284,6 +1412,11 @@ function App() {
       localStorage.setItem(INF_KEY, JSON.stringify(influencers));
     } catch (e) {}
   }, [influencers]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(SOC_KEY, JSON.stringify(socialReport));
+    } catch (e) {}
+  }, [socialReport]);
   const save = a => {
     setActs(p => p.find(x => x.id === a.id) ? p.map(x => x.id === a.id ? a : x) : [...p, a]);
     setEditing(null);
@@ -1409,11 +1542,11 @@ function App() {
     style: S.main
   }, /*#__PURE__*/React.createElement(Header, {
     tab: tab,
-    count: tab === "influencers" ? influencers.length : acts.length,
+    count: tab === "influencers" ? influencers.length : tab === "social_report" ? socialReport.months.length : acts.length,
     onMenu: () => setMenuOpen(v => !v)
   }), /*#__PURE__*/React.createElement("div", {
     style: S.content
-  }, !["mystery", "influencers"].includes(tab) && /*#__PURE__*/React.createElement(Filters, {
+  }, !["mystery", "influencers", "social_report"].includes(tab) && /*#__PURE__*/React.createElement(Filters, {
     zoneFilter,
     setZoneFilter,
     typeFilter,
@@ -1459,6 +1592,9 @@ function App() {
     items: influencers,
     onSave: saveInfluencer,
     onDelete: removeInfluencer
+  }), tab === "social_report" && /*#__PURE__*/React.createElement(SocialMediaReport, {
+    report: socialReport,
+    onChange: setSocialReport
   }), tab === "mystery" && /*#__PURE__*/React.createElement(Mystery, {
     mystery: mystery,
     setMystery: setMystery,
@@ -1488,38 +1624,48 @@ function Sidebar({
   onImportResults,
   menuOpen
 }) {
-  const items = [{
-    id: "global",
-    label: "Vista global",
-    icon: IconDash
+  const groups = [{
+    label: "BTL",
+    items: [{
+      id: "global",
+      label: "Vista global",
+      icon: IconDash
+    }, {
+      id: "results",
+      label: "Resultados",
+      icon: IconTrend
+    }, {
+      id: "map",
+      label: "Mapa",
+      icon: IconMap
+    }, {
+      id: "calendar",
+      label: "Calendario",
+      icon: IconCal
+    }, {
+      id: "activations",
+      label: "Activaciones",
+      icon: IconPin
+    }, {
+      id: "agency",
+      label: "Admin agencia",
+      icon: IconImage
+    }, {
+      id: "mystery",
+      label: "Mystery Shopper",
+      icon: IconShield
+    }]
   }, {
-    id: "results",
-    label: "Resultados",
-    icon: IconTrend
-  }, {
-    id: "map",
-    label: "Mapa",
-    icon: IconMap
-  }, {
-    id: "calendar",
-    label: "Calendario",
-    icon: IconCal
-  }, {
-    id: "activations",
-    label: "Activaciones",
-    icon: IconPin
-  }, {
-    id: "agency",
-    label: "Admin agencia",
-    icon: IconImage
-  }, {
-    id: "influencers",
-    label: "Influencers",
-    icon: IconUserPlus
-  }, {
-    id: "mystery",
-    label: "Mystery Shopper",
-    icon: IconShield
+    label: "Social Media",
+    items: [{
+      id: "influencers",
+      label: "Influencers",
+      icon: IconUserPlus
+    }, {
+      id: "social_report",
+      label: "Reporte Social Media",
+      icon: IconTrend
+    }]
   }];
   return /*#__PURE__*/React.createElement("aside", {
     style: S.sidebar,
@@ -1549,7 +1695,24 @@ function Sidebar({
       gap: 3,
       marginTop: 8
     }
-  }, items.map(it => {
+  }, groups.map(group => /*#__PURE__*/React.createElement("div", {
+    key: group.label,
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 3,
+      marginTop: group.label === "BTL" ? 0 : 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      fontWeight: 900,
+      color: "#94A3B8",
+      letterSpacing: ".08em",
+      textTransform: "uppercase",
+      padding: "8px 12px 4px"
+    }
+  }, group.label), group.items.map(it => {
     const Icon = it.icon,
       active = tab === it.id;
     return /*#__PURE__*/React.createElement("button", {
@@ -1564,7 +1727,7 @@ function Sidebar({
       size: 18,
       strokeWidth: active ? 2.4 : 2
     }), it.label);
-  })), /*#__PURE__*/React.createElement("button", {
+  })))), /*#__PURE__*/React.createElement("button", {
     className: "newbtn",
     style: S.newBtn,
     onClick: onNew
@@ -1598,7 +1761,13 @@ function Header({
     activations: "Activaciones y validación",
     agency: "Admin agencia y evidencias",
     influencers: "IG, TikTok e Influencers",
+    social_report: "Reporte Social Media",
     mystery: "Mystery Shopper"
+  };
+  const subtitles = {
+    influencers: `${count} creadores registrados · performance orgánico y paid`,
+    social_report: `${count} periodos de reporte · Venezuela`,
+    mystery: `${count} activaciones registradas · validación operativa`
   };
   return /*#__PURE__*/React.createElement("header", {
     style: S.header
@@ -1617,7 +1786,7 @@ function Header({
     style: S.h1
   }, titles[tab]), /*#__PURE__*/React.createElement("p", {
     style: S.sub
-  }, count, " activaciones registradas · últimos 6 meses")));
+  }, subtitles[tab] || `${count} activaciones registradas · últimos 6 meses`)));
 }
 function Filters({
   zoneFilter,
@@ -3950,6 +4119,207 @@ function AgencyRow({
   }, /*#__PURE__*/React.createElement(IconCheck, {
     size: 16
   }), saved ? " Guardado" : " Guardar evidencia")));
+}
+
+/* ============================ SOCIAL MEDIA REPORT ============================ */
+function socialRowValue(report, rowId, month) {
+  return report.values?.[rowId]?.[month] ?? "";
+}
+function socialReportSum(report, rowIds) {
+  return rowIds.reduce((sum, rowId) => sum + (report.months || []).reduce((s, month) => s + parseMetricValue(socialRowValue(report, rowId, month)), 0), 0);
+}
+function socialLatestValue(report, rowId) {
+  const month = [...(report.months || [])].reverse().find(m => String(socialRowValue(report, rowId, m)).trim());
+  return month ? socialRowValue(report, rowId, month) : "—";
+}
+function downloadSocialReportCSV(report) {
+  const headers = ["Sección", "Métrica", ...(report.months || [])];
+  const rows = SOCIAL_REPORT_SECTIONS.flatMap(section => section.rows.map(row => [section.title, row.label, ...(report.months || []).map(month => socialRowValue(report, row.id, month))]));
+  const csv = [headers, ...rows].map(row => row.map(value => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
+  const blob = new Blob(["\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `yango_social_media_report_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function SocialMediaReport({
+  report,
+  onChange
+}) {
+  const months = report.months || SOCIAL_REPORT_MONTHS;
+  const updateCell = (rowId, month, value) => onChange({
+    ...report,
+    values: {
+      ...(report.values || {}),
+      [rowId]: {
+        ...((report.values || {})[rowId] || {}),
+        [month]: value
+      }
+    }
+  });
+  const addMonth = () => {
+    const label = prompt("Nuevo periodo (ej. 10.26):");
+    if (!label) return;
+    const clean = label.trim();
+    if (!clean || months.includes(clean)) return;
+    onChange({
+      ...report,
+      months: [...months, clean],
+      values: report.values || {}
+    });
+  };
+  const totalReach = socialReportSum(report, ["reach_instagram", "reach_facebook", "reach_tiktok"]);
+  const totalClicks = socialReportSum(report, ["clicks_instagram", "clicks_facebook", "clicks_tiktok"]);
+  const totalInstalls = socialReportSum(report, ["installs_instagram", "installs_facebook", "installs_tiktok"]);
+  const totalOrders = socialReportSum(report, ["orders_instagram", "orders_facebook", "orders_tiktok"]);
+  const cellInputStyle = {
+    ...S.input,
+    minWidth: 92,
+    padding: "7px 8px",
+    borderRadius: 6,
+    fontSize: 12,
+    textAlign: "center"
+  };
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.resultBanner,
+      background: "linear-gradient(135deg,#E30613,#111827)"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 900,
+      fontSize: 20
+    }
+  }, "Reporte Social Media · Venezuela"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      opacity: .86,
+      marginTop: 4
+    }
+  }, "Followers, reach, clicks, installs, orders y eficiencia orgánica por periodo.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "primarybtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#172554"
+    },
+    onClick: addMonth
+  }, /*#__PURE__*/React.createElement(IconPlus, {
+    size: 16
+  }), " Agregar periodo"), /*#__PURE__*/React.createElement("button", {
+    className: "ghostbtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#172554"
+    },
+    onClick: () => downloadSocialReportCSV(report)
+  }, /*#__PURE__*/React.createElement(IconDownload, {
+    size: 16
+  }), " Descargar CSV"))), /*#__PURE__*/React.createElement("div", {
+    style: S.kpiGrid
+  }, /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconCal,
+    label: "Periodos",
+    value: fmt(months.length),
+    accent: "#E30613"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconUserPlus,
+    label: "Followers IG último",
+    value: socialLatestValue(report, "followers_instagram"),
+    accent: "#E30613"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconEye,
+    label: "Reach total",
+    value: fmt(totalReach),
+    accent: "#0EA5E9"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconClick,
+    label: "Clicks total",
+    value: fmt(totalClicks),
+    accent: "#7C3AED"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconPhone,
+    label: "Installs total",
+    value: fmt(totalInstalls),
+    accent: "#16A34A"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconTicket,
+    label: "Orders total",
+    value: fmt(totalOrders),
+    accent: "#F97316"
+  })), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: 0,
+      padding: "12px 14px",
+      borderRadius: 10,
+      background: "#FFF7ED",
+      color: "#9A3412",
+      fontSize: 12,
+      lineHeight: 1.5
+    }
+  }, "Tip: puedes pegar valores con comas o porcentajes. La tabla guarda localmente los cambios en este navegador y el CSV baja todo el reporte."), SOCIAL_REPORT_SECTIONS.map(section => /*#__PURE__*/React.createElement(Card, {
+    key: section.id,
+    title: section.title,
+    hint: section.id === "organic" ? "AORP = average organic reach per post · ARP total = average reach per post · ORS = organic reach share." : null
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto",
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      ...S.table,
+      minWidth: 920
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+    style: {
+      ...S.th,
+      minWidth: 230,
+      position: "sticky",
+      left: 0,
+      background: "#F8FAFC",
+      zIndex: 1
+    }
+  }, "Métrica"), months.map(month => /*#__PURE__*/React.createElement("th", {
+    key: month,
+    style: {
+      ...S.th,
+      textAlign: "center"
+    }
+  }, month)))), /*#__PURE__*/React.createElement("tbody", null, section.rows.map(row => /*#__PURE__*/React.createElement("tr", {
+    key: row.id
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      ...S.td,
+      fontWeight: 800,
+      position: "sticky",
+      left: 0,
+      background: "#fff",
+      zIndex: 1
+    }
+  }, row.label), months.map(month => /*#__PURE__*/React.createElement("td", {
+    key: `${row.id}-${month}`,
+    style: {
+      ...S.td,
+      textAlign: "center"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    style: cellInputStyle,
+    value: socialRowValue(report, row.id, month),
+    onChange: e => updateCell(row.id, month, e.target.value),
+    placeholder: "—"
+  })))))))))));
 }
 
 /* ============================ INFLUENCERS + SOCIAL ============================ */
