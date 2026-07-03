@@ -778,16 +778,43 @@ const INFLUENCER_TIERS = [{
 }];
 const SOCIAL_PLATFORMS = ["Instagram", "TikTok", "IG + TikTok"];
 const SOCIAL_DELIVERABLES = ["Stories", "Reel", "Post", "TikTok", "Live", "Whitelisting"];
+const SOCIAL_RESULT_FIELDS = ["Reach", "Likes", "Comments", "Shares", "Saves"];
 function tierOf(id) {
   return INFLUENCER_TIERS.find(t => t.id === id) || INFLUENCER_TIERS[0];
 }
+function hasSplitSocialResults(i) {
+  return ["igReach", "igLikes", "igComments", "igShares", "igSaves", "tiktokReach", "tiktokLikes", "tiktokComments", "tiktokShares", "tiktokSaves"].some(key => Number(i[key]) || 0);
+}
+function platformMetrics(i, prefix) {
+  const metric = name => Number(i[`${prefix}${name}`]) || 0;
+  const reach = metric("Reach");
+  const likes = metric("Likes");
+  const comments = metric("Comments");
+  const shares = metric("Shares");
+  const saves = metric("Saves");
+  const engagement = likes + comments + shares + saves;
+  return {
+    reach,
+    likes,
+    comments,
+    shares,
+    saves,
+    engagement,
+    er: reach ? engagement / reach : 0
+  };
+}
 function influencerMetrics(i) {
-  const engagement = (Number(i.likes) || 0) + (Number(i.comments) || 0) + (Number(i.shares) || 0) + (Number(i.saves) || 0);
-  const reach = Number(i.reach) || 0;
+  const ig = platformMetrics(i, "ig");
+  const tiktok = platformMetrics(i, "tiktok");
+  const split = hasSplitSocialResults(i);
+  const engagement = split ? ig.engagement + tiktok.engagement : (Number(i.likes) || 0) + (Number(i.comments) || 0) + (Number(i.shares) || 0) + (Number(i.saves) || 0);
+  const reach = split ? ig.reach + tiktok.reach : Number(i.reach) || 0;
   const cost = Number(i.closedBudget) || 0;
   const redemptions = Number(i.redemptions) || 0;
   return {
     engagement,
+    ig,
+    tiktok,
     er: reach ? engagement / reach : 0,
     cpe: engagement ? cost / engagement : 0,
     cpm: reach ? cost / reach * 1000 : 0,
@@ -800,6 +827,8 @@ const seedInfluencers = () => [{
   handle: "@analopez",
   tier: "micro",
   platform: "Instagram",
+  igFollowers: 8500,
+  tiktokFollowers: 0,
   deliverables: ["Stories", "Reel"],
   negotiatedBudget: 180,
   closedBudget: 150,
@@ -811,11 +840,16 @@ const seedInfluencers = () => [{
   promoCode: "",
   hasPromoCode: false,
   redemptions: 0,
-  likes: 0,
-  shares: 0,
-  reach: 0,
-  saves: 0,
-  comments: 0,
+  igLikes: 0,
+  igShares: 0,
+  igReach: 0,
+  igSaves: 0,
+  igComments: 0,
+  tiktokLikes: 0,
+  tiktokShares: 0,
+  tiktokReach: 0,
+  tiktokSaves: 0,
+  tiktokComments: 0,
   notes: "Pendiente publicación."
 }, {
   id: "inf2",
@@ -823,6 +857,8 @@ const seedInfluencers = () => [{
   handle: "@carlosrides",
   tier: "influencer",
   platform: "IG + TikTok",
+  igFollowers: 92000,
+  tiktokFollowers: 135000,
   deliverables: ["Reel", "TikTok", "Stories"],
   negotiatedBudget: 900,
   closedBudget: 800,
@@ -834,11 +870,16 @@ const seedInfluencers = () => [{
   promoCode: "CARLOSYANGO",
   hasPromoCode: true,
   redemptions: 38,
-  likes: 1240,
-  shares: 86,
-  reach: 42000,
-  saves: 220,
-  comments: 74,
+  igLikes: 840,
+  igShares: 52,
+  igReach: 30000,
+  igSaves: 160,
+  igComments: 48,
+  tiktokLikes: 400,
+  tiktokShares: 34,
+  tiktokReach: 12000,
+  tiktokSaves: 60,
+  tiktokComments: 26,
   notes: "Buen fit para adquisición."
 }];
 function seed() {
@@ -1178,6 +1219,8 @@ function App() {
     handle: "",
     tier: "micro",
     platform: "Instagram",
+    igFollowers: 0,
+    tiktokFollowers: 0,
     deliverables: [],
     negotiatedBudget: 0,
     closedBudget: 0,
@@ -1189,6 +1232,16 @@ function App() {
     promoCode: "",
     hasPromoCode: false,
     redemptions: 0,
+    igReach: 0,
+    igLikes: 0,
+    igComments: 0,
+    igShares: 0,
+    igSaves: 0,
+    tiktokReach: 0,
+    tiktokLikes: 0,
+    tiktokComments: 0,
+    tiktokShares: 0,
+    tiktokSaves: 0,
     likes: 0,
     shares: 0,
     reach: 0,
@@ -3907,6 +3960,8 @@ function influencerTemplate(over = {}) {
     handle: "",
     tier: "micro",
     platform: "Instagram",
+    igFollowers: 0,
+    tiktokFollowers: 0,
     deliverables: ["Stories"],
     negotiatedBudget: 0,
     closedBudget: 0,
@@ -3918,6 +3973,16 @@ function influencerTemplate(over = {}) {
     hasPromoCode: false,
     promoCode: "",
     redemptions: 0,
+    igReach: 0,
+    igLikes: 0,
+    igComments: 0,
+    igShares: 0,
+    igSaves: 0,
+    tiktokReach: 0,
+    tiktokLikes: 0,
+    tiktokComments: 0,
+    tiktokShares: 0,
+    tiktokSaves: 0,
     likes: 0,
     shares: 0,
     reach: 0,
@@ -3942,11 +4007,41 @@ function influencerStatus(label, active, color) {
     }
   }, active ? "✓" : "·", " ", label);
 }
+function socialResultBlock(label, metrics, color) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      minWidth: 155
+    }
+  }, /*#__PURE__*/React.createElement("b", {
+    style: {
+      color
+    }
+  }, label, ": ", fmt(metrics.reach), " reach"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#64748B",
+      fontSize: 11,
+      lineHeight: 1.55,
+      marginTop: 3
+    }
+  }, "Likes ", fmt(metrics.likes), " · Comments ", fmt(metrics.comments), /*#__PURE__*/React.createElement("br", null), "Shares ", fmt(metrics.shares), " · Saves ", fmt(metrics.saves), /*#__PURE__*/React.createElement("br", null), "ER ", pct(metrics.er)));
+}
+function influencerFollowers(i) {
+  const ig = Number(i.igFollowers) || 0;
+  const tiktok = Number(i.tiktokFollowers) || 0;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#64748B",
+      fontSize: 11,
+      lineHeight: 1.55,
+      marginTop: 3
+    }
+  }, "IG ", fmt(ig), " followers", /*#__PURE__*/React.createElement("br", null), "TikTok ", fmt(tiktok), " followers");
+}
 function downloadInfluencerCSV(items) {
-  const headers = ["Nombre", "Usuario", "Tipo", "Plataforma", "Entregables", "Presupuesto negociado", "Presupuesto cerrado", "Pagado", "Grabó", "Publicó", "Fecha publicación", "Link", "Tiene promo code", "Promo code", "Redenciones", "Reach", "Likes", "Comentarios", "Shares", "Saves", "Engagement", "Engagement rate", "Costo por engagement", "CPM", "Costo por redención", "Notas"];
+  const headers = ["Nombre", "Usuario", "Tipo", "Plataforma", "Followers IG", "Followers TikTok", "Entregables", "Presupuesto negociado", "Presupuesto cerrado", "Pagado", "Grabó", "Publicó", "Fecha publicación", "Link", "Tiene promo code", "Promo code", "Redenciones", "IG Reach", "IG Likes", "IG Comentarios", "IG Shares", "IG Saves", "TikTok Reach", "TikTok Likes", "TikTok Comentarios", "TikTok Shares", "TikTok Saves", "Reach total", "Engagement total", "Engagement rate", "Costo por engagement", "CPM", "Costo por redención", "Notas"];
   const rows = items.map(i => {
     const m = influencerMetrics(i);
-    return [i.name, i.handle, tierOf(i.tier).label, i.platform, (i.deliverables || []).join(" + "), Number(i.negotiatedBudget) || 0, Number(i.closedBudget) || 0, i.paid ? "Sí" : "No", i.recorded ? "Sí" : "No", i.published ? "Sí" : "No", i.publishDate || "", i.link || "", i.hasPromoCode ? "Sí" : "No", i.promoCode || "", Number(i.redemptions) || 0, Number(i.reach) || 0, Number(i.likes) || 0, Number(i.comments) || 0, Number(i.shares) || 0, Number(i.saves) || 0, m.engagement, pct(m.er), m.cpe ? usd(m.cpe) : "", m.cpm ? usd(m.cpm) : "", m.cpr ? usd(m.cpr) : "", i.notes || ""];
+    return [i.name, i.handle, tierOf(i.tier).label, i.platform, Number(i.igFollowers) || 0, Number(i.tiktokFollowers) || 0, (i.deliverables || []).join(" + "), Number(i.negotiatedBudget) || 0, Number(i.closedBudget) || 0, i.paid ? "Sí" : "No", i.recorded ? "Sí" : "No", i.published ? "Sí" : "No", i.publishDate || "", i.link || "", i.hasPromoCode ? "Sí" : "No", i.promoCode || "", Number(i.redemptions) || 0, m.ig.reach, m.ig.likes, m.ig.comments, m.ig.shares, m.ig.saves, m.tiktok.reach, m.tiktok.likes, m.tiktok.comments, m.tiktok.shares, m.tiktok.saves, m.ig.reach + m.tiktok.reach || Number(i.reach) || 0, m.engagement, pct(m.er), m.cpe ? usd(m.cpe) : "", m.cpm ? usd(m.cpm) : "", m.cpr ? usd(m.cpr) : "", i.notes || ""];
   });
   const csv = [headers, ...rows].map(row => row.map(value => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
   const blob = new Blob(["\uFEFF" + csv], {
@@ -3966,8 +4061,10 @@ function InfluencerTracker({
 }) {
   const [tierFilter, setTierFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
+  const [fromPub, setFromPub] = useState("");
+  const [toPub, setToPub] = useState("");
   const [editing, setEditing] = useState(null);
-  const rows = items.filter(i => (tierFilter === "all" || i.tier === tierFilter) && (platformFilter === "all" || i.platform === platformFilter));
+  const rows = items.filter(i => (tierFilter === "all" || i.tier === tierFilter) && (platformFilter === "all" || i.platform === platformFilter) && inRange(i.publishDate, fromPub, toPub));
   const totals = rows.reduce((acc, i) => {
     const m = influencerMetrics(i);
     acc.negotiated += Number(i.negotiatedBudget) || 0;
@@ -3975,7 +4072,11 @@ function InfluencerTracker({
     acc.paid += i.paid ? Number(i.closedBudget) || 0 : 0;
     acc.recorded += i.recorded ? 1 : 0;
     acc.published += i.published ? 1 : 0;
-    acc.reach += Number(i.reach) || 0;
+    acc.influencers += i.tier === "influencer" ? 1 : 0;
+    acc.micros += i.tier === "micro" ? 1 : 0;
+    acc.igReach += m.ig.reach;
+    acc.tiktokReach += m.tiktok.reach;
+    acc.reach += hasSplitSocialResults(i) ? m.ig.reach + m.tiktok.reach : Number(i.reach) || 0;
     acc.engagement += m.engagement;
     acc.redemptions += Number(i.redemptions) || 0;
     return acc;
@@ -3985,6 +4086,10 @@ function InfluencerTracker({
     paid: 0,
     recorded: 0,
     published: 0,
+    influencers: 0,
+    micros: 0,
+    igReach: 0,
+    tiktokReach: 0,
     reach: 0,
     engagement: 0,
     redemptions: 0
@@ -4039,10 +4144,15 @@ function InfluencerTracker({
   }), " Descargar CSV"))), /*#__PURE__*/React.createElement("div", {
     style: S.kpiGrid
   }, /*#__PURE__*/React.createElement(Kpi, {
-    icon: IconDollar,
-    label: "Presupuesto cerrado",
-    value: usd(totals.closed),
+    icon: IconUserPlus,
+    label: "Influencers",
+    value: fmt(totals.influencers),
     accent: "#E30613"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconUserPlus,
+    label: "Micros",
+    value: fmt(totals.micros),
+    accent: "#0EA5E9"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconCheck,
     label: "Publicados",
@@ -4050,9 +4160,14 @@ function InfluencerTracker({
     accent: "#16A34A"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconEye,
-    label: "Reach total",
-    value: fmt(totals.reach),
+    label: "Reach IG",
+    value: fmt(totals.igReach),
     accent: "#0EA5E9"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconEye,
+    label: "Reach TikTok",
+    value: fmt(totals.tiktokReach),
+    accent: "#111827"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconTrend,
     label: "Engagement rate",
@@ -4065,8 +4180,8 @@ function InfluencerTracker({
     accent: "#F97316"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconDollar,
-    label: "Costo/redención",
-    value: totals.redemptions ? usd(totals.closed / totals.redemptions) : "—",
+    label: "Presupuesto cerrado",
+    value: usd(totals.closed),
     accent: "#111827"
   })), /*#__PURE__*/React.createElement(Card, {
     title: "Qué conviene medir",
@@ -4116,7 +4231,21 @@ function InfluencerTracker({
   }, "Todas"), SOCIAL_PLATFORMS.map(p => /*#__PURE__*/React.createElement("option", {
     key: p,
     value: p
-  }, p))))), rows.length ? /*#__PURE__*/React.createElement(Card, {
+  }, p)))), /*#__PURE__*/React.createElement(Field, {
+    label: "Publicado desde"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: S.input,
+    value: fromPub,
+    onChange: e => setFromPub(e.target.value)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Publicado hasta"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: S.input,
+    value: toPub,
+    onChange: e => setToPub(e.target.value)
+  }))), rows.length ? /*#__PURE__*/React.createElement(Card, {
     title: "Influencers",
     hint: "Cada fila mezcla acuerdo comercial, operación y resultados."
   }, /*#__PURE__*/React.createElement("div", {
@@ -4126,7 +4255,7 @@ function InfluencerTracker({
     }
   }, /*#__PURE__*/React.createElement("table", {
     style: S.table
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Influencer", "Tipo", "Entregables", "Presupuesto", "Estados", "Resultados", "Promo code", "Link", ""].map(h => /*#__PURE__*/React.createElement("th", {
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Influencer", "Tipo", "Entregables", "Presupuesto", "Estados", "Resultados IG", "Resultados TikTok", "Promo code", "Link", ""].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: S.th
   }, h)))), /*#__PURE__*/React.createElement("tbody", null, rows.map(i => {
@@ -4142,7 +4271,7 @@ function InfluencerTracker({
         fontSize: 11,
         marginTop: 2
       }
-    }, i.handle || "—", " · ", i.platform || "—")), /*#__PURE__*/React.createElement("td", {
+    }, i.handle || "—", " · ", i.platform || "—"), influencerFollowers(i)), /*#__PURE__*/React.createElement("td", {
       style: S.td
     }, /*#__PURE__*/React.createElement("span", {
       style: {
@@ -4180,13 +4309,9 @@ function InfluencerTracker({
       }
     }, influencerStatus("Pagado", i.paid, "#16A34A"), influencerStatus("Grabó", i.recorded, "#0EA5E9"), influencerStatus("Publicó", i.published, "#E30613"))), /*#__PURE__*/React.createElement("td", {
       style: S.td
-    }, /*#__PURE__*/React.createElement("b", null, fmt(Number(i.reach) || 0), " reach"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        color: "#94A3B8",
-        fontSize: 11,
-        marginTop: 2
-      }
-    }, fmt(m.engagement), " engagement · ER ", pct(m.er))), /*#__PURE__*/React.createElement("td", {
+    }, socialResultBlock("IG", m.ig, "#E30613")), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, socialResultBlock("TikTok", m.tiktok, "#111827")), /*#__PURE__*/React.createElement("td", {
       style: S.td
     }, i.hasPromoCode ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("b", null, i.promoCode || "Sin código"), /*#__PURE__*/React.createElement("div", {
       style: {
@@ -4249,9 +4374,21 @@ function InfluencerEditor({
   const numberField = key => e => set(key, e.target.value);
   const normalized = () => ({
     ...form,
+    igFollowers: Number(form.igFollowers) || 0,
+    tiktokFollowers: Number(form.tiktokFollowers) || 0,
     negotiatedBudget: Number(form.negotiatedBudget) || 0,
     closedBudget: Number(form.closedBudget) || 0,
     redemptions: form.hasPromoCode ? Number(form.redemptions) || 0 : 0,
+    igReach: Number(form.igReach) || 0,
+    igLikes: Number(form.igLikes) || 0,
+    igComments: Number(form.igComments) || 0,
+    igShares: Number(form.igShares) || 0,
+    igSaves: Number(form.igSaves) || 0,
+    tiktokReach: Number(form.tiktokReach) || 0,
+    tiktokLikes: Number(form.tiktokLikes) || 0,
+    tiktokComments: Number(form.tiktokComments) || 0,
+    tiktokShares: Number(form.tiktokShares) || 0,
+    tiktokSaves: Number(form.tiktokSaves) || 0,
     likes: Number(form.likes) || 0,
     shares: Number(form.shares) || 0,
     reach: Number(form.reach) || 0,
@@ -4323,7 +4460,25 @@ function InfluencerEditor({
   }, SOCIAL_PLATFORMS.map(p => /*#__PURE__*/React.createElement("option", {
     key: p,
     value: p
-  }, p))))), /*#__PURE__*/React.createElement(Field, {
+  }, p))))), /*#__PURE__*/React.createElement("div", {
+    style: S.row2
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Followers Instagram"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    style: S.input,
+    value: form.igFollowers,
+    onChange: numberField("igFollowers")
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Followers TikTok"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    style: S.input,
+    value: form.tiktokFollowers,
+    onChange: numberField("tiktokFollowers")
+  }))), /*#__PURE__*/React.createElement(Field, {
     label: "Entregables cerrados"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4447,10 +4602,24 @@ function InfluencerEditor({
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "repeat(5,1fr)",
-      gap: 10
+      gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
+      gap: 14
     }
-  }, [["reach", "Reach"], ["likes", "Likes"], ["comments", "Comments"], ["shares", "Shares"], ["saves", "Saves"]].map(([key, label]) => /*#__PURE__*/React.createElement(Field, {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: "1px solid #E2E8F0",
+      borderRadius: 12,
+      padding: 12,
+      background: "#F8FAFC"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 900,
+      color: "#E30613",
+      marginBottom: 10
+    }
+  }, "Instagram"), [["igReach", "Reach"], ["igLikes", "Likes"], ["igComments", "Comments"], ["igShares", "Shares"], ["igSaves", "Saves"]].map(([key, label]) => /*#__PURE__*/React.createElement(Field, {
     key,
     label
   }, /*#__PURE__*/React.createElement("input", {
@@ -4459,7 +4628,30 @@ function InfluencerEditor({
     style: S.input,
     value: form[key],
     onChange: numberField(key)
-  })))), /*#__PURE__*/React.createElement(Field, {
+  })))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      border: "1px solid #E2E8F0",
+      borderRadius: 12,
+      padding: 12,
+      background: "#F8FAFC"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 900,
+      color: "#111827",
+      marginBottom: 10
+    }
+  }, "TikTok"), [["tiktokReach", "Reach"], ["tiktokLikes", "Likes"], ["tiktokComments", "Comments"], ["tiktokShares", "Shares"], ["tiktokSaves", "Saves"]].map(([key, label]) => /*#__PURE__*/React.createElement(Field, {
+    key,
+    label
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    style: S.input,
+    value: form[key],
+    onChange: numberField(key)
+  }))))), /*#__PURE__*/React.createElement(Field, {
     label: "Notas"
   }, /*#__PURE__*/React.createElement("textarea", {
     style: {
