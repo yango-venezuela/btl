@@ -767,7 +767,11 @@ const STORE_KEY = "yango_btl_h1",
   MYS_KEY = "yango_btl_mys_h1",
   CFG_KEY = "yango_btl_cfg_h1",
   INF_KEY = "yango_influencers_h1",
-  SOC_KEY = "yango_social_report_h1";
+  SOC_KEY = "yango_social_report_h1",
+  BTL_BUDGET_KEY = "yango_btl_budgets_h1",
+  POP_KEY = "yango_pop_inventory_h1",
+  MEDIA_KEY = "yango_media_ooh_h1";
+const MASTER_PASS = "Yango2026!";
 const INFLUENCER_TIERS = [{
   id: "micro",
   label: "Microinfluencer",
@@ -1068,6 +1072,90 @@ const seedInfluencers = () => [{
   tiktokComments: 26,
   notes: "Buen fit para adquisición."
 }];
+const seedBtlBudgets = () => ({
+  months: {},
+  quarters: {}
+});
+const seedPopInventory = () => [{
+  id: "pop1",
+  item: "Gorras",
+  category: "Uniforme",
+  stock: 120,
+  reserved: 24,
+  min: 30,
+  unitCost: 4,
+  notes: "Negro / rojo"
+}, {
+  id: "pop2",
+  item: "Lanyards",
+  category: "Material POP",
+  stock: 300,
+  reserved: 60,
+  min: 80,
+  unitCost: 1,
+  notes: "Para promotoras y aliados"
+}, {
+  id: "pop3",
+  item: "Llaveros",
+  category: "Giveaway",
+  stock: 500,
+  reserved: 120,
+  min: 150,
+  unitCost: 0.6,
+  notes: "Entrega masiva"
+}, {
+  id: "pop4",
+  item: "Tote Bags",
+  category: "Giveaway premium",
+  stock: 90,
+  reserved: 20,
+  min: 25,
+  unitCost: 3.5,
+  notes: "Eventos / universidades"
+}];
+const seedMediaAssets = () => [{
+  id: "media1",
+  name: "OOH Altamira",
+  type: "Valla",
+  location: "Altamira",
+  address: "Plaza Altamira, Caracas",
+  lat: 10.4963,
+  lng: -66.8469,
+  status: "Activa",
+  reach: 180000,
+  cost: 1200,
+  photoUrl: "",
+  reportUrl: "",
+  notes: "Reach estimado semanal por tráfico peatonal/vehicular."
+}, {
+  id: "media2",
+  name: "OOH Las Mercedes",
+  type: "Pantalla",
+  location: "Las Mercedes",
+  address: "Av. Principal de Las Mercedes",
+  lat: 10.4797,
+  lng: -66.8619,
+  status: "Activa",
+  reach: 220000,
+  cost: 1600,
+  photoUrl: "",
+  reportUrl: "",
+  notes: "Actualizar con reporte del proveedor."
+}, {
+  id: "media3",
+  name: "OOH Plaza Venezuela",
+  type: "Mupi",
+  location: "Plaza Venezuela",
+  address: "Plaza Venezuela, Caracas",
+  lat: 10.5008,
+  lng: -66.8851,
+  status: "Planificada",
+  reach: 140000,
+  cost: 900,
+  photoUrl: "",
+  reportUrl: "",
+  notes: "Buen punto para conexión metro/universidades."
+}];
 function seed() {
   const base = over => ({
     promoters: 3,
@@ -1216,6 +1304,20 @@ const usd = n => "$" + new Intl.NumberFormat("es-VE", {
 const dec = (n, digits = 1) => (Number(n) || 0).toFixed(digits).replace(".", ",");
 const pct = n => dec(n * 100, 1) + "%";
 const monthName = m => ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][m];
+const monthKeyFromDate = date => String(date || "").slice(0, 7);
+const monthLabelFromKey = key => {
+  const [y, m] = String(key || "").split("-");
+  return y && m ? `${monthName(Number(m) - 1)} ${y}` : "Sin mes";
+};
+const quarterKeyFromDate = date => {
+  const [y, m] = String(date || "").split("-");
+  if (!y || !m) return "Sin Q";
+  return `${y}-Q${Math.floor((Number(m) - 1) / 3) + 1}`;
+};
+const quarterLabelFromKey = key => {
+  const [y, q] = String(key || "").split("-");
+  return y && q ? `${q} ${y}` : "Sin Q";
+};
 const shortDate = date => date ? new Date(date + "T00:00:00").toLocaleDateString("es-VE", {
   day: "2-digit",
   month: "2-digit"
@@ -1439,12 +1541,18 @@ function App() {
     ...i,
     budget: Number(i.budget) || Number(i.closedBudget) || Number(i.negotiatedBudget) || 0,
     sameTiktokHandle: i.sameTiktokHandle !== false,
-    tiktokHandle: i.sameTiktokHandle === false ? i.tiktokHandle || "" : ""
+    tiktokHandle: i.sameTiktokHandle === false ? i.tiktokHandle || "" : "",
+    tiktokLink: i.tiktokLink || "",
+    paymentDate: i.paymentDate || ""
   })));
   const [socialReport, setSocialReport] = useState(() => {
     const saved = load(SOC_KEY, socialReportSeed);
     return normalizeSocialReport(saved);
   });
+  const [btlBudgets, setBtlBudgets] = useState(() => load(BTL_BUDGET_KEY, seedBtlBudgets));
+  const [popInventory, setPopInventory] = useState(() => load(POP_KEY, seedPopInventory));
+  const [mediaAssets, setMediaAssets] = useState(() => load(MEDIA_KEY, seedMediaAssets));
+  const [masterUnlocked, setMasterUnlocked] = useState(() => sessionStorage.getItem("yango_master_unlocked") === "1");
   const [tab, setTab] = useState("global");
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -1484,6 +1592,21 @@ function App() {
       localStorage.setItem(SOC_KEY, JSON.stringify(socialReport));
     } catch (e) {}
   }, [socialReport]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(BTL_BUDGET_KEY, JSON.stringify(btlBudgets));
+    } catch (e) {}
+  }, [btlBudgets]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(POP_KEY, JSON.stringify(popInventory));
+    } catch (e) {}
+  }, [popInventory]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(MEDIA_KEY, JSON.stringify(mediaAssets));
+    } catch (e) {}
+  }, [mediaAssets]);
   const save = a => {
     setActs(p => p.find(x => x.id === a.id) ? p.map(x => x.id === a.id ? a : x) : [...p, a]);
     setEditing(null);
@@ -1581,6 +1704,12 @@ function App() {
     acts: acts,
     onSave: save
   });
+  if (!masterUnlocked) return /*#__PURE__*/React.createElement(MasterLogin, {
+    onUnlock: () => {
+      sessionStorage.setItem("yango_master_unlocked", "1");
+      setMasterUnlocked(true);
+    }
+  });
   return /*#__PURE__*/React.createElement("div", {
     style: S.app
   }, menuOpen && /*#__PURE__*/React.createElement("div", {
@@ -1605,11 +1734,11 @@ function App() {
     style: S.main
   }, /*#__PURE__*/React.createElement(Header, {
     tab: tab,
-    count: tab === "influencers" ? influencers.length : tab === "social_report" ? socialReport.months.length : acts.length,
+    count: tab === "influencers" ? influencers.length : tab === "social_report" ? socialReport.months.length : tab === "pop_inventory" ? popInventory.length : tab === "media_ooh" ? mediaAssets.length : acts.length,
     onMenu: () => setMenuOpen(v => !v)
   }), /*#__PURE__*/React.createElement("div", {
     style: S.content
-  }, !["mystery", "influencers", "social_report"].includes(tab) && /*#__PURE__*/React.createElement(Filters, {
+  }, !["mystery", "influencers", "social_report", "pop_inventory", "media_ooh"].includes(tab) && /*#__PURE__*/React.createElement(Filters, {
     zoneFilter,
     setZoneFilter,
     typeFilter,
@@ -1634,7 +1763,9 @@ function App() {
   }), tab === "calendar" && /*#__PURE__*/React.createElement(CalendarView, {
     acts: filtered,
     onOpen: setEditing,
-    mystery: mystery
+    mystery: mystery,
+    budgets: btlBudgets,
+    setBudgets: setBtlBudgets
   }), tab === "activations" && /*#__PURE__*/React.createElement(ActivationList, {
     acts: filtered,
     alloc: alloc,
@@ -1652,6 +1783,9 @@ function App() {
     alloc: alloc,
     from: from,
     to: to
+  }), tab === "pop_inventory" && /*#__PURE__*/React.createElement(PopInventory, {
+    items: popInventory,
+    setItems: setPopInventory
   }), tab === "influencers" && /*#__PURE__*/React.createElement(InfluencerTracker, {
     items: influencers,
     onSave: saveInfluencer,
@@ -1664,6 +1798,9 @@ function App() {
     setMystery: setMystery,
     acts: acts,
     cfg: cfg
+  }), tab === "media_ooh" && /*#__PURE__*/React.createElement(MediaOOH, {
+    items: mediaAssets,
+    setItems: setMediaAssets
   }))), editing && /*#__PURE__*/React.createElement(Editor, {
     act: editing === "new" ? null : editing,
     alloc: alloc,
@@ -1680,6 +1817,113 @@ function App() {
 }
 
 /* ============================ SIDEBAR ============================ */
+function MasterLogin({
+  onUnlock
+}) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const submit = e => {
+    e.preventDefault();
+    if (password === MASTER_PASS) onUnlock();else setError("Clave incorrecta. Revisa mayúsculas, números y símbolo final.");
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      minHeight: "100vh",
+      background: "linear-gradient(135deg,#111827,#E30613)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+      fontFamily: "'YangoText',system-ui,sans-serif"
+    }
+  }, /*#__PURE__*/React.createElement("form", {
+    onSubmit: submit,
+    style: {
+      width: "100%",
+      maxWidth: 420,
+      background: "#fff",
+      borderRadius: 24,
+      padding: 28,
+      boxShadow: "0 24px 70px rgba(15,23,42,.32)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      marginBottom: 22
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 58,
+      height: 58,
+      borderRadius: 18,
+      background: "#E30613",
+      color: "#fff",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontFamily: "YangoHeadline,YangoText,system-ui,sans-serif",
+      fontWeight: 950,
+      fontSize: 34,
+      letterSpacing: "-0.08em"
+    }
+  }, "Y"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'YangoHeadline','YangoText',system-ui,sans-serif",
+      fontWeight: 950,
+      fontSize: 20,
+      letterSpacing: "-0.02em"
+    }
+  }, "Yango MKT Venezuela"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#64748B",
+      fontSize: 12,
+      marginTop: 2
+    }
+  }, "Master Panel"))), /*#__PURE__*/React.createElement("h1", {
+    style: {
+      margin: "0 0 8px",
+      fontSize: 24,
+      fontWeight: 950,
+      letterSpacing: "-0.03em"
+    }
+  }, "Entrar al Master Panel"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "0 0 18px",
+      color: "#64748B",
+      fontSize: 13,
+      lineHeight: 1.5
+    }
+  }, "Este acceso es para el panel principal de marketing. El portal de agencia sigue entrando por su link separado."), /*#__PURE__*/React.createElement(Field, {
+    label: "Clave"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    autoFocus: true,
+    style: S.input,
+    value: password,
+    onChange: e => {
+      setPassword(e.target.value);
+      setError("");
+    },
+    placeholder: "Escribe la clave"
+  })), error && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#DC2626",
+      fontSize: 12,
+      fontWeight: 800,
+      margin: "2px 0 12px"
+    }
+  }, error), /*#__PURE__*/React.createElement("button", {
+    type: "submit",
+    style: {
+      ...S.primaryBtn,
+      width: "100%",
+      justifyContent: "center",
+      marginTop: 4
+    }
+  }, "Entrar")));
+}
 function Sidebar({
   tab,
   setTab,
@@ -1714,6 +1958,10 @@ function Sidebar({
       label: "Admin agencia",
       icon: IconImage
     }, {
+      id: "pop_inventory",
+      label: "Material POP",
+      icon: IconTicket
+    }, {
       id: "mystery",
       label: "Mystery Shopper",
       icon: IconShield
@@ -1728,6 +1976,13 @@ function Sidebar({
       id: "social_report",
       label: "Reporte Social Media",
       icon: IconTrend
+    }]
+  }, {
+    label: "Media",
+    items: [{
+      id: "media_ooh",
+      label: "OOH Caracas",
+      icon: IconNav
     }]
   }];
   return /*#__PURE__*/React.createElement("aside", {
@@ -1823,14 +2078,18 @@ function Header({
     calendar: "Calendario",
     activations: "Activaciones y validación",
     agency: "Admin agencia y evidencias",
+    pop_inventory: "Material POP · Inventario",
     influencers: "IG, TikTok e Influencers",
     social_report: "Reporte Social Media",
-    mystery: "Mystery Shopper"
+    mystery: "Mystery Shopper",
+    media_ooh: "Media OOH"
   };
   const subtitles = {
+    pop_inventory: "Control de stock, reservados, mínimos y valor estimado",
     influencers: `${count} creadores registrados · performance orgánico y paid`,
     social_report: "Reporte mensual por plataforma · Venezuela",
-    mystery: `${count} activaciones registradas · validación operativa`
+    mystery: `${count} activaciones registradas · validación operativa`,
+    media_ooh: "Inventario OOH con mapa de Caracas, fotos/reporte y reach estimado"
   };
   return /*#__PURE__*/React.createElement("header", {
     style: S.header
@@ -2623,11 +2882,380 @@ function MapView({
   }), " ", t.label))));
 }
 
+/* ============================ POP + MEDIA ============================ */
+function PopInventory({
+  items,
+  setItems
+}) {
+  const update = (id, key, value) => setItems(previous => previous.map(item => item.id === id ? {
+    ...item,
+    [key]: ["stock", "reserved", "min", "unitCost"].includes(key) ? Number(value) || 0 : value
+  } : item));
+  const add = () => setItems(previous => [{
+    id: uid("pop"),
+    item: "Nuevo material",
+    category: "Material POP",
+    stock: 0,
+    reserved: 0,
+    min: 0,
+    unitCost: 0,
+    notes: ""
+  }, ...previous]);
+  const remove = id => setItems(previous => previous.filter(item => item.id !== id));
+  const totals = items.reduce((acc, item) => {
+    const stock = Number(item.stock) || 0;
+    const reserved = Number(item.reserved) || 0;
+    const available = Math.max(0, stock - reserved);
+    acc.stock += stock;
+    acc.available += available;
+    acc.value += stock * (Number(item.unitCost) || 0);
+    acc.low += available <= (Number(item.min) || 0) ? 1 : 0;
+    return acc;
+  }, {
+    stock: 0,
+    available: 0,
+    value: 0,
+    low: 0
+  });
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.resultBanner,
+      background: "linear-gradient(135deg,#111827,#E30613)"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 900,
+      fontSize: 20
+    }
+  }, "Inventario Material POP"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      opacity: .85,
+      marginTop: 4
+    }
+  }, "Control de stock, reservados, mínimos y valor estimado.")), /*#__PURE__*/React.createElement("button", {
+    className: "primarybtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#172554"
+    },
+    onClick: add
+  }, /*#__PURE__*/React.createElement(IconPlus, {
+    size: 16
+  }), " Nuevo material")), /*#__PURE__*/React.createElement("div", {
+    style: S.kpiGrid
+  }, /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconTicket,
+    label: "Stock total",
+    value: fmt(totals.stock),
+    accent: "#E30613"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconCheck,
+    label: "Disponible",
+    value: fmt(totals.available),
+    accent: "#16A34A"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconAlert,
+    label: "Bajo mínimo",
+    value: fmt(totals.low),
+    accent: "#D97706"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconDollar,
+    label: "Valor inventario",
+    value: usd(totals.value),
+    accent: "#111827"
+  })), /*#__PURE__*/React.createElement(Card, {
+    title: "Materiales",
+    hint: "Disponible = stock - reservado. Si baja del mínimo, queda marcado en amarillo."
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto",
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: S.table
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Material", "Categoría", "Stock", "Reservado", "Disponible", "Mínimo", "Costo unit.", "Notas", ""].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: S.th
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, items.map(item => {
+    const available = Math.max(0, (Number(item.stock) || 0) - (Number(item.reserved) || 0));
+    const low = available <= (Number(item.min) || 0);
+    return /*#__PURE__*/React.createElement("tr", {
+      key: item.id
+    }, /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("input", {
+      style: S.input,
+      value: item.item,
+      onChange: e => update(item.id, "item", e.target.value)
+    })), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("input", {
+      style: S.input,
+      value: item.category,
+      onChange: e => update(item.id, "category", e.target.value)
+    })), ["stock", "reserved"].map(key => /*#__PURE__*/React.createElement("td", {
+      key,
+      style: S.td
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      min: "0",
+      style: S.input,
+      value: item[key],
+      onChange: e => update(item.id, key, e.target.value)
+    }))), /*#__PURE__*/React.createElement("td", {
+      style: {
+        ...S.td,
+        color: low ? "#D97706" : "#16A34A",
+        fontWeight: 900
+      }
+    }, fmt(available)), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      min: "0",
+      style: S.input,
+      value: item.min,
+      onChange: e => update(item.id, "min", e.target.value)
+    })), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      min: "0",
+      step: "0.1",
+      style: S.input,
+      value: item.unitCost,
+      onChange: e => update(item.id, "unitCost", e.target.value)
+    })), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("input", {
+      style: S.input,
+      value: item.notes,
+      onChange: e => update(item.id, "notes", e.target.value)
+    })), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("button", {
+      style: {
+        ...S.dangerBtn,
+        padding: "7px 9px",
+        fontSize: 12
+      },
+      onClick: () => remove(item.id)
+    }, "Eliminar")));
+  }))))));
+}
+function MediaOOH({
+  items,
+  setItems
+}) {
+  const mapNode = useRef(null);
+  const mapInstance = useRef(null);
+  const update = (id, key, value) => setItems(previous => previous.map(item => item.id === id ? {
+    ...item,
+    [key]: ["lat", "lng", "reach", "cost"].includes(key) ? Number(value) || 0 : value
+  } : item));
+  const add = () => setItems(previous => [{
+    id: uid("media"),
+    name: "Nuevo OOH",
+    type: "Valla",
+    location: "Caracas",
+    address: "",
+    lat: 10.4905,
+    lng: -66.8665,
+    status: "Planificada",
+    reach: 0,
+    cost: 0,
+    photoUrl: "",
+    reportUrl: "",
+    notes: ""
+  }, ...previous]);
+  const totals = items.reduce((acc, item) => {
+    acc.reach += Number(item.reach) || 0;
+    acc.cost += Number(item.cost) || 0;
+    acc.active += item.status === "Activa" ? 1 : 0;
+    return acc;
+  }, {
+    reach: 0,
+    cost: 0,
+    active: 0
+  });
+  const cpm = totals.reach ? totals.cost / totals.reach * 1000 : 0;
+  useEffect(() => {
+    if (!mapNode.current || typeof L === "undefined") return;
+    if (mapInstance.current) {
+      mapInstance.current.remove();
+      mapInstance.current = null;
+    }
+    const map = L.map(mapNode.current, {
+      scrollWheelZoom: false
+    }).setView([10.4905, -66.8665], 12);
+    mapInstance.current = map;
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
+    const bounds = [];
+    items.forEach(item => {
+      const lat = Number(item.lat);
+      const lng = Number(item.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const color = item.status === "Activa" ? "#E30613" : "#F97316";
+      const icon = L.divIcon({
+        className: "",
+        html: `<div style="width:24px;height:24px;border-radius:8px;background:${color};border:3px solid white;box-shadow:0 2px 8px rgba(15,23,42,.35);transform:rotate(45deg)"></div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
+      L.marker([lat, lng], {
+        icon
+      }).addTo(map).bindPopup(`<div style="min-width:200px"><b>${escapeHtml(item.name)}</b><br>${escapeHtml(item.type)} · ${escapeHtml(item.location)}<br>${escapeHtml(item.address || "")}<br><b>${fmt(item.reach)}</b> reach est. · <b>${usd(item.cost)}</b></div>`);
+      bounds.push([lat, lng]);
+    });
+    if (bounds.length > 1) map.fitBounds(bounds, {
+      padding: [35, 35],
+      maxZoom: 14
+    });
+    setTimeout(() => map.invalidateSize(), 0);
+    return () => {
+      map.remove();
+      mapInstance.current = null;
+    };
+  }, [items]);
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.resultBanner,
+      background: "linear-gradient(135deg,#E30613,#111827)"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 900,
+      fontSize: 20
+    }
+  }, "Media · OOH Caracas"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      opacity: .85,
+      marginTop: 4
+    }
+  }, "Mapa de ubicaciones, inversión, fotos/reportes y reach estimado.")), /*#__PURE__*/React.createElement("button", {
+    className: "primarybtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#172554"
+    },
+    onClick: add
+  }, /*#__PURE__*/React.createElement(IconPlus, {
+    size: 16
+  }), " Nuevo OOH")), /*#__PURE__*/React.createElement("div", {
+    style: S.kpiGrid
+  }, /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconNav,
+    label: "Piezas OOH",
+    value: fmt(items.length),
+    accent: "#E30613"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconCheck,
+    label: "Activas",
+    value: fmt(totals.active),
+    accent: "#16A34A"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconEye,
+    label: "Reach estimado",
+    value: compactMetric(totals.reach),
+    accent: "#0EA5E9"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconDollar,
+    label: "CPM estimado",
+    value: cpm ? usd(cpm) : "—",
+    accent: "#111827"
+  })), /*#__PURE__*/React.createElement(Card, {
+    title: "Mapa de OOH",
+    hint: "El reach se carga como estimado o desde proveedor. CPM = costo / reach * 1.000."
+  }, /*#__PURE__*/React.createElement("div", {
+    ref: mapNode,
+    style: {
+      width: "100%",
+      height: 420,
+      borderRadius: 12,
+      border: "1px solid #E2E8F0",
+      overflow: "hidden",
+      marginTop: 10,
+      background: "#E2E8F0"
+    }
+  })), /*#__PURE__*/React.createElement(Card, {
+    title: "Inventario Media",
+    hint: "Puedes pegar links de fotos o reportes por ubicación."
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto",
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      ...S.table,
+      minWidth: 1180
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Nombre", "Tipo", "Ubicación", "Dirección", "Lat", "Lng", "Estado", "Reach", "Costo", "Foto", "Reporte", "Notas"].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: S.th
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, items.map(item => /*#__PURE__*/React.createElement("tr", {
+    key: item.id
+  }, ["name", "type", "location", "address"].map(key => /*#__PURE__*/React.createElement("td", {
+    key,
+    style: S.td
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: item[key] || "",
+    onChange: e => update(item.id, key, e.target.value)
+  }))), ["lat", "lng"].map(key => /*#__PURE__*/React.createElement("td", {
+    key,
+    style: S.td
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    step: "0.0001",
+    style: S.input,
+    value: item[key],
+    onChange: e => update(item.id, key, e.target.value)
+  }))), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, /*#__PURE__*/React.createElement("select", {
+    style: S.select,
+    value: item.status,
+    onChange: e => update(item.id, "status", e.target.value)
+  }, ["Activa", "Planificada", "Pausada", "Finalizada"].map(s => /*#__PURE__*/React.createElement("option", {
+    key: s
+  }, s)))), ["reach", "cost"].map(key => /*#__PURE__*/React.createElement("td", {
+    key,
+    style: S.td
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    style: S.input,
+    value: item[key],
+    onChange: e => update(item.id, key, e.target.value)
+  }))), ["photoUrl", "reportUrl", "notes"].map(key => /*#__PURE__*/React.createElement("td", {
+    key,
+    style: S.td
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: item[key] || "",
+    placeholder: key === "photoUrl" ? "Link foto" : key === "reportUrl" ? "Link reporte" : "",
+    onChange: e => update(item.id, key, e.target.value)
+  }))))))))));
+}
+
 /* ============================ CALENDAR ============================ */
 function CalendarView({
   acts,
   onOpen,
-  mystery = []
+  mystery = [],
+  budgets = {
+    months: {},
+    quarters: {}
+  },
+  setBudgets = () => {}
 }) {
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
@@ -2664,6 +3292,78 @@ function CalendarView({
   });
   const todayStr = new Date().toISOString().slice(0, 10);
   const mysteryIds = new Set(mystery.map(m => m.actId).filter(Boolean));
+  const monthKey = `${cursor.y}-${String(cursor.m + 1).padStart(2, "0")}`;
+  const currentMonthActs = acts.filter(a => monthKeyFromDate(a.date) === monthKey);
+  const monthPlanned = currentMonthActs.reduce((sum, a) => sum + (Number(a.cost) || 0), 0);
+  const quarterKey = quarterKeyFromDate(`${monthKey}-01`);
+  const currentQuarterActs = acts.filter(a => quarterKeyFromDate(a.date) === quarterKey);
+  const quarterPlanned = currentQuarterActs.reduce((sum, a) => sum + (Number(a.cost) || 0), 0);
+  const monthBudget = Number(budgets.months?.[monthKey]) || 0;
+  const quarterBudget = Number(budgets.quarters?.[quarterKey]) || 0;
+  const setBudget = (scope, key, value) => setBudgets(previous => ({
+    months: {
+      ...(previous?.months || {})
+    },
+    quarters: {
+      ...(previous?.quarters || {})
+    },
+    [scope]: {
+      ...((previous || {})[scope] || {}),
+      [key]: Number(value) || 0
+    }
+  }));
+  const budgetBox = (label, planned, budget, scope, key, hint) => {
+    const diff = budget - planned;
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: 14,
+        border: "1px solid #E2E8F0",
+        borderRadius: 16,
+        background: "#fff",
+        display: "grid",
+        gap: 9
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: "#64748B",
+        fontWeight: 850
+      }
+    }, label), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 10
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: "#94A3B8",
+        fontSize: 10,
+        fontWeight: 900,
+        textTransform: "uppercase"
+      }
+    }, "Planificado"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 18,
+        fontWeight: 950
+      }
+    }, usd(planned))), /*#__PURE__*/React.createElement(Field, {
+      label: "Budget"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      min: "0",
+      style: S.input,
+      value: budget || "",
+      onChange: e => setBudget(scope, key, e.target.value),
+      placeholder: "0"
+    }))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: budget ? diff >= 0 ? "#16A34A" : "#DC2626" : "#94A3B8",
+        fontWeight: 850
+      }
+    }, budget ? `${diff >= 0 ? "Disponible" : "Sobre budget"}: ${usd(Math.abs(diff))}` : hint));
+  };
   return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     style: S.calHead
   }, /*#__PURE__*/React.createElement("h3", {
@@ -2690,6 +3390,13 @@ function CalendarView({
   }, /*#__PURE__*/React.createElement(IconRight, {
     size: 18
   })))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
+      gap: 12,
+      marginBottom: 16
+    }
+  }, budgetBox(monthLabelFromKey(monthKey), monthPlanned, monthBudget, "months", monthKey, "Carga el budget del mes para compararlo."), budgetBox(quarterLabelFromKey(quarterKey), quarterPlanned, quarterBudget, "quarters", quarterKey, "Carga el budget del Q para compararlo.")), /*#__PURE__*/React.createElement("div", {
     style: {
       ...S.legend,
       marginTop: 0,
@@ -2966,6 +3673,8 @@ function Mystery({
 }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const sync = async () => {
     if (!cfg.appsScriptUrl) {
       setMsg("La conexión automática del formulario aún no está configurada.");
@@ -2985,6 +3694,38 @@ function Mystery({
     }
     setLoading(false);
   };
+  const filteredMystery = mystery.filter(m => inRange(m.date, fromDate, toDate));
+  const dateFilters = /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.filters,
+      marginTop: 0
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Desde"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: S.input,
+    value: fromDate,
+    onChange: e => setFromDate(e.target.value)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Hasta"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: S.input,
+    value: toDate,
+    onChange: e => setToDate(e.target.value)
+  })), (fromDate || toDate) && /*#__PURE__*/React.createElement("button", {
+    className: "ghostbtn",
+    style: {
+      ...S.ghostBtn,
+      alignSelf: "end",
+      height: 38
+    },
+    onClick: () => {
+      setFromDate("");
+      setToDate("");
+    }
+  }, "Limpiar fecha"));
   if (!mystery.length) return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SyncBar, {
     onSync: sync,
     loading: loading,
@@ -2993,14 +3734,22 @@ function Mystery({
   }), /*#__PURE__*/React.createElement(Empty, {
     msg: "Aún no hay respuestas del mystery shopper."
   }));
-  const n = mystery.length;
-  const avg = k => mystery.reduce((s, m) => s + (Number(m[k]) || 0), 0) / n;
+  if (!filteredMystery.length) return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SyncBar, {
+    onSync: sync,
+    loading: loading,
+    msg: msg,
+    configured: !!cfg.appsScriptUrl
+  }), dateFilters, /*#__PURE__*/React.createElement(Empty, {
+    msg: "No hay visitas de mystery shopper en ese rango de fechas."
+  }));
+  const n = filteredMystery.length;
+  const avg = k => filteredMystery.reduce((s, m) => s + (Number(m[k]) || 0), 0) / n;
   const calif = avg("calificacion");
-  const operativas = mystery.filter(m => m.operativa === "Sí").length;
-  const uniformeOk = mystery.filter(m => m.uniforme === "Sí").length;
-  const volSi = mystery.filter(m => m.volverias === "Sí").length;
+  const operativas = filteredMystery.filter(m => m.operativa === "Sí").length;
+  const uniformeOk = filteredMystery.filter(m => m.uniforme === "Sí").length;
+  const volSi = filteredMystery.filter(m => m.volverias === "Sí").length;
   const compCount = {};
-  mystery.forEach(m => (m.competencia || []).forEach(c => {
+  filteredMystery.forEach(m => (m.competencia || []).forEach(c => {
     compCount[c] = (compCount[c] || 0) + 1;
   }));
   const maxScale = 5;
@@ -3009,7 +3758,7 @@ function Mystery({
     loading: loading,
     msg: msg,
     configured: !!cfg.appsScriptUrl
-  }), /*#__PURE__*/React.createElement("div", {
+  }), dateFilters, /*#__PURE__*/React.createElement("div", {
     style: S.kpiGrid
   }, /*#__PURE__*/React.createElement(Kpi, {
     icon: IconStar,
@@ -3088,7 +3837,7 @@ function Mystery({
     total: n
   }), /*#__PURE__*/React.createElement(CompRow, {
     label: "Todas las promotoras presentes",
-    ok: mystery.filter(m => m.promotorasPresentes === "Sí").length,
+    ok: filteredMystery.filter(m => m.promotorasPresentes === "Sí").length,
     total: n
   })), /*#__PURE__*/React.createElement(Divider, {
     label: "Competencia detectada"
@@ -3119,7 +3868,7 @@ function Mystery({
       gap: 8,
       marginTop: 4
     }
-  }, mystery.map(m => {
+  }, filteredMystery.map(m => {
     const a = acts.find(x => x.id === m.actId);
     const t = typeOf(m.type);
     const vColor = m.volverias === "Sí" ? "#16A34A" : m.volverias === "Tal vez" ? "#D97706" : "#DC2626";
@@ -3165,7 +3914,7 @@ function Mystery({
       gap: 10,
       marginTop: 4
     }
-  }, mystery.filter(m => m.preguntasFrec || m.comentarios).map(m => {
+  }, filteredMystery.filter(m => m.preguntasFrec || m.comentarios).map(m => {
     const a = acts.find(x => x.id === m.actId);
     return /*#__PURE__*/React.createElement("div", {
       key: m.id,
@@ -3791,7 +4540,7 @@ async function buildActivationReport(acts, alloc, from, to) {
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
-    doc.text("Yango BTL · Reporte de activaciones", 14, 14);
+    doc.text("Yango MKT · Reporte de activaciones", 14, 14);
     doc.setTextColor(15, 23, 42);
   };
   addHeader();
@@ -3874,7 +4623,7 @@ function AgencyStandalone({
       fontWeight: 900,
       fontSize: 24
     }
-  }, "Portal agencia · Yango BTL"), /*#__PURE__*/React.createElement("div", {
+  }, "Portal agencia · Yango MKT"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       opacity: .82,
@@ -4798,6 +5547,8 @@ function influencerTemplate(over = {}) {
     published: false,
     publishDate: "",
     link: "",
+    tiktokLink: "",
+    paymentDate: "",
     hasPromoCode: false,
     promoCode: "",
     redemptions: 0,
@@ -4820,7 +5571,9 @@ function influencerTemplate(over = {}) {
     ...over,
     budget: Number(over.budget) || Number(over.closedBudget) || Number(over.negotiatedBudget) || 0,
     sameTiktokHandle: over.sameTiktokHandle !== false,
-    tiktokHandle: over.sameTiktokHandle === false ? over.tiktokHandle || "" : ""
+    tiktokHandle: over.sameTiktokHandle === false ? over.tiktokHandle || "" : "",
+    tiktokLink: over.tiktokLink || "",
+    paymentDate: over.paymentDate || ""
   };
 }
 function influencerStatus(label, active, color) {
@@ -4874,10 +5627,10 @@ function influencerHandleText(i) {
   return `${ig}${tiktok}`;
 }
 function downloadInfluencerCSV(items) {
-  const headers = ["Nombre", "Usuario IG", "Usuario TikTok", "Tipo", "Plataforma", "Followers IG", "Followers TikTok", "Entregables", "Presupuesto", "Pagado", "Grabó", "Publicó", "Fecha publicación", "Link", "Tiene Promo Code", "Promo Code", "Redenciones", "IG Reach", "IG Likes", "IG Comentarios", "IG Shares", "IG Saves", "TikTok Reach", "TikTok Likes", "TikTok Comentarios", "TikTok Shares", "TikTok Saves", "Reach total", "Engagement total", "Engagement rate", "Costo por engagement", "CPM", "Costo por redención", "Notas"];
+  const headers = ["Nombre", "Usuario IG", "Usuario TikTok", "Tipo", "Plataforma", "Followers IG", "Followers TikTok", "Entregables", "Presupuesto", "Pagado", "Fecha de pago", "Grabó", "Publicó", "Fecha publicación", "Link", "Link TikTok", "Tiene Promo Code", "Promo Code", "Redenciones", "IG Reach", "IG Likes", "IG Comentarios", "IG Shares", "IG Saves", "TikTok Reach", "TikTok Likes", "TikTok Comentarios", "TikTok Shares", "TikTok Saves", "Reach total", "Engagement total", "Engagement rate", "Costo por engagement", "CPM", "Costo por redención", "Notas"];
   const rows = items.map(i => {
     const m = influencerMetrics(i);
-    return [i.name, i.handle, i.sameTiktokHandle === false ? i.tiktokHandle || "" : i.handle || "", tierOf(i.tier).label, i.platform, Number(i.igFollowers) || 0, Number(i.tiktokFollowers) || 0, (i.deliverables || []).join(" + "), influencerBudget(i), i.paid ? "Sí" : "No", i.recorded ? "Sí" : "No", i.published ? "Sí" : "No", i.publishDate || "", i.link || "", i.hasPromoCode ? "Sí" : "No", i.promoCode || "", Number(i.redemptions) || 0, m.ig.reach, m.ig.likes, m.ig.comments, m.ig.shares, m.ig.saves, m.tiktok.reach, m.tiktok.likes, m.tiktok.comments, m.tiktok.shares, m.tiktok.saves, m.ig.reach + m.tiktok.reach || Number(i.reach) || 0, m.engagement, pct(m.er), m.cpe ? usd(m.cpe) : "", m.cpm ? usd(m.cpm) : "", m.cpr ? usd(m.cpr) : "", i.notes || ""];
+    return [i.name, i.handle, i.sameTiktokHandle === false ? i.tiktokHandle || "" : i.handle || "", tierOf(i.tier).label, i.platform, Number(i.igFollowers) || 0, Number(i.tiktokFollowers) || 0, (i.deliverables || []).join(" + "), influencerBudget(i), i.paid ? "Sí" : "No", i.paymentDate || "", i.recorded ? "Sí" : "No", i.published ? "Sí" : "No", i.publishDate || "", i.link || "", i.tiktokLink || "", i.hasPromoCode ? "Sí" : "No", i.promoCode || "", Number(i.redemptions) || 0, m.ig.reach, m.ig.likes, m.ig.comments, m.ig.shares, m.ig.saves, m.tiktok.reach, m.tiktok.likes, m.tiktok.comments, m.tiktok.shares, m.tiktok.saves, m.ig.reach + m.tiktok.reach || Number(i.reach) || 0, m.engagement, pct(m.er), m.cpe ? usd(m.cpe) : "", m.cpm ? usd(m.cpm) : "", m.cpr ? usd(m.cpr) : "", i.notes || ""];
   });
   const csv = [headers, ...rows].map(row => row.map(value => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
   const blob = new Blob(["\uFEFF" + csv], {
@@ -4897,10 +5650,32 @@ function InfluencerTracker({
 }) {
   const [tierFilter, setTierFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
+  const [deliverableFilter, setDeliverableFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("publish_desc");
   const [fromPub, setFromPub] = useState("");
   const [toPub, setToPub] = useState("");
   const [editing, setEditing] = useState(null);
-  const rows = items.filter(i => (tierFilter === "all" || i.tier === tierFilter) && (platformFilter === "all" || i.platform === platformFilter) && inRange(i.publishDate, fromPub, toPub));
+  const rows = items.filter(i => (tierFilter === "all" || i.tier === tierFilter) && (platformFilter === "all" || i.platform === platformFilter) && (deliverableFilter === "all" || (i.deliverables || []).includes(deliverableFilter)) && inRange(i.publishDate, fromPub, toPub)).sort((a, b) => {
+    const ma = influencerMetrics(a);
+    const mb = influencerMetrics(b);
+    const followersA = (Number(a.igFollowers) || 0) + (Number(a.tiktokFollowers) || 0);
+    const followersB = (Number(b.igFollowers) || 0) + (Number(b.tiktokFollowers) || 0);
+    const totalReachA = ma.ig.reach + ma.tiktok.reach || Number(a.reach) || 0;
+    const totalReachB = mb.ig.reach + mb.tiktok.reach || Number(b.reach) || 0;
+    const comparators = {
+      publish_desc: () => String(b.publishDate || "").localeCompare(String(a.publishDate || "")),
+      publish_asc: () => String(a.publishDate || "").localeCompare(String(b.publishDate || "")),
+      name_az: () => String(a.name || "").localeCompare(String(b.name || "")),
+      name_za: () => String(b.name || "").localeCompare(String(a.name || "")),
+      budget_desc: () => influencerBudget(b) - influencerBudget(a),
+      budget_asc: () => influencerBudget(a) - influencerBudget(b),
+      reach_desc: () => totalReachB - totalReachA,
+      engagement_desc: () => mb.engagement - ma.engagement,
+      redemptions_desc: () => (Number(b.redemptions) || 0) - (Number(a.redemptions) || 0),
+      followers_desc: () => followersB - followersA
+    };
+    return (comparators[sortBy] || comparators.publish_desc)();
+  });
   const totals = rows.reduce((acc, i) => {
     const m = influencerMetrics(i);
     const budget = influencerBudget(i);
@@ -4930,6 +5705,7 @@ function InfluencerTracker({
     redemptions: 0
   });
   const er = totals.reach ? totals.engagement / totals.reach : 0;
+  const totalCpm = totals.reach ? totals.budget / totals.reach * 1000 : 0;
   const saveAndClose = item => {
     onSave(item);
     setEditing(null);
@@ -5018,6 +5794,11 @@ function InfluencerTracker({
     label: "Presupuesto",
     value: usd(totals.budget),
     accent: "#111827"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconTrend,
+    label: "CPM promedio",
+    value: totalCpm ? usd(totalCpm) : "—",
+    accent: "#B45309"
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       ...S.filters,
@@ -5038,14 +5819,51 @@ function InfluencerTracker({
     label: "Plataforma"
   }, /*#__PURE__*/React.createElement("select", {
     style: S.select,
-    value: platformFilter,
-    onChange: e => setPlatformFilter(e.target.value)
+      value: platformFilter,
+      onChange: e => setPlatformFilter(e.target.value)
   }, /*#__PURE__*/React.createElement("option", {
     value: "all"
   }, "Todas"), SOCIAL_PLATFORMS.map(p => /*#__PURE__*/React.createElement("option", {
     key: p,
     value: p
   }, p)))), /*#__PURE__*/React.createElement(Field, {
+    label: "Entregable"
+  }, /*#__PURE__*/React.createElement("select", {
+    style: S.select,
+    value: deliverableFilter,
+    onChange: e => setDeliverableFilter(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "Todos"), SOCIAL_DELIVERABLES.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p,
+    value: p
+  }, p)))), /*#__PURE__*/React.createElement(Field, {
+    label: "Ordenar por"
+  }, /*#__PURE__*/React.createElement("select", {
+    style: S.select,
+    value: sortBy,
+    onChange: e => setSortBy(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "publish_desc"
+  }, "Publicación reciente"), /*#__PURE__*/React.createElement("option", {
+    value: "publish_asc"
+  }, "Publicación antigua"), /*#__PURE__*/React.createElement("option", {
+    value: "name_az"
+  }, "Nombre A-Z"), /*#__PURE__*/React.createElement("option", {
+    value: "name_za"
+  }, "Nombre Z-A"), /*#__PURE__*/React.createElement("option", {
+    value: "budget_desc"
+  }, "Presupuesto mayor-menor"), /*#__PURE__*/React.createElement("option", {
+    value: "budget_asc"
+  }, "Presupuesto menor-mayor"), /*#__PURE__*/React.createElement("option", {
+    value: "reach_desc"
+  }, "Reach mayor-menor"), /*#__PURE__*/React.createElement("option", {
+    value: "engagement_desc"
+  }, "Engagement mayor-menor"), /*#__PURE__*/React.createElement("option", {
+    value: "redemptions_desc"
+  }, "Redenciones mayor-menor"), /*#__PURE__*/React.createElement("option", {
+    value: "followers_desc"
+  }, "Followers mayor-menor"))), /*#__PURE__*/React.createElement(Field, {
     label: "Publicado desde"
   }, /*#__PURE__*/React.createElement("input", {
     type: "date",
@@ -5113,7 +5931,14 @@ function InfluencerTracker({
         fontSize: 11,
         marginTop: 2
       }
-    }, i.paid ? "Pagado" : "Pendiente pago")), /*#__PURE__*/React.createElement("td", {
+    }, i.paid ? `Pagado${i.paymentDate ? " · " + shortDate(i.paymentDate) : ""}` : "Pendiente pago"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: "#B45309",
+        fontSize: 11,
+        marginTop: 2,
+        fontWeight: 800
+      }
+    }, "CPM ", m.cpm ? usd(m.cpm) : "—")), /*#__PURE__*/React.createElement("td", {
       style: S.td
     }, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -5135,6 +5960,12 @@ function InfluencerTracker({
       }
     }, fmt(Number(i.redemptions) || 0), " redenciones")) : "No aplica"), /*#__PURE__*/React.createElement("td", {
       style: S.td
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 4
+      }
     }, i.link ? /*#__PURE__*/React.createElement("a", {
       href: i.link,
       target: "_blank",
@@ -5144,7 +5975,20 @@ function InfluencerTracker({
         fontWeight: 800,
         textDecoration: "none"
       }
-    }, "Abrir") : "—"), /*#__PURE__*/React.createElement("td", {
+    }, "IG / reporte") : /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#94A3B8"
+      }
+    }, "—"), i.tiktokLink && /*#__PURE__*/React.createElement("a", {
+      href: i.tiktokLink,
+      target: "_blank",
+      rel: "noreferrer",
+      style: {
+        color: "#111827",
+        fontWeight: 800,
+        textDecoration: "none"
+      }
+    }, "TikTok"))), /*#__PURE__*/React.createElement("td", {
       style: S.td
     }, /*#__PURE__*/React.createElement("button", {
       className: "ghostbtn",
@@ -5195,6 +6039,8 @@ function InfluencerEditor({
     budget: Number(form.budget) || Number(form.closedBudget) || Number(form.negotiatedBudget) || 0,
     sameTiktokHandle: form.sameTiktokHandle !== false,
     tiktokHandle: form.sameTiktokHandle === false ? (form.tiktokHandle || "").trim() : "",
+    tiktokLink: (form.tiktokLink || "").trim(),
+    paymentDate: form.paymentDate || "",
     redemptions: form.hasPromoCode ? Number(form.redemptions) || 0 : 0,
     igReach: Number(form.igReach) || 0,
     igLikes: Number(form.igLikes) || 0,
@@ -5396,6 +6242,22 @@ function InfluencerEditor({
     value: form.link,
     onChange: e => set("link", e.target.value),
     placeholder: "https://..."
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: S.row2
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Fecha de pago"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: S.input,
+    value: form.paymentDate || "",
+    onChange: e => set("paymentDate", e.target.value)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Link de TikTok"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: form.tiktokLink || "",
+    onChange: e => set("tiktokLink", e.target.value),
+    placeholder: "https://www.tiktok.com/@..."
   }))), /*#__PURE__*/React.createElement(Divider, {
     label: "Promo Code"
   }), /*#__PURE__*/React.createElement("label", {
