@@ -1574,10 +1574,6 @@ function App() {
       setTab(t);
       setMenuOpen(false);
     },
-    onNew: () => {
-      setEditing("new");
-      setMenuOpen(false);
-    },
     onImport: () => {
       setImporting(true);
       setMenuOpen(false);
@@ -1625,7 +1621,8 @@ function App() {
     acts: filtered,
     alloc: alloc,
     onOpen: setEditing,
-    onSave: save
+    onSave: save,
+    onNew: () => setEditing("new")
   }), tab === "qr" && /*#__PURE__*/React.createElement(QRZones, {
     alloc: alloc,
     acts: filtered,
@@ -1668,7 +1665,6 @@ function App() {
 function Sidebar({
   tab,
   setTab,
-  onNew,
   onImport,
   onImportResults,
   menuOpen
@@ -1780,28 +1776,21 @@ function Sidebar({
     style: {
       display: "flex",
       flexDirection: "column",
-      gap: 6,
-      padding: "8px 8px 4px"
+      gap: 5,
+      padding: "6px 8px 2px"
     }
   }, /*#__PURE__*/React.createElement("button", {
-    className: "newbtn",
-    style: S.newBtn,
-    onClick: onNew
-  }, /*#__PURE__*/React.createElement(IconPlus, {
-    size: 17,
-    strokeWidth: 2.6
-  }), " Nueva activación"), /*#__PURE__*/React.createElement("button", {
     className: "ghostbtn",
-    style: S.importBtn,
+    style: S.menuActionBtn,
     onClick: onImport
   }, /*#__PURE__*/React.createElement(IconUpload, {
-    size: 15
+    size: 13
   }), " Cargar calendario"), /*#__PURE__*/React.createElement("button", {
     className: "ghostbtn",
-    style: S.importBtn,
+    style: S.menuActionBtn,
     onClick: onImportResults
   }, /*#__PURE__*/React.createElement(IconTrend, {
-    size: 15
+    size: 13
   }), " Cargar resultados"))))));
 }
 function Header({
@@ -1822,7 +1811,7 @@ function Header({
   };
   const subtitles = {
     influencers: `${count} creadores registrados · performance orgánico y paid`,
-    social_report: `${count} periodos de reporte · Venezuela`,
+    social_report: "Reporte mensual por plataforma · Venezuela",
     mystery: `${count} activaciones registradas · validación operativa`
   };
   return /*#__PURE__*/React.createElement("header", {
@@ -2025,7 +2014,7 @@ function Global({
     accent: "#0EA5E9"
   }), React.createElement(Kpi, {
     icon: IconTicket,
-    label: "Promo canjes",
+    label: "Canjes Promo Code",
     value: fmt(redemptions),
     accent: "#16A34A"
   }), React.createElement(Kpi, {
@@ -2277,14 +2266,14 @@ function Results({
     }
   }, pct(overall)))), /*#__PURE__*/React.createElement(Card, {
     title: "Resultados por zona",
-    hint: "QR (escaneos) + promo code (canjes) por ubicación. Tu doble medición."
+    hint: "QR (escaneos) + Promo Code (canjes) por ubicación. Tu doble medición."
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       overflowX: "auto"
     }
   }, /*#__PURE__*/React.createElement("table", {
     style: S.table
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Zona", "Act.", "Clics", "Installs", "Registros", "1ros viajes", "Promo canjes", "Invertido", "Costo/inst.", "Costo/reg.", "Costo/1er viaje"].map(h => /*#__PURE__*/React.createElement("th", {
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Zona", "Act.", "Clics", "Installs", "Registros", "1ros viajes", "Canjes Promo Code", "Invertido", "Costo/inst.", "Costo/reg.", "Costo/1er viaje"].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: S.th
   }, h)))), /*#__PURE__*/React.createElement("tbody", null, byZone.map(z => /*#__PURE__*/React.createElement("tr", {
@@ -2297,7 +2286,7 @@ function Results({
       color: "#94A3B8",
       marginTop: 2
     }
-  }, z.codes.length ? z.codes.join(" · ") : "Sin promo code")), /*#__PURE__*/React.createElement("td", {
+  }, z.codes.length ? z.codes.join(" · ") : "Sin Promo Code")), /*#__PURE__*/React.createElement("td", {
     style: S.td
   }, z.count), /*#__PURE__*/React.createElement("td", {
     style: S.td
@@ -2428,8 +2417,8 @@ function QRZones({
   }, /*#__PURE__*/React.createElement("b", null, "Formato:"), " UbicacionTipo", /*#__PURE__*/React.createElement("br", null), "Ej: ", /*#__PURE__*/React.createElement("code", null, "SabanaGrandeHelados")), /*#__PURE__*/React.createElement("div", {
     style: S.colHint
   }, /*#__PURE__*/React.createElement("b", null, "Adjust export:"), " campaign · adgroup · installs · attribution_clicks · registration_events · custom_sfo_yango_venezuela · success_first_order_events"))), /*#__PURE__*/React.createElement(Card, {
-    title: "QR, promo codes y métricas",
-    hint: "Abre una activación para editar el link, promo code o sus resultados."
+    title: "QR, Promo Codes y métricas",
+    hint: "Abre una activación para editar el link, Promo Code o sus resultados."
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       overflowX: "auto",
@@ -2437,7 +2426,7 @@ function QRZones({
     }
   }, /*#__PURE__*/React.createElement("table", {
     style: S.table
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Activación", "Nombre Adjust", "QR / link", "Clics", "Installs", "Registros", "1ros viajes", "Promo", "Canjes", ""].map(h => /*#__PURE__*/React.createElement("th", {
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Activación", "Nombre Adjust", "QR / link", "Clics", "Installs", "Registros", "1ros viajes", "Promo Code", "Canjes", ""].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: S.th
   }, h)))), /*#__PURE__*/React.createElement("tbody", null, rows.map(a => {
@@ -2774,7 +2763,8 @@ function ActivationList({
   acts,
   alloc,
   onOpen,
-  onSave
+  onSave,
+  onNew
 }) {
   const pending = acts.filter(a => a.confExec === null).sort((a, b) => a.date.localeCompare(b.date));
   const resolved = acts.filter(a => a.confExec !== null).sort((a, b) => b.date.localeCompare(a.date));
@@ -2783,10 +2773,24 @@ function ActivationList({
     confExec: val,
     status: val ? "done" : "cancelled"
   });
-  if (!acts.length) return /*#__PURE__*/React.createElement(Empty, {
+  const actionBar = /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "ghostbtn",
+    style: S.sectionActionBtn,
+    onClick: onNew
+  }, /*#__PURE__*/React.createElement(IconPlus, {
+    size: 14,
+    strokeWidth: 2.6
+  }), " Nueva activación"));
+  if (!acts.length) return /*#__PURE__*/React.createElement(React.Fragment, null, actionBar, /*#__PURE__*/React.createElement(Empty, {
     msg: "No hay activaciones con estos filtros."
-  });
-  return /*#__PURE__*/React.createElement(React.Fragment, null, pending.length > 0 && /*#__PURE__*/React.createElement(Card, {
+  }));
+  return /*#__PURE__*/React.createElement(React.Fragment, null, actionBar, pending.length > 0 && /*#__PURE__*/React.createElement(Card, {
     title: "Por validar",
     hint: "La fecha viene del calendario cargado. Adjust/QR se cruza por ubicación + tipo, no por fecha."
   }, /*#__PURE__*/React.createElement("div", {
@@ -3800,7 +3804,7 @@ async function buildActivationReport(acts, alloc, from, to) {
       maxWidth: 175
     });
     doc.text(`Clicks: ${fmt(metrics.clicks)} · Installs: ${fmt(metrics.installs)} · Registros: ${fmt(metrics.registrations)} · 1ros viajes: ${fmt(metrics.firstTrips)}`, 16, y + 23);
-    doc.text(`Promo: ${a.voucherCode || "—"} · Canjes: ${fmt(a.promoRedemptions)} · Evidencias: ${(a.photos || []).length}`, 16, y + 30);
+    doc.text(`Promo Code: ${a.voucherCode || "—"} · Canjes: ${fmt(a.promoRedemptions)} · Evidencias: ${(a.photos || []).length}`, 16, y + 30);
     y += 42;
     const photos = (a.photos || []).filter(p => p && p.data).slice(0, 4);
     for (let i = 0; i < photos.length; i += 2) {
@@ -4181,12 +4185,15 @@ function AgencyRow({
 function socialRowValue(report, rowId, month) {
   return report.values?.[rowId]?.[month] ?? "";
 }
-function socialReportSum(report, rowIds) {
-  return rowIds.reduce((sum, rowId) => sum + (report.months || []).reduce((s, month) => s + parseMetricValue(socialRowValue(report, rowId, month)), 0), 0);
+function socialReportSumForMonths(report, rowIds, months) {
+  return rowIds.reduce((sum, rowId) => sum + (months || []).reduce((s, month) => s + parseMetricValue(socialRowValue(report, rowId, month)), 0), 0);
 }
-function socialLatestValue(report, rowId) {
-  const month = [...(report.months || [])].reverse().find(m => String(socialRowValue(report, rowId, m)).trim());
-  return month ? socialRowValue(report, rowId, month) : "—";
+function compactMetric(value) {
+  const n = Number(value) || 0;
+  const abs = Math.abs(n);
+  if (abs >= 1000000) return `${(n / 1000000).toFixed(abs >= 10000000 ? 1 : 2).replace(/\.0+$/, "").replace(/(\.\d)0$/, "$1")}M`;
+  if (abs >= 1000) return `${(n / 1000).toFixed(abs >= 100000 ? 0 : 1).replace(/\.0$/, "")}K`;
+  return fmt(n);
 }
 function socialMetricDelta(report, rowId, months, month) {
   const idx = months.indexOf(month);
@@ -4223,6 +4230,8 @@ function SocialMediaReport({
   onChange
 }) {
   const months = report.months || SOCIAL_REPORT_MONTHS;
+  const [monthFilter, setMonthFilter] = useState("all");
+  const visibleMonths = monthFilter === "all" ? months : months.slice(Math.max(0, months.length - Number(monthFilter)));
   const updateCell = (rowId, month, value) => onChange({
     ...report,
     values: {
@@ -4244,10 +4253,12 @@ function SocialMediaReport({
       values: report.values || {}
     });
   };
-  const totalReach = socialReportSum(report, ["reach_instagram", "reach_facebook", "reach_tiktok"]);
-  const totalClicks = socialReportSum(report, ["clicks_instagram", "clicks_facebook", "clicks_tiktok"]);
-  const totalInstalls = socialReportSum(report, ["installs_instagram", "installs_facebook", "installs_tiktok"]);
-  const totalOrders = socialReportSum(report, ["orders_instagram", "orders_facebook", "orders_tiktok"]);
+  const totalFollowersIG = socialReportSumForMonths(report, ["followers_instagram"], visibleMonths);
+  const totalFollowersTikTok = socialReportSumForMonths(report, ["followers_tiktok"], visibleMonths);
+  const totalReach = socialReportSumForMonths(report, ["reach_instagram", "reach_facebook", "reach_tiktok"], visibleMonths);
+  const totalClicks = socialReportSumForMonths(report, ["clicks_instagram", "clicks_facebook", "clicks_tiktok"], visibleMonths);
+  const totalInstalls = socialReportSumForMonths(report, ["installs_instagram", "installs_facebook", "installs_tiktok"], visibleMonths);
+  const totalOrders = socialReportSumForMonths(report, ["orders_instagram", "orders_facebook", "orders_tiktok"], visibleMonths);
   const followerRows = SOCIAL_REPORT_PLATFORMS.map(platform => ({
     id: `followers_${platform.key}`,
     label: platform.label,
@@ -4364,7 +4375,7 @@ function SocialMediaReport({
   }, /*#__PURE__*/React.createElement("table", {
     style: {
       ...S.table,
-      minWidth: Math.max(960, months.length * 138 + 260),
+      minWidth: Math.max(960, visibleMonths.length * 138 + 260),
       borderCollapse: "separate",
       borderSpacing: 0
     }
@@ -4377,7 +4388,7 @@ function SocialMediaReport({
       background: "#F8FAFC",
       zIndex: 2
     }
-  }, "Canal"), months.map(month => /*#__PURE__*/React.createElement("th", {
+  }, "Canal"), visibleMonths.map(month => /*#__PURE__*/React.createElement("th", {
     key: month,
     style: {
       ...S.th,
@@ -4418,7 +4429,7 @@ function SocialMediaReport({
       color: "#94A3B8",
       marginTop: 2
     }
-  }, row.sublabel)))), months.map(month => /*#__PURE__*/React.createElement("td", {
+  }, row.sublabel)))), visibleMonths.map(month => /*#__PURE__*/React.createElement("td", {
     key: `${row.id}-${month}`,
     style: {
       ...S.td,
@@ -4465,14 +4476,14 @@ function SocialMediaReport({
   }, /*#__PURE__*/React.createElement("table", {
     style: {
       ...S.table,
-      minWidth: Math.max(620, months.length * 132 + 170)
+      minWidth: Math.max(620, visibleMonths.length * 132 + 170)
     }
   }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
     style: {
       ...S.th,
       minWidth: 160
     }
-  }, "Métrica"), months.map(month => /*#__PURE__*/React.createElement("th", {
+  }, "Métrica"), visibleMonths.map(month => /*#__PURE__*/React.createElement("th", {
     key: month,
     style: {
       ...S.th,
@@ -4498,7 +4509,7 @@ function SocialMediaReport({
         marginTop: 2,
         fontWeight: 700
       }
-    }, metric.sublabel)), months.map(month => /*#__PURE__*/React.createElement("td", {
+    }, metric.sublabel)), visibleMonths.map(month => /*#__PURE__*/React.createElement("td", {
       key: `${rowId}-${month}`,
       style: {
         ...S.td,
@@ -4539,14 +4550,14 @@ function SocialMediaReport({
   }, /*#__PURE__*/React.createElement("table", {
     style: {
       ...S.table,
-      minWidth: Math.max(700, months.length * 132 + 230)
+      minWidth: Math.max(700, visibleMonths.length * 132 + 230)
     }
   }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
     style: {
       ...S.th,
       minWidth: 220
     }
-  }, "Indicador"), months.map(month => /*#__PURE__*/React.createElement("th", {
+  }, "Indicador"), visibleMonths.map(month => /*#__PURE__*/React.createElement("th", {
     key: month,
     style: {
       ...S.th,
@@ -4572,7 +4583,7 @@ function SocialMediaReport({
         marginTop: 2,
         lineHeight: 1.35
       }
-    }, metric.sublabel)), months.map(month => /*#__PURE__*/React.createElement("td", {
+    }, metric.sublabel)), visibleMonths.map(month => /*#__PURE__*/React.createElement("td", {
       key: `${rowId}-${month}`,
       style: {
         ...S.td,
@@ -4600,9 +4611,30 @@ function SocialMediaReport({
     style: {
       display: "flex",
       gap: 8,
-      flexWrap: "wrap"
+      flexWrap: "wrap",
+      alignItems: "center"
     }
-  }, /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("select", {
+    style: {
+      ...S.select,
+      width: "auto",
+      minWidth: 150,
+      background: "#fff",
+      color: "#172554",
+      border: "none",
+      fontWeight: 900
+    },
+    value: monthFilter,
+    onChange: e => setMonthFilter(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "Todos los meses"), /*#__PURE__*/React.createElement("option", {
+    value: "3"
+  }, "Últimos 3 meses"), /*#__PURE__*/React.createElement("option", {
+    value: "6"
+  }, "Últimos 6 meses"), /*#__PURE__*/React.createElement("option", {
+    value: "12"
+  }, "Últimos 12 meses")), /*#__PURE__*/React.createElement("button", {
     className: "primarybtn",
     style: {
       ...S.primaryBtn,
@@ -4625,24 +4657,24 @@ function SocialMediaReport({
   }), " Descargar CSV"))), /*#__PURE__*/React.createElement("div", {
     style: S.kpiGrid
   }, /*#__PURE__*/React.createElement(Kpi, {
-    icon: IconCal,
-    label: "Periodos",
-    value: fmt(months.length),
+    icon: IconUserPlus,
+    label: "Followers total IG",
+    value: compactMetric(totalFollowersIG),
     accent: "#E30613"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconUserPlus,
-    label: "Followers IG último",
-    value: socialLatestValue(report, "followers_instagram"),
-    accent: "#E30613"
+    label: "Followers total TikTok",
+    value: compactMetric(totalFollowersTikTok),
+    accent: "#111827"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconEye,
     label: "Reach total",
-    value: fmt(totalReach),
+    value: compactMetric(totalReach),
     accent: "#0EA5E9"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconClick,
     label: "Clicks total",
-    value: fmt(totalClicks),
+    value: compactMetric(totalClicks),
     accent: "#7C3AED"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconPhone,
@@ -4809,7 +4841,7 @@ function influencerFollowers(i) {
   }, "IG ", fmt(ig), " followers", /*#__PURE__*/React.createElement("br", null), "TikTok ", fmt(tiktok), " followers");
 }
 function downloadInfluencerCSV(items) {
-  const headers = ["Nombre", "Usuario", "Tipo", "Plataforma", "Followers IG", "Followers TikTok", "Entregables", "Presupuesto negociado", "Presupuesto cerrado", "Pagado", "Grabó", "Publicó", "Fecha publicación", "Link", "Tiene promo code", "Promo code", "Redenciones", "IG Reach", "IG Likes", "IG Comentarios", "IG Shares", "IG Saves", "TikTok Reach", "TikTok Likes", "TikTok Comentarios", "TikTok Shares", "TikTok Saves", "Reach total", "Engagement total", "Engagement rate", "Costo por engagement", "CPM", "Costo por redención", "Notas"];
+  const headers = ["Nombre", "Usuario", "Tipo", "Plataforma", "Followers IG", "Followers TikTok", "Entregables", "Presupuesto negociado", "Presupuesto cerrado", "Pagado", "Grabó", "Publicó", "Fecha publicación", "Link", "Tiene Promo Code", "Promo Code", "Redenciones", "IG Reach", "IG Likes", "IG Comentarios", "IG Shares", "IG Saves", "TikTok Reach", "TikTok Likes", "TikTok Comentarios", "TikTok Shares", "TikTok Saves", "Reach total", "Engagement total", "Engagement rate", "Costo por engagement", "CPM", "Costo por redención", "Notas"];
   const rows = items.map(i => {
     const m = influencerMetrics(i);
     return [i.name, i.handle, tierOf(i.tier).label, i.platform, Number(i.igFollowers) || 0, Number(i.tiktokFollowers) || 0, (i.deliverables || []).join(" + "), Number(i.negotiatedBudget) || 0, Number(i.closedBudget) || 0, i.paid ? "Sí" : "No", i.recorded ? "Sí" : "No", i.published ? "Sí" : "No", i.publishDate || "", i.link || "", i.hasPromoCode ? "Sí" : "No", i.promoCode || "", Number(i.redemptions) || 0, m.ig.reach, m.ig.likes, m.ig.comments, m.ig.shares, m.ig.saves, m.tiktok.reach, m.tiktok.likes, m.tiktok.comments, m.tiktok.shares, m.tiktok.saves, m.ig.reach + m.tiktok.reach || Number(i.reach) || 0, m.engagement, pct(m.er), m.cpe ? usd(m.cpe) : "", m.cpm ? usd(m.cpm) : "", m.cpr ? usd(m.cpr) : "", i.notes || ""];
@@ -4886,7 +4918,7 @@ function InfluencerTracker({
       opacity: .85,
       marginTop: 4
     }
-  }, "Controla acuerdos, entregables, pago, publicación, resultados y promo codes por creador.")), /*#__PURE__*/React.createElement("div", {
+  }, "Controla acuerdos, entregables, pago, publicación, resultados y Promo Codes por creador.")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -4946,7 +4978,7 @@ function InfluencerTracker({
     accent: "#7C3AED"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconTicket,
-    label: "Redenciones promo",
+    label: "Redenciones Promo Code",
     value: fmt(totals.redemptions),
     accent: "#F97316"
   }), /*#__PURE__*/React.createElement(Kpi, {
@@ -5005,7 +5037,7 @@ function InfluencerTracker({
     }
   }, /*#__PURE__*/React.createElement("table", {
     style: S.table
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Influencer", "Tipo", "Entregables", "Presupuesto", "Estados", "Resultados IG", "Resultados TikTok", "Promo code", "Link", ""].map(h => /*#__PURE__*/React.createElement("th", {
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Influencer", "Tipo", "Entregables", "Presupuesto", "Estados", "Resultados IG", "Resultados TikTok", "Promo Code", "Link", ""].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: S.th
   }, h)))), /*#__PURE__*/React.createElement("tbody", null, rows.map(i => {
@@ -5316,7 +5348,7 @@ function InfluencerEditor({
     onChange: e => set("link", e.target.value),
     placeholder: "https://..."
   }))), /*#__PURE__*/React.createElement(Divider, {
-    label: "Promo code"
+    label: "Promo Code"
   }), /*#__PURE__*/React.createElement("label", {
     style: {
       display: "inline-flex",
@@ -5330,10 +5362,10 @@ function InfluencerEditor({
     type: "checkbox",
     checked: !!form.hasPromoCode,
     onChange: e => set("hasPromoCode", e.target.checked)
-  }), "Tiene promo code"), form.hasPromoCode && /*#__PURE__*/React.createElement("div", {
+  }), "Tiene Promo Code"), form.hasPromoCode && /*#__PURE__*/React.createElement("div", {
     style: S.row2
   }, /*#__PURE__*/React.createElement(Field, {
-    label: "Promo code"
+    label: "Promo Code"
   }, /*#__PURE__*/React.createElement("input", {
     style: S.input,
     value: form.promoCode,
@@ -5735,7 +5767,7 @@ function Editor({
     value: f[key] || 0,
     onChange: e => num(key, e.target.value)
   })))), /*#__PURE__*/React.createElement(Field, {
-    label: "Canjes del promo code"
+    label: "Canjes del Promo Code"
   }, /*#__PURE__*/React.createElement("input", {
     type: "number",
     style: S.input,
@@ -5774,7 +5806,7 @@ function Editor({
       margin: "6px 0 0"
     }
   }, "Repartido desde el bucket de ", f.zone, " según los flyers de esta activación.")), /*#__PURE__*/React.createElement(Divider, {
-    label: "Tracking y promo (opcional)"
+    label: "Tracking y Promo Code (opcional)"
   }), /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: 11.5,
@@ -5798,7 +5830,7 @@ function Editor({
     url: f.qrUrl,
     label: activationLabel(f)
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "Código de voucher / promo"
+    label: "Código de voucher / Promo Code"
   }, /*#__PURE__*/React.createElement("input", {
     style: S.input,
     value: f.voucherCode,
@@ -6016,35 +6048,34 @@ const S = {
     background: "#FEF2F2",
     color: RED
   },
-  newBtn: {
-    marginTop: 10,
+  menuActionBtn: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: 7,
-    padding: "11px",
-    borderRadius: 10,
-    border: "none",
-    background: RED,
-    color: "#fff",
-    fontWeight: 700,
-    fontSize: 13.5,
-    cursor: "pointer"
-  },
-  importBtn: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    padding: "10px",
-    borderRadius: 10,
+    gap: 6,
+    padding: "7px 8px",
+    borderRadius: 8,
     border: "1px solid #E2E8F0",
     background: "#fff",
-    color: "#475569",
-    fontWeight: 600,
-    fontSize: 12.5,
+    color: "#64748B",
+    fontWeight: 800,
+    fontSize: 11.5,
     cursor: "pointer",
-    marginTop: 2
+    marginTop: 1
+  },
+  sectionActionBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    padding: "8px 11px",
+    borderRadius: 10,
+    border: "1px solid #FCA5A5",
+    background: "#fff",
+    color: RED,
+    fontWeight: 900,
+    fontSize: 12,
+    cursor: "pointer"
   },
   main: {
     flex: 1,
