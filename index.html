@@ -772,6 +772,34 @@ const STORE_KEY = "yango_btl_h1",
   POP_KEY = "yango_pop_inventory_h1",
   MEDIA_KEY = "yango_media_ooh_h1";
 const MASTER_PASS = "Yango2026!";
+const LIGHT_TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+const LIGHT_TILE_ATTR = "&copy; OpenStreetMap &copy; CARTO";
+const POP_CATEGORIES = ["Users General", "Drivers General", "Mundial", "Universidades"];
+const MEDIA_TYPES = [{
+  id: "Valla",
+  label: "Valla",
+  color: "#E30613"
+}, {
+  id: "Pantalla",
+  label: "Pantalla",
+  color: "#111827"
+}, {
+  id: "Mupi",
+  label: "Mupi",
+  color: "#0EA5E9"
+}, {
+  id: "Parada",
+  label: "Parada",
+  color: "#F97316"
+}, {
+  id: "Metro",
+  label: "Metro",
+  color: "#7C3AED"
+}, {
+  id: "Otro",
+  label: "Otro",
+  color: "#64748B"
+}];
 const INFLUENCER_TIERS = [{
   id: "micro",
   label: "Microinfluencer",
@@ -1079,38 +1107,46 @@ const seedBtlBudgets = () => ({
 const seedPopInventory = () => [{
   id: "pop1",
   item: "Gorras",
-  category: "Uniforme",
+  category: "Drivers General",
   stock: 120,
   reserved: 24,
   min: 30,
   unitCost: 4,
+  photos: [],
+  movements: [],
   notes: "Negro / rojo"
 }, {
   id: "pop2",
   item: "Lanyards",
-  category: "Material POP",
+  category: "Users General",
   stock: 300,
   reserved: 60,
   min: 80,
   unitCost: 1,
+  photos: [],
+  movements: [],
   notes: "Para promotoras y aliados"
 }, {
   id: "pop3",
   item: "Llaveros",
-  category: "Giveaway",
+  category: "Mundial",
   stock: 500,
   reserved: 120,
   min: 150,
   unitCost: 0.6,
+  photos: [],
+  movements: [],
   notes: "Entrega masiva"
 }, {
   id: "pop4",
   item: "Tote Bags",
-  category: "Giveaway premium",
+  category: "Universidades",
   stock: 90,
   reserved: 20,
   min: 25,
   unitCost: 3.5,
+  photos: [],
+  movements: [],
   notes: "Eventos / universidades"
 }];
 const seedMediaAssets = () => [{
@@ -1324,6 +1360,8 @@ const shortDate = date => date ? new Date(date + "T00:00:00").toLocaleDateString
 }) : "";
 const displayLocation = a => a.realLocation || a.location || a.zone;
 const activationLabel = a => `${displayLocation(a)} ${shortDate(a.date)}`;
+const normalizePopCategory = value => POP_CATEGORIES.includes(value) ? value : value === "Universidad" || value === "Eventos / universidades" ? "Universidades" : value === "Drivers" ? "Drivers General" : "Users General";
+const mediaTypeOf = value => MEDIA_TYPES.find(t => t.id === value || t.label === value) || MEDIA_TYPES[MEDIA_TYPES.length - 1];
 const slugify = value => String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/&/g, " y ").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 const compactSlug = value => slugify(value).replace(/_/g, "");
 const pascalSlug = value => slugify(value).split("_").filter(Boolean).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join("");
@@ -1888,14 +1926,7 @@ function MasterLogin({
       fontWeight: 950,
       letterSpacing: "-0.03em"
     }
-  }, "Entrar al Master Panel"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      margin: "0 0 18px",
-      color: "#64748B",
-      fontSize: 13,
-      lineHeight: 1.5
-    }
-  }, "Este acceso es para el panel principal de marketing. El portal de agencia sigue entrando por su link separado."), /*#__PURE__*/React.createElement(Field, {
+  }, "Entrar al Master Panel"), /*#__PURE__*/React.createElement(Field, {
     label: "Clave"
   }, /*#__PURE__*/React.createElement("input", {
     type: "password",
@@ -2800,12 +2831,13 @@ function MapView({
       mapInstance.current = null;
     }
     const map = L.map(mapNode.current, {
-      scrollWheelZoom: false
+      scrollWheelZoom: true,
+      zoomControl: true
     }).setView([10.4905, -66.8665], 13);
     mapInstance.current = map;
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap"
+    L.tileLayer(LIGHT_TILE_URL, {
+      maxZoom: 20,
+      attribution: LIGHT_TILE_ATTR
     }).addTo(map);
     const bounds = [];
     acts.forEach((a, i) => {
@@ -2836,7 +2868,7 @@ function MapView({
     });
     if (bounds.length > 1) map.fitBounds(bounds, {
       padding: [35, 35],
-      maxZoom: 15
+      maxZoom: 16
     });
     setTimeout(() => map.invalidateSize(), 0);
     return () => {
@@ -2847,7 +2879,7 @@ function MapView({
   const approximate = acts.filter(a => !Number.isFinite(Number(a.lat)) || !Number.isFinite(Number(a.lng))).length;
   return /*#__PURE__*/React.createElement(Card, {
     title: "Mapa de activaciones en Caracas",
-    hint: "Mapa real de OpenStreetMap. Color = tipo. Toca un punto para abrir la ficha."
+    hint: "Mapa real con estilo claro. Puedes hacer zoom; color = tipo. Toca un punto para abrir la ficha."
   }, /*#__PURE__*/React.createElement("div", {
     ref: mapNode,
     style: {
@@ -2887,21 +2919,39 @@ function PopInventory({
   items,
   setItems
 }) {
+  const [photoItem, setPhotoItem] = useState(null);
   const update = (id, key, value) => setItems(previous => previous.map(item => item.id === id ? {
     ...item,
-    [key]: ["stock", "reserved", "min", "unitCost"].includes(key) ? Number(value) || 0 : value
+    [key]: ["stock", "reserved", "min", "unitCost"].includes(key) ? Number(value) || 0 : key === "category" ? normalizePopCategory(value) : value
   } : item));
   const add = () => setItems(previous => [{
     id: uid("pop"),
     item: "Nuevo material",
-    category: "Material POP",
+    category: "Users General",
     stock: 0,
     reserved: 0,
     min: 0,
     unitCost: 0,
+    photos: [],
+    movements: [],
     notes: ""
   }, ...previous]);
   const remove = id => setItems(previous => previous.filter(item => item.id !== id));
+  const stockOut = item => {
+    const qty = Number(prompt(`¿Cuántas unidades vas a sacar de ${item.item}?`) || 0);
+    if (!qty || qty <= 0) return;
+    const reason = prompt("¿Para qué / qué activación?") || "Salida sin detalle";
+    setItems(previous => previous.map(row => row.id === item.id ? {
+      ...row,
+      stock: Math.max(0, (Number(row.stock) || 0) - qty),
+      movements: [{
+        id: uid("mov"),
+        date: new Date().toISOString().slice(0, 10),
+        qty,
+        reason
+      }, ...(row.movements || [])].slice(0, 12)
+    } : row));
+  };
   const totals = items.reduce((acc, item) => {
     const stock = Number(item.stock) || 0;
     const reserved = Number(item.reserved) || 0;
@@ -2967,14 +3017,17 @@ function PopInventory({
     accent: "#111827"
   })), /*#__PURE__*/React.createElement(Card, {
     title: "Materiales",
-    hint: "Disponible = stock - reservado. Si baja del mínimo, queda marcado en amarillo."
+    hint: "Disponible = stock - reservado. Usa “Sacar stock” para registrar salidas y motivo."
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       overflowX: "auto",
       marginTop: 8
     }
   }, /*#__PURE__*/React.createElement("table", {
-    style: S.table
+    style: {
+      ...S.table,
+      minWidth: 1120
+    }
   }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Material", "Categoría", "Stock", "Reservado", "Disponible", "Mínimo", "Costo unit.", "Notas", ""].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: S.th
@@ -2991,11 +3044,14 @@ function PopInventory({
       onChange: e => update(item.id, "item", e.target.value)
     })), /*#__PURE__*/React.createElement("td", {
       style: S.td
-    }, /*#__PURE__*/React.createElement("input", {
-      style: S.input,
-      value: item.category,
+    }, /*#__PURE__*/React.createElement("select", {
+      style: S.select,
+      value: normalizePopCategory(item.category),
       onChange: e => update(item.id, "category", e.target.value)
-    })), ["stock", "reserved"].map(key => /*#__PURE__*/React.createElement("td", {
+    }, POP_CATEGORIES.map(c => /*#__PURE__*/React.createElement("option", {
+      key: c,
+      value: c
+    }, c)))), ["stock", "reserved"].map(key => /*#__PURE__*/React.createElement("td", {
       key,
       style: S.td
     }, /*#__PURE__*/React.createElement("input", {
@@ -3033,17 +3089,131 @@ function PopInventory({
       style: S.input,
       value: item.notes,
       onChange: e => update(item.id, "notes", e.target.value)
-    })), /*#__PURE__*/React.createElement("td", {
+    }), (item.movements || [])[0] && /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: "#94A3B8",
+        fontSize: 10.5,
+        marginTop: 4
+      }
+    }, "Última salida: ", fmt(item.movements[0].qty), " · ", item.movements[0].reason)), /*#__PURE__*/React.createElement("td", {
       style: S.td
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 6
+      }
     }, /*#__PURE__*/React.createElement("button", {
+      className: "ghostbtn",
+      style: {
+        ...S.ghostBtn,
+        padding: "7px 9px",
+        fontSize: 12
+      },
+      onClick: () => stockOut(item)
+    }, "Sacar stock"), /*#__PURE__*/React.createElement("button", {
+      className: "ghostbtn",
+      style: {
+        ...S.ghostBtn,
+        padding: "7px 9px",
+        fontSize: 12
+      },
+      onClick: () => setPhotoItem(item)
+    }, "Fotos ", (item.photos || []).length ? `(${(item.photos || []).length})` : ""), /*#__PURE__*/React.createElement("button", {
       style: {
         ...S.dangerBtn,
         padding: "7px 9px",
         fontSize: 12
       },
       onClick: () => remove(item.id)
-    }, "Eliminar")));
-  }))))));
+    }, "Eliminar"))));
+  }))))), photoItem && /*#__PURE__*/React.createElement(PopPhotosModal, {
+    item: items.find(x => x.id === photoItem.id) || photoItem,
+    onClose: () => setPhotoItem(null),
+    onChange: updated => setItems(previous => previous.map(item => item.id === updated.id ? updated : item))
+  }));
+}
+function PopPhotosModal({
+  item,
+  onClose,
+  onChange
+}) {
+  const addPhotos = async event => {
+    const files = [...event.target.files].slice(0, 8);
+    if (!files.length) return;
+    const uploaded = await Promise.all(files.map(fileToPhoto));
+    onChange({
+      ...item,
+      photos: [...(item.photos || []), ...uploaded]
+    });
+    event.target.value = "";
+  };
+  const removePhoto = index => onChange({
+    ...item,
+    photos: (item.photos || []).filter((_, i) => i !== index)
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    style: S.overlay,
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.modal,
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.modalHead
+  }, /*#__PURE__*/React.createElement("h2", {
+    style: {
+      margin: 0,
+      fontSize: 18,
+      fontWeight: 900
+    }
+  }, "Fotos · ", item.item), /*#__PURE__*/React.createElement("button", {
+    style: S.iconBtn,
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement(IconX, {
+    size: 18
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: S.modalBody
+  }, /*#__PURE__*/React.createElement("label", {
+    style: {
+      ...S.primaryBtn,
+      display: "inline-flex",
+      width: "fit-content",
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement(IconUpload, {
+    size: 15
+  }), " Subir fotos", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: "image/*",
+    multiple: true,
+    style: {
+      display: "none"
+    },
+    onChange: addPhotos
+  })), (item.photos || []).length ? /*#__PURE__*/React.createElement("div", {
+    style: S.photoGrid
+  }, (item.photos || []).map((photo, index) => /*#__PURE__*/React.createElement("div", {
+    key: `${photo.name}-${index}`,
+    style: {
+      position: "relative"
+    }
+  }, /*#__PURE__*/React.createElement("img", {
+    src: photo.data,
+    alt: photo.name,
+    style: S.photo
+  }), /*#__PURE__*/React.createElement("button", {
+    style: {
+      ...S.dangerBtn,
+      position: "absolute",
+      top: 6,
+      right: 6,
+      padding: "5px 7px",
+      fontSize: 11
+    },
+    onClick: () => removePhoto(index)
+  }, "Quitar")))) : /*#__PURE__*/React.createElement(Empty, {
+    msg: "Aún no hay fotos cargadas para este material."
+  }))));
 }
 function MediaOOH({
   items,
@@ -3055,6 +3225,27 @@ function MediaOOH({
     ...item,
     [key]: ["lat", "lng", "reach", "cost"].includes(key) ? Number(value) || 0 : value
   } : item));
+  const remove = id => setItems(previous => previous.filter(item => item.id !== id));
+  const geocodeMedia = async item => {
+    const queryText = `${item.address || item.location || item.name}, Caracas, Venezuela`;
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(queryText)}`, {
+        headers: {
+          "Accept-Language": "es"
+        }
+      });
+      const data = await res.json();
+      if (data[0]) {
+        setItems(previous => previous.map(row => row.id === item.id ? {
+          ...row,
+          lat: Number(data[0].lat),
+          lng: Number(data[0].lon)
+        } : row));
+      } else alert("No encontré esa ubicación. Prueba con una dirección más específica.");
+    } catch (e) {
+      alert("No se pudo ubicar ahora. Puedes intentar de nuevo en un momento.");
+    }
+  };
   const add = () => setItems(previous => [{
     id: uid("media"),
     name: "Nuevo OOH",
@@ -3091,25 +3282,35 @@ function MediaOOH({
       scrollWheelZoom: false
     }).setView([10.4905, -66.8665], 12);
     mapInstance.current = map;
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap"
+    L.tileLayer(LIGHT_TILE_URL, {
+      maxZoom: 20,
+      attribution: LIGHT_TILE_ATTR
     }).addTo(map);
     const bounds = [];
     items.forEach(item => {
       const lat = Number(item.lat);
       const lng = Number(item.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-      const color = item.status === "Activa" ? "#E30613" : "#F97316";
+      const type = mediaTypeOf(item.type);
+      const color = type.color;
       const icon = L.divIcon({
         className: "",
         html: `<div style="width:24px;height:24px;border-radius:8px;background:${color};border:3px solid white;box-shadow:0 2px 8px rgba(15,23,42,.35);transform:rotate(45deg)"></div>`,
         iconSize: [24, 24],
         iconAnchor: [12, 12]
       });
-      L.marker([lat, lng], {
-        icon
-      }).addTo(map).bindPopup(`<div style="min-width:200px"><b>${escapeHtml(item.name)}</b><br>${escapeHtml(item.type)} · ${escapeHtml(item.location)}<br>${escapeHtml(item.address || "")}<br><b>${fmt(item.reach)}</b> reach est. · <b>${usd(item.cost)}</b></div>`);
+      const marker = L.marker([lat, lng], {
+        icon,
+        draggable: true
+      }).addTo(map).bindPopup(`<div style="min-width:200px"><b>${escapeHtml(item.name)}</b><br>${escapeHtml(type.label)} · ${escapeHtml(item.location)}<br>${escapeHtml(item.address || "")}<br><b>${fmt(item.reach)}</b> reach est. · <b>${usd(item.cost)}</b><br><span style="color:#64748B">Puedes mover el pin para ajustar ubicación.</span></div>`);
+      marker.on("dragend", event => {
+        const pos = event.target.getLatLng();
+        setItems(previous => previous.map(row => row.id === item.id ? {
+          ...row,
+          lat: Number(pos.lat.toFixed(6)),
+          lng: Number(pos.lng.toFixed(6))
+        } : row));
+      });
       bounds.push([lat, lng]);
     });
     if (bounds.length > 1) map.fitBounds(bounds, {
@@ -3172,7 +3373,7 @@ function MediaOOH({
     accent: "#111827"
   })), /*#__PURE__*/React.createElement(Card, {
     title: "Mapa de OOH",
-    hint: "El reach se carga como estimado o desde proveedor. CPM = costo / reach * 1.000."
+    hint: "Mapa claro estilo minimal. Cada tipo tiene color; puedes mover los pins para ajustar ubicación."
   }, /*#__PURE__*/React.createElement("div", {
     ref: mapNode,
     style: {
@@ -3184,7 +3385,21 @@ function MediaOOH({
       marginTop: 10,
       background: "#E2E8F0"
     }
-  })), /*#__PURE__*/React.createElement(Card, {
+  }), /*#__PURE__*/React.createElement("div", {
+    style: S.legend
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.legendTitle
+  }, "Color por tipo"), MEDIA_TYPES.map(t => /*#__PURE__*/React.createElement("div", {
+    key: t.id,
+    style: S.legItem
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: 10,
+      height: 10,
+      borderRadius: 99,
+      background: t.color
+    }
+  }), t.label)))), /*#__PURE__*/React.createElement(Card, {
     title: "Inventario Media",
     hint: "Puedes pegar links de fotos o reportes por ubicación."
   }, /*#__PURE__*/React.createElement("div", {
@@ -3197,28 +3412,50 @@ function MediaOOH({
       ...S.table,
       minWidth: 1180
     }
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Nombre", "Tipo", "Ubicación", "Dirección", "Lat", "Lng", "Estado", "Reach", "Costo", "Foto", "Reporte", "Notas"].map(h => /*#__PURE__*/React.createElement("th", {
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Nombre", "Tipo", "Ubicación", "Dirección", "Pin", "Estado", "Reach", "Costo", "Foto", "Reporte", "Notas", ""].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: S.th
   }, h)))), /*#__PURE__*/React.createElement("tbody", null, items.map(item => /*#__PURE__*/React.createElement("tr", {
     key: item.id
-  }, ["name", "type", "location", "address"].map(key => /*#__PURE__*/React.createElement("td", {
+  }, /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: item.name || "",
+    onChange: e => update(item.id, "name", e.target.value)
+  })), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, /*#__PURE__*/React.createElement("select", {
+    style: S.select,
+    value: mediaTypeOf(item.type).id,
+    onChange: e => update(item.id, "type", e.target.value)
+  }, MEDIA_TYPES.map(t => /*#__PURE__*/React.createElement("option", {
+    key: t.id,
+    value: t.id
+  }, t.label)))), ["location", "address"].map(key => /*#__PURE__*/React.createElement("td", {
     key,
     style: S.td
   }, /*#__PURE__*/React.createElement("input", {
     style: S.input,
     value: item[key] || "",
     onChange: e => update(item.id, key, e.target.value)
-  }))), ["lat", "lng"].map(key => /*#__PURE__*/React.createElement("td", {
-    key,
-    style: S.td
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    step: "0.0001",
-    style: S.input,
-    value: item[key],
-    onChange: e => update(item.id, key, e.target.value)
   }))), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "ghostbtn",
+    style: {
+      ...S.ghostBtn,
+      padding: "7px 10px",
+      fontSize: 12
+    },
+    onClick: () => geocodeMedia(item)
+  }, "Ubicar pin"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "#94A3B8",
+      fontSize: 10.5,
+      marginTop: 4
+    }
+  }, Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng)) ? "Pin listo" : "Pin pendiente")), /*#__PURE__*/React.createElement("td", {
     style: S.td
   }, /*#__PURE__*/React.createElement("select", {
     style: S.select,
@@ -3243,7 +3480,16 @@ function MediaOOH({
     value: item[key] || "",
     placeholder: key === "photoUrl" ? "Link foto" : key === "reportUrl" ? "Link reporte" : "",
     onChange: e => update(item.id, key, e.target.value)
-  }))))))))));
+  }))), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, /*#__PURE__*/React.createElement("button", {
+    style: {
+      ...S.dangerBtn,
+      padding: "7px 9px",
+      fontSize: 12
+    },
+    onClick: () => remove(item.id)
+  }, "Borrar")))))))));
 }
 
 /* ============================ CALENDAR ============================ */
@@ -3314,40 +3560,45 @@ function CalendarView({
   }));
   const budgetBox = (label, planned, budget, scope, key, hint) => {
     const diff = budget - planned;
+    const used = budget ? planned / budget : 0;
+    const usedPct = budget ? Math.round(used * 100) : 0;
+    const barColor = !budget ? "#CBD5E1" : used <= .75 ? "#16A34A" : used <= 1 ? "#D97706" : "#DC2626";
     return /*#__PURE__*/React.createElement("div", {
       style: {
-        padding: 14,
+        padding: 16,
         border: "1px solid #E2E8F0",
-        borderRadius: 16,
+        borderRadius: 18,
         background: "#fff",
         display: "grid",
-        gap: 9
+        gap: 11,
+        boxShadow: "0 8px 20px rgba(15,23,42,.04)"
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        fontSize: 12,
-        color: "#64748B",
-        fontWeight: 850
-      }
-    }, label), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 10
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 12,
+        alignItems: "center"
       }
     }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       style: {
-        color: "#94A3B8",
-        fontSize: 10,
-        fontWeight: 900,
-        textTransform: "uppercase"
+        fontSize: 12,
+        color: "#64748B",
+        fontWeight: 900
       }
-    }, "Planificado"), /*#__PURE__*/React.createElement("div", {
+    }, label), /*#__PURE__*/React.createElement("div", {
       style: {
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: 950
       }
-    }, usd(planned))), /*#__PURE__*/React.createElement(Field, {
+    }, usd(planned)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "#94A3B8",
+        fontWeight: 800,
+        marginTop: 2
+      }
+    }, "planificado")), /*#__PURE__*/React.createElement(Field, {
       label: "Budget"
     }, /*#__PURE__*/React.createElement("input", {
       type: "number",
@@ -3358,11 +3609,29 @@ function CalendarView({
       placeholder: "0"
     }))), /*#__PURE__*/React.createElement("div", {
       style: {
+        height: 9,
+        borderRadius: 999,
+        background: "#F1F5F9",
+        overflow: "hidden"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        height: "100%",
+        width: `${Math.min(100, usedPct)}%`,
+        background: barColor,
+        borderRadius: 999
+      }
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
         fontSize: 12,
         color: budget ? diff >= 0 ? "#16A34A" : "#DC2626" : "#94A3B8",
-        fontWeight: 850
+        fontWeight: 900,
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 12,
+        flexWrap: "wrap"
       }
-    }, budget ? `${diff >= 0 ? "Disponible" : "Sobre budget"}: ${usd(Math.abs(diff))}` : hint));
+    }, budget ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", null, usedPct, "% del budget planificado"), /*#__PURE__*/React.createElement("span", null, diff >= 0 ? "Disponible " : "Sobre budget ", usd(Math.abs(diff)))) : hint));
   };
   return /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
     style: S.calHead
@@ -5591,6 +5860,12 @@ function influencerStatus(label, active, color) {
     }
   }, active ? "✓" : "·", " ", label);
 }
+function influencerUsesPlatform(i, platform) {
+  const p = String(i.platform || "").toLowerCase();
+  if (platform === "TikTok") return p.includes("tiktok") || (i.deliverables || []).includes("TikTok") || !!i.tiktokLink || ["tiktokReach", "tiktokLikes", "tiktokComments", "tiktokShares", "tiktokSaves"].some(key => Number(i[key]) || 0);
+  if (platform === "Instagram") return p.includes("instagram") || p.includes("ig") || ["igReach", "igLikes", "igComments", "igShares", "igSaves"].some(key => Number(i[key]) || 0);
+  return true;
+}
 function socialResultBlock(label, metrics, color) {
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -5623,8 +5898,8 @@ function influencerFollowers(i) {
 }
 function influencerHandleText(i) {
   const ig = i.handle || "—";
-  const tiktok = i.sameTiktokHandle === false && i.tiktokHandle ? ` · TikTok ${i.tiktokHandle}` : "";
-  return `${ig}${tiktok}`;
+  if (i.sameTiktokHandle === false && i.tiktokHandle) return `IG ${ig} · TikTok ${i.tiktokHandle}`;
+  return ig;
 }
 function downloadInfluencerCSV(items) {
   const headers = ["Nombre", "Usuario IG", "Usuario TikTok", "Tipo", "Plataforma", "Followers IG", "Followers TikTok", "Entregables", "Presupuesto", "Pagado", "Fecha de pago", "Grabó", "Publicó", "Fecha publicación", "Link", "Link TikTok", "Tiene Promo Code", "Promo Code", "Redenciones", "IG Reach", "IG Likes", "IG Comentarios", "IG Shares", "IG Saves", "TikTok Reach", "TikTok Likes", "TikTok Comentarios", "TikTok Shares", "TikTok Saves", "Reach total", "Engagement total", "Engagement rate", "Costo por engagement", "CPM", "Costo por redención", "Notas"];
@@ -5887,7 +6162,7 @@ function InfluencerTracker({
     }
   }, /*#__PURE__*/React.createElement("table", {
     style: S.table
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Influencer", "Tipo", "Entregables", "Presupuesto", "Estados", "Resultados IG", "Resultados TikTok", "Promo Code", "Link", ""].map(h => /*#__PURE__*/React.createElement("th", {
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Influencer", "Tipo", "Entregables", "Presupuesto / pago", "CPM", "Estados", "Resultados IG", "Resultados TikTok", "Promo Code", "Link", ""].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: S.th
   }, h)))), /*#__PURE__*/React.createElement("tbody", null, rows.map(i => {
@@ -5931,14 +6206,13 @@ function InfluencerTracker({
         fontSize: 11,
         marginTop: 2
       }
-    }, i.paid ? `Pagado${i.paymentDate ? " · " + shortDate(i.paymentDate) : ""}` : "Pendiente pago"), /*#__PURE__*/React.createElement("div", {
+    }, i.paid ? `Pagado${i.paymentDate ? " · " + shortDate(i.paymentDate) : ""}` : "Pendiente pago")), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("b", {
       style: {
-        color: "#B45309",
-        fontSize: 11,
-        marginTop: 2,
-        fontWeight: 800
+        color: m.cpm ? "#B45309" : "#94A3B8"
       }
-    }, "CPM ", m.cpm ? usd(m.cpm) : "—")), /*#__PURE__*/React.createElement("td", {
+    }, m.cpm ? usd(m.cpm) : "—")), /*#__PURE__*/React.createElement("td", {
       style: S.td
     }, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -5948,9 +6222,19 @@ function InfluencerTracker({
       }
     }, influencerStatus("Pagado", i.paid, "#16A34A"), influencerStatus("Grabó", i.recorded, "#0EA5E9"), influencerStatus("Publicó", i.published, "#E30613"))), /*#__PURE__*/React.createElement("td", {
       style: S.td
-    }, socialResultBlock("IG", m.ig, "#E30613")), /*#__PURE__*/React.createElement("td", {
+    }, influencerUsesPlatform(i, "Instagram") ? socialResultBlock("IG", m.ig, "#E30613") : /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#94A3B8",
+        fontWeight: 800
+      }
+    }, "No aplica")), /*#__PURE__*/React.createElement("td", {
       style: S.td
-    }, socialResultBlock("TikTok", m.tiktok, "#111827")), /*#__PURE__*/React.createElement("td", {
+    }, influencerUsesPlatform(i, "TikTok") ? socialResultBlock("TikTok", m.tiktok, "#111827") : /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#94A3B8",
+        fontWeight: 800
+      }
+    }, "No aplica")), /*#__PURE__*/React.createElement("td", {
       style: S.td
     }, i.hasPromoCode ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("b", null, i.promoCode || "Sin código"), /*#__PURE__*/React.createElement("div", {
       style: {
