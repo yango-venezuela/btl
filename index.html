@@ -784,12 +784,20 @@ const MEDIA_TYPES = [{
   label: "Pantalla",
   color: "#111827"
 }, {
+  id: "Banderola",
+  label: "Banderola",
+  color: "#16A34A"
+}, {
+  id: "Banderola Digital",
+  label: "Banderola Digital",
+  color: "#F59E0B"
+}, {
   id: "Mupi",
   label: "Mupi",
   color: "#0EA5E9"
 }, {
-  id: "Parada",
-  label: "Parada",
+  id: "Parada Bus",
+  label: "Parada Bus",
   color: "#F97316"
 }, {
   id: "Metro",
@@ -812,7 +820,8 @@ const INFLUENCER_TIERS = [{
 const SOCIAL_PLATFORMS = ["Instagram", "TikTok", "IG + TikTok"];
 const SOCIAL_DELIVERABLES = ["Stories", "Reel", "Post", "TikTok", "Live"];
 const SOCIAL_RESULT_FIELDS = ["Reach", "Likes", "Comments", "Shares", "Saves"];
-const SOCIAL_REPORT_MONTHS = ["Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026", "Junio 2026", "Julio 2026", "Agosto 2026", "Septiembre 2026"];
+const SOCIAL_REPORT_VERSION = 2;
+const SOCIAL_REPORT_MONTHS = ["Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026", "Junio 2026", "Julio 2026"];
 const SOCIAL_REPORT_LEGACY_MONTHS = {
   "1.26": "Enero 2026",
   "2.26": "Febrero 2026",
@@ -935,25 +944,26 @@ const SOCIAL_REPORT_SECTIONS = [{
 function socialReportSeed() {
   const v = (arr, months = SOCIAL_REPORT_MONTHS) => Object.fromEntries(months.map((m, i) => [m, arr[i] ?? ""]));
   return {
+    version: SOCIAL_REPORT_VERSION,
     months: SOCIAL_REPORT_MONTHS,
     values: {
-      followers_instagram: v(["1,866", "1,115", "1,776", "1,943", "2,451"]),
-      followers_facebook: v(["241", "102", "105", "85", "117"]),
-      followers_tiktok: v(["216", "127", "128", "118", "125"]),
-      reach_instagram: v(["2,396,539", "1,071,274", "1,153,256", "883,436", "1,663,454"]),
-      reach_facebook: v(["5,559,294", "3,791,323", "3,461,194", "2,581,494", "4,364,325"]),
-      reach_tiktok: v(["32,000", "79,000", "29,000", "25,000", "27,000"]),
-      clicks_instagram: v(["521", "592", "", "546", "653"]),
-      clicks_facebook: v(["222,828", "91,215", "83,539", "51,184", "94,000"]),
-      aorp_instagram: v(["569", "261", "307", "700", "13,611"]),
-      arp_instagram: v(["217,867", "39,677", "64,070", "73,619", "72,324"]),
-      ors_instagram: v(["0,26%", "0,66%", "0,48%", "0,95%", "0,57%"]),
-      aorp_facebook: v(["2,091", "262", "797", "1,262", "1,222"]),
-      arp_facebook: v(["6,235,628", "1,292,422", "2,286,091", "1,863,535", "1,446,818"]),
-      ors_facebook: v(["0,03%", "4,85%", "3,49%", "6,77%", "8,45%"]),
-      aorp_tiktok: v(["2,133", "5,643", "1,933", "1,667", "1,800"]),
-      arp_tiktok: v(["2,133", "5,643", "1,933", "1,667", "1,800"]),
-      ors_tiktok: v(["100%", "100%", "100%", "100%", "100%"])
+      followers_instagram: v(["1,866", "1,115", "1,776", "1,943", "2,451", "", "42.3K"]),
+      followers_facebook: v(["241", "102", "105", "85", "117", "", ""]),
+      followers_tiktok: v(["216", "127", "128", "118", "125", "", "1,320"]),
+      reach_instagram: v(["2,396,539", "1,071,274", "1,153,256", "883,436", "1,663,454", "", ""]),
+      reach_facebook: v(["5,559,294", "3,791,323", "3,461,194", "2,581,494", "4,364,325", "", ""]),
+      reach_tiktok: v(["32,000", "79,000", "29,000", "25,000", "27,000", "", ""]),
+      clicks_instagram: v(["521", "592", "", "546", "653", "", ""]),
+      clicks_facebook: v(["222,828", "91,215", "83,539", "51,184", "94,000", "", ""]),
+      aorp_instagram: v(["569", "261", "307", "700", "13,611", "", ""]),
+      arp_instagram: v(["217,867", "39,677", "64,070", "73,619", "72,324", "", ""]),
+      ors_instagram: v(["0,26%", "0,66%", "0,48%", "0,95%", "0,57%", "", ""]),
+      aorp_facebook: v(["2,091", "262", "797", "1,262", "1,222", "", ""]),
+      arp_facebook: v(["6,235,628", "1,292,422", "2,286,091", "1,863,535", "1,446,818", "", ""]),
+      ors_facebook: v(["0,03%", "4,85%", "3,49%", "6,77%", "8,45%", "", ""]),
+      aorp_tiktok: v(["2,133", "5,643", "1,933", "1,667", "1,800", "", ""]),
+      arp_tiktok: v(["2,133", "5,643", "1,933", "1,667", "1,800", "", ""]),
+      ors_tiktok: v(["100%", "100%", "100%", "100%", "100%", "", ""])
     }
   };
 }
@@ -961,7 +971,8 @@ function normalizeSocialReport(report) {
   const seed = socialReportSeed();
   const source = report && typeof report === "object" ? report : seed;
   const rawMonths = source.months && source.months.length ? source.months : seed.months;
-  const months = [...new Set(rawMonths.map(month => SOCIAL_REPORT_LEGACY_MONTHS[month] || month))];
+  const normalizedMonths = [...new Set(rawMonths.map(month => SOCIAL_REPORT_LEGACY_MONTHS[month] || month))];
+  const months = (source.version || 1) < SOCIAL_REPORT_VERSION ? normalizedMonths.filter(month => SOCIAL_REPORT_MONTHS.includes(month)) : normalizedMonths;
   const values = {};
   SOCIAL_REPORT_SECTIONS.flatMap(section => section.rows).forEach(row => {
     const current = source.values?.[row.id] || {};
@@ -975,6 +986,7 @@ function normalizeSocialReport(report) {
     });
   });
   return {
+    version: SOCIAL_REPORT_VERSION,
     months,
     values
   };
@@ -982,6 +994,8 @@ function normalizeSocialReport(report) {
 function parseMetricValue(value) {
   let cleaned = String(value || "").replace(/%/g, "").replace(/\s/g, "").trim();
   if (!cleaned) return 0;
+  const suffix = cleaned.match(/[kKmM]$/)?.[0]?.toLowerCase();
+  if (suffix) cleaned = cleaned.slice(0, -1);
   const lastComma = cleaned.lastIndexOf(",");
   const lastDot = cleaned.lastIndexOf(".");
   if (lastComma >= 0 && lastDot >= 0) {
@@ -994,7 +1008,8 @@ function parseMetricValue(value) {
     cleaned = parts.length > 2 || parts[1]?.length === 3 ? cleaned.replace(/\./g, "") : cleaned;
   }
   const n = Number(cleaned);
-  return Number.isFinite(n) ? n : 0;
+  if (!Number.isFinite(n)) return 0;
+  return suffix === "m" ? n * 1000000 : suffix === "k" ? n * 1000 : n;
 }
 function tierOf(id) {
   return INFLUENCER_TIERS.find(t => t.id === id) || INFLUENCER_TIERS[0];
@@ -1110,7 +1125,6 @@ const seedPopInventory = () => [{
   category: "Drivers General",
   stock: 120,
   reserved: 24,
-  min: 30,
   unitCost: 4,
   photos: [],
   movements: [],
@@ -1121,7 +1135,6 @@ const seedPopInventory = () => [{
   category: "Users General",
   stock: 300,
   reserved: 60,
-  min: 80,
   unitCost: 1,
   photos: [],
   movements: [],
@@ -1132,7 +1145,6 @@ const seedPopInventory = () => [{
   category: "Mundial",
   stock: 500,
   reserved: 120,
-  min: 150,
   unitCost: 0.6,
   photos: [],
   movements: [],
@@ -1143,7 +1155,6 @@ const seedPopInventory = () => [{
   category: "Universidades",
   stock: 90,
   reserved: 20,
-  min: 25,
   unitCost: 3.5,
   photos: [],
   movements: [],
@@ -1361,7 +1372,10 @@ const shortDate = date => date ? new Date(date + "T00:00:00").toLocaleDateString
 const displayLocation = a => a.realLocation || a.location || a.zone;
 const activationLabel = a => `${displayLocation(a)} ${shortDate(a.date)}`;
 const normalizePopCategory = value => POP_CATEGORIES.includes(value) ? value : value === "Universidad" || value === "Eventos / universidades" ? "Universidades" : value === "Drivers" ? "Drivers General" : "Users General";
-const mediaTypeOf = value => MEDIA_TYPES.find(t => t.id === value || t.label === value) || MEDIA_TYPES[MEDIA_TYPES.length - 1];
+const mediaTypeOf = value => {
+  const normalized = value === "Parada" ? "Parada Bus" : value;
+  return MEDIA_TYPES.find(t => t.id === normalized || t.label === normalized) || MEDIA_TYPES[MEDIA_TYPES.length - 1];
+};
 const slugify = value => String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/&/g, " y ").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 const compactSlug = value => slugify(value).replace(/_/g, "");
 const pascalSlug = value => slugify(value).split("_").filter(Boolean).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join("");
@@ -2116,7 +2130,7 @@ function Header({
     media_ooh: "Media OOH"
   };
   const subtitles = {
-    pop_inventory: "Control de stock, reservados, mínimos y valor estimado",
+    pop_inventory: "Control de stock, reservados, salidas y valor estimado",
     influencers: `${count} creadores registrados · performance orgánico y paid`,
     social_report: "Reporte mensual por plataforma · Venezuela",
     mystery: `${count} activaciones registradas · validación operativa`,
@@ -2922,7 +2936,7 @@ function PopInventory({
   const [photoItem, setPhotoItem] = useState(null);
   const update = (id, key, value) => setItems(previous => previous.map(item => item.id === id ? {
     ...item,
-    [key]: ["stock", "reserved", "min", "unitCost"].includes(key) ? Number(value) || 0 : key === "category" ? normalizePopCategory(value) : value
+    [key]: ["stock", "reserved", "unitCost"].includes(key) ? Number(value) || 0 : key === "category" ? normalizePopCategory(value) : value
   } : item));
   const add = () => setItems(previous => [{
     id: uid("pop"),
@@ -2930,7 +2944,6 @@ function PopInventory({
     category: "Users General",
     stock: 0,
     reserved: 0,
-    min: 0,
     unitCost: 0,
     photos: [],
     movements: [],
@@ -2957,15 +2970,15 @@ function PopInventory({
     const reserved = Number(item.reserved) || 0;
     const available = Math.max(0, stock - reserved);
     acc.stock += stock;
+    acc.reserved += reserved;
     acc.available += available;
     acc.value += stock * (Number(item.unitCost) || 0);
-    acc.low += available <= (Number(item.min) || 0) ? 1 : 0;
     return acc;
   }, {
     stock: 0,
+    reserved: 0,
     available: 0,
-    value: 0,
-    low: 0
+    value: 0
   });
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2983,7 +2996,7 @@ function PopInventory({
       opacity: .85,
       marginTop: 4
     }
-  }, "Control de stock, reservados, mínimos y valor estimado.")), /*#__PURE__*/React.createElement("button", {
+  }, "Control de stock, reservados, salidas y valor estimado.")), /*#__PURE__*/React.createElement("button", {
     className: "primarybtn",
     style: {
       ...S.primaryBtn,
@@ -3007,8 +3020,8 @@ function PopInventory({
     accent: "#16A34A"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconAlert,
-    label: "Bajo mínimo",
-    value: fmt(totals.low),
+    label: "Reservado",
+    value: fmt(totals.reserved),
     accent: "#D97706"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconDollar,
@@ -3028,12 +3041,11 @@ function PopInventory({
       ...S.table,
       minWidth: 1120
     }
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Material", "Categoría", "Stock", "Reservado", "Disponible", "Mínimo", "Costo unit.", "Notas", ""].map(h => /*#__PURE__*/React.createElement("th", {
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Material", "Categoría", "Stock", "Reservado", "Disponible", "Costo unit.", "Notas", ""].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: S.th
   }, h)))), /*#__PURE__*/React.createElement("tbody", null, items.map(item => {
     const available = Math.max(0, (Number(item.stock) || 0) - (Number(item.reserved) || 0));
-    const low = available <= (Number(item.min) || 0);
     return /*#__PURE__*/React.createElement("tr", {
       key: item.id
     }, /*#__PURE__*/React.createElement("td", {
@@ -3063,18 +3075,10 @@ function PopInventory({
     }))), /*#__PURE__*/React.createElement("td", {
       style: {
         ...S.td,
-        color: low ? "#D97706" : "#16A34A",
+        color: "#16A34A",
         fontWeight: 900
       }
     }, fmt(available)), /*#__PURE__*/React.createElement("td", {
-      style: S.td
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      min: "0",
-      style: S.input,
-      value: item.min,
-      onChange: e => update(item.id, "min", e.target.value)
-    })), /*#__PURE__*/React.createElement("td", {
       style: S.td
     }, /*#__PURE__*/React.createElement("input", {
       type: "number",
@@ -3262,9 +3266,12 @@ function MediaOOH({
     notes: ""
   }, ...previous]);
   const totals = items.reduce((acc, item) => {
-    acc.reach += Number(item.reach) || 0;
-    acc.cost += Number(item.cost) || 0;
-    acc.active += item.status === "Activa" ? 1 : 0;
+    const active = item.status === "Activa";
+    if (active) {
+      acc.reach += Number(item.reach) || 0;
+      acc.cost += Number(item.cost) || 0;
+      acc.active += 1;
+    }
     return acc;
   }, {
     reach: 0,
@@ -3363,7 +3370,7 @@ function MediaOOH({
     accent: "#16A34A"
   }), /*#__PURE__*/React.createElement(Kpi, {
     icon: IconEye,
-    label: "Reach estimado",
+    label: "Reach estimado activo",
     value: compactMetric(totals.reach),
     accent: "#0EA5E9"
   }), /*#__PURE__*/React.createElement(Kpi, {
@@ -5224,6 +5231,11 @@ function socialRowValue(report, rowId, month) {
 function socialReportSumForMonths(report, rowIds, months) {
   return rowIds.reduce((sum, rowId) => sum + (months || []).reduce((s, month) => s + parseMetricValue(socialRowValue(report, rowId, month)), 0), 0);
 }
+function socialReportLatestForMonths(report, rowId, months) {
+  const ordered = [...(months || [])].reverse();
+  const latest = ordered.find(month => String(socialRowValue(report, rowId, month) ?? "").trim());
+  return latest ? parseMetricValue(socialRowValue(report, rowId, latest)) : 0;
+}
 function compactMetric(value) {
   const n = Number(value) || 0;
   const abs = Math.abs(n);
@@ -5290,8 +5302,8 @@ function SocialMediaReport({
       values: report.values || {}
     });
   };
-  const totalFollowersIG = socialReportSumForMonths(report, ["followers_instagram"], visibleMonths);
-  const totalFollowersTikTok = socialReportSumForMonths(report, ["followers_tiktok"], visibleMonths);
+  const totalFollowersIG = socialReportLatestForMonths(report, "followers_instagram", visibleMonths);
+  const totalFollowersTikTok = socialReportLatestForMonths(report, "followers_tiktok", visibleMonths);
   const totalReach = socialReportSumForMonths(report, ["reach_instagram", "reach_facebook", "reach_tiktok"], visibleMonths);
   const totalClicks = socialReportSumForMonths(report, ["clicks_instagram", "clicks_facebook", "clicks_tiktok"], visibleMonths);
   const totalInstalls = socialReportSumForMonths(report, ["installs_instagram", "installs_facebook", "installs_tiktok"], visibleMonths);
@@ -5728,17 +5740,7 @@ function SocialMediaReport({
     label: "Orders total",
     value: fmt(totalOrders),
     accent: "#F97316"
-  })), /*#__PURE__*/React.createElement("p", {
-    style: {
-      margin: 0,
-      padding: "12px 14px",
-      borderRadius: 10,
-      background: "#FFF7ED",
-      color: "#9A3412",
-      fontSize: 12,
-      lineHeight: 1.5
-    }
-  }, "Tip: cada celda muestra el valor y, debajo, el cambio vs. el mes anterior. Verde = sube; rojo = baja. Puedes pegar valores con comas o porcentajes y descargar todo en CSV."), renderVisualTable("Followers por plataforma", "Crecimiento mensual de la comunidad. Ideal para ver si el contenido está construyendo audiencia real.", followerRows, "#E30613"), renderVisualTable("Reach / views por plataforma", "Alcance mensual separado por canal. TikTok se lee como video views cuando ese sea el dato disponible.", reachRows, "#0EA5E9"), /*#__PURE__*/React.createElement(Card, {
+  })), renderVisualTable("Followers por plataforma", "Crecimiento mensual de la comunidad. Ideal para ver si el contenido está construyendo audiencia real.", followerRows, "#E30613"), renderVisualTable("Reach / views por plataforma", "Alcance mensual separado por canal. TikTok se lee como video views cuando ese sea el dato disponible.", reachRows, "#0EA5E9"), /*#__PURE__*/React.createElement(Card, {
     title: "Clicks, installs y orders",
     hint: "Separado por plataforma para que puedas ver qué canal empuja awareness, tráfico y adquisición."
   }, /*#__PURE__*/React.createElement("div", {
@@ -5859,6 +5861,20 @@ function influencerStatus(label, active, color) {
       fontWeight: 800
     }
   }, active ? "✓" : "·", " ", label);
+}
+function influencerNotApplicable() {
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      padding: "5px 9px",
+      borderRadius: 999,
+      background: "#F1F5F9",
+      color: "#64748B",
+      fontSize: 11,
+      fontWeight: 800
+    }
+  }, "No aplica");
 }
 function influencerUsesPlatform(i, platform) {
   const p = String(i.platform || "").toLowerCase();
@@ -6217,24 +6233,15 @@ function InfluencerTracker({
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
-        flexWrap: "wrap",
+        flexDirection: "column",
+        alignItems: "flex-start",
         gap: 5
       }
     }, influencerStatus("Pagado", i.paid, "#16A34A"), influencerStatus("Grabó", i.recorded, "#0EA5E9"), influencerStatus("Publicó", i.published, "#E30613"))), /*#__PURE__*/React.createElement("td", {
       style: S.td
-    }, influencerUsesPlatform(i, "Instagram") ? socialResultBlock("IG", m.ig, "#E30613") : /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: "#94A3B8",
-        fontWeight: 800
-      }
-    }, "No aplica")), /*#__PURE__*/React.createElement("td", {
+    }, influencerUsesPlatform(i, "Instagram") ? socialResultBlock("IG", m.ig, "#E30613") : influencerNotApplicable()), /*#__PURE__*/React.createElement("td", {
       style: S.td
-    }, influencerUsesPlatform(i, "TikTok") ? socialResultBlock("TikTok", m.tiktok, "#111827") : /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: "#94A3B8",
-        fontWeight: 800
-      }
-    }, "No aplica")), /*#__PURE__*/React.createElement("td", {
+    }, influencerUsesPlatform(i, "TikTok") ? socialResultBlock("TikTok", m.tiktok, "#111827") : influencerNotApplicable()), /*#__PURE__*/React.createElement("td", {
       style: S.td
     }, i.hasPromoCode ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("b", null, i.promoCode || "Sin código"), /*#__PURE__*/React.createElement("div", {
       style: {
@@ -6242,7 +6249,7 @@ function InfluencerTracker({
         fontSize: 11,
         marginTop: 2
       }
-    }, fmt(Number(i.redemptions) || 0), " redenciones")) : "No aplica"), /*#__PURE__*/React.createElement("td", {
+    }, fmt(Number(i.redemptions) || 0), " redenciones")) : influencerNotApplicable()), /*#__PURE__*/React.createElement("td", {
       style: S.td
     }, /*#__PURE__*/React.createElement("div", {
       style: {
