@@ -3225,15 +3225,27 @@ function MediaOOH({
 }) {
   const mapNode = useRef(null);
   const mapInstance = useRef(null);
+  const [expandedId, setExpandedId] = useState(null);
   const update = (id, key, value) => setItems(previous => previous.map(item => item.id === id ? {
     ...item,
     [key]: ["lat", "lng", "reach", "cost"].includes(key) ? Number(value) || 0 : value
   } : item));
+  const updateLocationSearch = (id, value) => setItems(previous => previous.map(item => item.id === id ? {
+    ...item,
+    location: value,
+    address: value
+  } : item));
   const remove = id => setItems(previous => previous.filter(item => item.id !== id));
+  const mediaSearchText = item => item.address || item.location || "";
+  const googleMapsUrl = item => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${mediaSearchText(item) || item.name || "OOH Caracas"}, Caracas, Venezuela`)}`;
   const geocodeMedia = async item => {
-    const queryText = `${item.address || item.location || item.name}, Caracas, Venezuela`;
+    const queryText = `${mediaSearchText(item) || item.name}, Caracas, Venezuela`;
+    if (!String(queryText || "").trim()) {
+      alert("Escribe una ubicación para buscar el pin.");
+      return;
+    }
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(queryText)}`, {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=ve&q=${encodeURIComponent(queryText)}`, {
         headers: {
           "Accept-Language": "es"
         }
@@ -3243,7 +3255,9 @@ function MediaOOH({
         setItems(previous => previous.map(row => row.id === item.id ? {
           ...row,
           lat: Number(data[0].lat),
-          lng: Number(data[0].lon)
+          lng: Number(data[0].lon),
+          address: mediaSearchText(row) || data[0].display_name || row.address,
+          location: mediaSearchText(row) || row.location
         } : row));
       } else alert("No encontré esa ubicación. Prueba con una dirección más específica.");
     } catch (e) {
@@ -3408,7 +3422,7 @@ function MediaOOH({
     }
   }), t.label)))), /*#__PURE__*/React.createElement(Card, {
     title: "Inventario Media",
-    hint: "Puedes pegar links de fotos o reportes por ubicación."
+    hint: "Escribe una referencia como “Estación de Metro Chacaíto” y usa Buscar pin. Si quieres validar, abre Google Maps desde la misma fila."
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       overflowX: "auto",
@@ -3417,14 +3431,14 @@ function MediaOOH({
   }, /*#__PURE__*/React.createElement("table", {
     style: {
       ...S.table,
-      minWidth: 1180
+      minWidth: 1040
     }
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Nombre", "Tipo", "Ubicación", "Dirección", "Pin", "Estado", "Reach", "Costo", "Foto", "Reporte", "Notas", ""].map(h => /*#__PURE__*/React.createElement("th", {
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Nombre", "Tipo", "Buscar ubicación", "Pin", "Estado", "Reach", "Costo", "Detalles", ""].map(h => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: S.th
-  }, h)))), /*#__PURE__*/React.createElement("tbody", null, items.map(item => /*#__PURE__*/React.createElement("tr", {
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, items.map(item => /*#__PURE__*/React.createElement(React.Fragment, {
     key: item.id
-  }, /*#__PURE__*/React.createElement("td", {
+  }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
     style: S.td
   }, /*#__PURE__*/React.createElement("input", {
     style: S.input,
@@ -3439,28 +3453,56 @@ function MediaOOH({
   }, MEDIA_TYPES.map(t => /*#__PURE__*/React.createElement("option", {
     key: t.id,
     value: t.id
-  }, t.label)))), ["location", "address"].map(key => /*#__PURE__*/React.createElement("td", {
-    key,
+  }, t.label)))), /*#__PURE__*/React.createElement("td", {
     style: S.td
   }, /*#__PURE__*/React.createElement("input", {
-    style: S.input,
-    value: item[key] || "",
-    onChange: e => update(item.id, key, e.target.value)
-  }))), /*#__PURE__*/React.createElement("td", {
-    style: S.td
+    style: {
+      ...S.input,
+      minWidth: 240
+    },
+    value: mediaSearchText(item),
+    placeholder: "Ej. Estación de Metro Chacaíto",
+    onChange: e => updateLocationSearch(item.id, e.target.value),
+    onKeyDown: e => {
+      if (e.key === "Enter") geocodeMedia(item);
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap",
+      marginTop: 6
+    }
   }, /*#__PURE__*/React.createElement("button", {
     className: "ghostbtn",
     style: {
       ...S.ghostBtn,
-      padding: "7px 10px",
-      fontSize: 12
+      padding: "6px 9px",
+      fontSize: 11.5
     },
     onClick: () => geocodeMedia(item)
-  }, "Ubicar pin"), /*#__PURE__*/React.createElement("div", {
+  }, "Buscar pin"), /*#__PURE__*/React.createElement("a", {
+    href: googleMapsUrl(item),
+    target: "_blank",
+    rel: "noreferrer",
     style: {
-      color: "#94A3B8",
-      fontSize: 10.5,
-      marginTop: 4
+      ...S.ghostBtn,
+      padding: "6px 9px",
+      fontSize: 11.5,
+      textDecoration: "none",
+      display: "inline-flex"
+    }
+  }, "Google Maps"))), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "inline-flex",
+      padding: "6px 10px",
+      borderRadius: 999,
+      background: Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng)) ? "#DCFCE7" : "#F1F5F9",
+      color: Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng)) ? "#166534" : "#64748B",
+      fontSize: 11,
+      fontWeight: 900
     }
   }, Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng)) ? "Pin listo" : "Pin pendiente")), /*#__PURE__*/React.createElement("td", {
     style: S.td
@@ -3479,15 +3521,17 @@ function MediaOOH({
     style: S.input,
     value: item[key],
     onChange: e => update(item.id, key, e.target.value)
-  }))), ["photoUrl", "reportUrl", "notes"].map(key => /*#__PURE__*/React.createElement("td", {
-    key,
-    style: S.td
-  }, /*#__PURE__*/React.createElement("input", {
-    style: S.input,
-    value: item[key] || "",
-    placeholder: key === "photoUrl" ? "Link foto" : key === "reportUrl" ? "Link reporte" : "",
-    onChange: e => update(item.id, key, e.target.value)
   }))), /*#__PURE__*/React.createElement("td", {
+    style: S.td
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "ghostbtn",
+    style: {
+      ...S.ghostBtn,
+      padding: "7px 9px",
+      fontSize: 12
+    },
+    onClick: () => setExpandedId(expandedId === item.id ? null : item.id)
+  }, expandedId === item.id ? "Ocultar" : "Ver / editar")), /*#__PURE__*/React.createElement("td", {
     style: S.td
   }, /*#__PURE__*/React.createElement("button", {
     style: {
@@ -3496,7 +3540,40 @@ function MediaOOH({
       fontSize: 12
     },
     onClick: () => remove(item.id)
-  }, "Borrar")))))))));
+  }, "Borrar"))), expandedId === item.id && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: 9,
+    style: {
+      ...S.td,
+      background: "#F8FAFC"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement(Field, {
+    label: "Link foto"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: item.photoUrl || "",
+    placeholder: "https://...",
+    onChange: e => update(item.id, "photoUrl", e.target.value)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Link reporte"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: item.reportUrl || "",
+    placeholder: "https://...",
+    onChange: e => update(item.id, "reportUrl", e.target.value)
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: "Notas"
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    value: item.notes || "",
+    placeholder: "Detalles del proveedor, circuito, semanas, etc.",
+    onChange: e => update(item.id, "notes", e.target.value)
+  }))))))))))));
 }
 
 /* ============================ CALENDAR ============================ */
