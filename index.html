@@ -646,7 +646,6 @@ function offset(o) {
 }
 // QR + PROMO por ZONA
 const seedQR = () => ZONES.map((z, i) => {
-  const base = [1100, 650, 980, 870, 540, 720, 410, 300][i] || 400;
   const codeSlug = z.toLowerCase().replace(/\s+/g, "-").replace(/[íáéó]/g, m => ({
     "í": "i",
     "á": "a",
@@ -656,13 +655,14 @@ const seedQR = () => ZONES.map((z, i) => {
   return {
     zone: z,
     code: `yango-${codeSlug}`,
-    clicks: base,
-    installs: Math.round(base * 0.34),
-    registrations: Math.round(base * 0.34 * 0.74),
-    firstTrips: Math.round(base * 0.34 * 0.74 * 0.4),
+    clicks: 0,
+    installs: 0,
+    registrations: 0,
+    firstTrips: 0,
     promoCode: "",
     promoRedemptions: 0,
-    promoValidDays: 7
+    promoValidDays: 7,
+    source: "empty"
   };
 });
 const seedMystery = () => [{
@@ -1457,29 +1457,8 @@ const activationMetrics = a => ({
 function allocate(acts, qr) {
   const exec = acts.filter(a => a.status === "done");
   const out = {};
-  ZONES.forEach(z => {
-    const rows = exec.filter(a => a.zone === z);
-    const totalFlyers = rows.reduce((s, a) => s + (a.flyers || 0), 0) || 1;
-    const q = qr.find(x => x.zone === z) || {
-      clicks: 0,
-      installs: 0,
-      registrations: 0,
-      firstTrips: 0
-    };
-    rows.forEach(a => {
-      const direct = activationMetrics(a);
-      if (direct.clicks || direct.installs || direct.registrations || direct.firstTrips) {
-        out[a.id] = direct;
-        return;
-      }
-      const sh = (a.flyers || 0) / totalFlyers;
-      out[a.id] = {
-        clicks: q.clicks * sh,
-        installs: q.installs * sh,
-        registrations: q.registrations * sh,
-        firstTrips: q.firstTrips * sh
-      };
-    });
+  exec.forEach(a => {
+    out[a.id] = activationMetrics(a);
   });
   return out;
 }
@@ -1528,6 +1507,7 @@ function App() {
     const byZone = new Map();
     saved.forEach(row => {
       const zone = findZoneBucket(row.zone) || row.zone;
+      const hasRealResults = row.source === "adjust" || row.source === "manual";
       const current = byZone.get(zone) || {
         ...row,
         zone,
@@ -1541,11 +1521,12 @@ function App() {
         ...current,
         code: current.code || row.code,
         promoCode: current.promoCode || row.promoCode,
-        clicks: (current.clicks || 0) + (row.clicks || 0),
-        installs: (current.installs || 0) + (row.installs || 0),
-        registrations: (current.registrations || 0) + (row.registrations || 0),
-        firstTrips: (current.firstTrips || 0) + (row.firstTrips || 0),
-        promoRedemptions: (current.promoRedemptions || 0) + (row.promoRedemptions || 0)
+        source: hasRealResults ? row.source : current.source || "empty",
+        clicks: (current.clicks || 0) + (hasRealResults ? row.clicks || 0 : 0),
+        installs: (current.installs || 0) + (hasRealResults ? row.installs || 0 : 0),
+        registrations: (current.registrations || 0) + (hasRealResults ? row.registrations || 0 : 0),
+        firstTrips: (current.firstTrips || 0) + (hasRealResults ? row.firstTrips || 0 : 0),
+        promoRedemptions: (current.promoRedemptions || 0) + (hasRealResults ? row.promoRedemptions || 0 : 0)
       });
     });
     return ZONES.map(z => byZone.get(z) || seedQR().find(x => x.zone === z));
@@ -1723,10 +1704,12 @@ function App() {
           installs: imported.installs,
           registrations: imported.registrations,
           firstTrips: imported.firstTrips,
-          promoRedemptions: imported.promoRedemptions
+          promoRedemptions: imported.promoRedemptions,
+          source: "adjust"
         } : {
           ...existing,
-          zone
+          zone,
+          source: existing.source || "empty"
         };
       }));
     }
@@ -2489,7 +2472,6 @@ function Results({
     overall = t.clicks ? t.firstTrips / t.clicks : 0;
   const byZone = ZONES.map(z => {
     const r = done.filter(a => a.zone === z);
-    const fallback = qr.find(x => x.zone === z) || {};
     const q = r.reduce((sum, a) => {
       const m = alloc[a.id] || {};
       return {
@@ -2506,13 +2488,6 @@ function Results({
       firstTrips: 0,
       promoRedemptions: 0
     });
-    if (!r.some(a => a.clicks || a.installs || a.registrations || a.firstTrips)) {
-      q.clicks = fallback.clicks || q.clicks;
-      q.installs = fallback.installs || q.installs;
-      q.registrations = fallback.registrations || q.registrations;
-      q.firstTrips = fallback.firstTrips || q.firstTrips;
-      q.promoRedemptions = fallback.promoRedemptions || q.promoRedemptions;
-    }
     const c = r.reduce((s, a) => s + (a.cost || 0), 0);
     const s2r = q.clicks ? q.promoRedemptions / q.clicks : 0;
     return {
@@ -3238,6 +3213,32 @@ function MediaOOH({
   const remove = id => setItems(previous => previous.filter(item => item.id !== id));
   const mediaSearchText = item => item.address || item.location || "";
   const googleMapsUrl = item => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${mediaSearchText(item) || item.name || "OOH Caracas"}, Caracas, Venezuela`)}`;
+  const mediaStatusStyle = status => ({
+    Activa: {
+      bg: "#DCFCE7",
+      color: "#166534",
+      border: "#86EFAC"
+    },
+    Planificada: {
+      bg: "#FEF3C7",
+      color: "#92400E",
+      border: "#FDE68A"
+    },
+    Pausada: {
+      bg: "#FEE2E2",
+      color: "#991B1B",
+      border: "#FCA5A5"
+    },
+    Finalizada: {
+      bg: "#F1F5F9",
+      color: "#475569",
+      border: "#CBD5E1"
+    }
+  }[status] || {
+    bg: "#F1F5F9",
+    color: "#475569",
+    border: "#CBD5E1"
+  });
   const geocodeMedia = async item => {
     const queryText = `${mediaSearchText(item) || item.name}, Caracas, Venezuela`;
     if (!String(queryText || "").trim()) {
@@ -3507,7 +3508,13 @@ function MediaOOH({
   }, Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng)) ? "Pin listo" : "Pin pendiente")), /*#__PURE__*/React.createElement("td", {
     style: S.td
   }, /*#__PURE__*/React.createElement("select", {
-    style: S.select,
+    style: {
+      ...S.select,
+      background: mediaStatusStyle(item.status).bg,
+      color: mediaStatusStyle(item.status).color,
+      borderColor: mediaStatusStyle(item.status).border,
+      fontWeight: 900
+    },
     value: item.status,
     onChange: e => update(item.id, "status", e.target.value)
   }, ["Activa", "Planificada", "Pausada", "Finalizada"].map(s => /*#__PURE__*/React.createElement("option", {
@@ -5689,7 +5696,11 @@ function SocialMediaReport({
   }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
     style: {
       ...S.th,
-      minWidth: 220
+      minWidth: 220,
+      position: "sticky",
+      left: 0,
+      background: "#F8FAFC",
+      zIndex: 2
     }
   }, "Indicador"), visibleMonths.map(month => /*#__PURE__*/React.createElement("th", {
     key: month,
@@ -5703,7 +5714,11 @@ function SocialMediaReport({
       key: rowId
     }, /*#__PURE__*/React.createElement("td", {
       style: {
-        ...S.td
+        ...S.td,
+        position: "sticky",
+        left: 0,
+        background: "#fff",
+        zIndex: 1
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
