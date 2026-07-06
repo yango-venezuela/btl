@@ -770,11 +770,29 @@ const STORE_KEY = "yango_btl_h1",
   SOC_KEY = "yango_social_report_h1",
   BTL_BUDGET_KEY = "yango_btl_budgets_h1",
   POP_KEY = "yango_pop_inventory_h1",
-  MEDIA_KEY = "yango_media_ooh_h1";
+  MEDIA_KEY = "yango_media_ooh_h1",
+  BRANDING_KEY = "yango_branding_inventory_h1";
 const MASTER_PASS = "Yango2026!";
 const LIGHT_TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 const LIGHT_TILE_ATTR = "&copy; OpenStreetMap &copy; CARTO";
 const POP_CATEGORIES = ["Users General", "Drivers General", "Mundial", "Universidades"];
+const BRANDING_PARTNERS = ["BipBip", "DragoPro", "MotoGo"];
+const BRANDING_PRODUCTS = [{
+  product: "Stickers",
+  variants: ["Transfer Blancas", "Grandes Rojas", "Medianas Rojas", "Pequeñas Rojas"]
+}, {
+  product: "Cascos",
+  variants: ["S", "M", "L", "XL"]
+}, {
+  product: "Longsleeves",
+  variants: ["S", "M", "L", "XL"]
+}, {
+  product: "Chalecos",
+  variants: ["S", "M", "L", "XL"]
+}, {
+  product: "Chaquetas",
+  variants: ["S", "M", "L", "XL"]
+}];
 const MEDIA_TYPES = [{
   id: "Valla",
   label: "Valla",
@@ -1160,6 +1178,19 @@ const seedPopInventory = () => [{
   movements: [],
   notes: "Eventos / universidades"
 }];
+const seedBrandingInventory = () => BRANDING_PRODUCTS.flatMap(group => group.variants.map((variant, index) => ({
+  id: `brand_${slugify(group.product)}_${slugify(variant)}`,
+  product: group.product,
+  variant,
+  officeStock: group.product === "Stickers" ? 1000 - index * 150 : 0,
+  unitCost: group.product === "Stickers" ? 0.25 : group.product === "Cascos" ? 18 : group.product === "Chaquetas" ? 22 : group.product === "Chalecos" ? 12 : 9,
+  partners: Object.fromEntries(BRANDING_PARTNERS.map(partner => [partner, {
+    stock: 0,
+    realStock: 0
+  }])),
+  movements: [],
+  notes: ""
+})));
 const seedMediaAssets = () => [{
   id: "media1",
   name: "OOH Altamira",
@@ -1372,6 +1403,30 @@ const shortDate = date => date ? new Date(date + "T00:00:00").toLocaleDateString
 const displayLocation = a => a.realLocation || a.location || a.zone;
 const activationLabel = a => `${displayLocation(a)} ${shortDate(a.date)}`;
 const normalizePopCategory = value => POP_CATEGORIES.includes(value) ? value : value === "Universidad" || value === "Eventos / universidades" ? "Universidades" : value === "Drivers" ? "Drivers General" : "Users General";
+const blankBrandingPartners = () => Object.fromEntries(BRANDING_PARTNERS.map(partner => [partner, {
+  stock: 0,
+  realStock: 0
+}]));
+const normalizeBrandingItem = item => {
+  const partners = blankBrandingPartners();
+  BRANDING_PARTNERS.forEach(partner => {
+    const saved = item?.partners?.[partner] || {};
+    partners[partner] = {
+      stock: Number(saved.stock) || 0,
+      realStock: saved.realStock === "" || saved.realStock == null ? Number(saved.stock) || 0 : Number(saved.realStock) || 0
+    };
+  });
+  return {
+    id: item.id || uid("brand"),
+    product: item.product || "Stickers",
+    variant: item.variant || "Transfer Blancas",
+    officeStock: Number(item.officeStock) || 0,
+    unitCost: Number(item.unitCost) || 0,
+    partners,
+    movements: item.movements || [],
+    notes: item.notes || ""
+  };
+};
 const mediaTypeOf = value => {
   const normalized = value === "Parada" ? "Parada Bus" : value;
   return MEDIA_TYPES.find(t => t.id === normalized || t.label === normalized) || MEDIA_TYPES[MEDIA_TYPES.length - 1];
@@ -1585,6 +1640,7 @@ function App() {
   const [btlBudgets, setBtlBudgets] = useState(() => load(BTL_BUDGET_KEY, seedBtlBudgets));
   const [popInventory, setPopInventory] = useState(() => load(POP_KEY, seedPopInventory));
   const [mediaAssets, setMediaAssets] = useState(() => load(MEDIA_KEY, seedMediaAssets));
+  const [brandingInventory, setBrandingInventory] = useState(() => load(BRANDING_KEY, seedBrandingInventory).map(normalizeBrandingItem));
   const [masterUnlocked, setMasterUnlocked] = useState(() => sessionStorage.getItem("yango_master_unlocked") === "1");
   const [tab, setTab] = useState("global");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1640,6 +1696,11 @@ function App() {
       localStorage.setItem(MEDIA_KEY, JSON.stringify(mediaAssets));
     } catch (e) {}
   }, [mediaAssets]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(BRANDING_KEY, JSON.stringify(brandingInventory));
+    } catch (e) {}
+  }, [brandingInventory]);
   const save = a => {
     setActs(p => p.find(x => x.id === a.id) ? p.map(x => x.id === a.id ? a : x) : [...p, a]);
     setEditing(null);
@@ -1769,11 +1830,11 @@ function App() {
     style: S.main
   }, /*#__PURE__*/React.createElement(Header, {
     tab: tab,
-    count: tab === "influencers" ? influencers.length : tab === "social_report" ? socialReport.months.length : tab === "pop_inventory" ? popInventory.length : tab === "media_ooh" ? mediaAssets.length : acts.length,
+    count: tab === "influencers" ? influencers.length : tab === "social_report" ? socialReport.months.length : tab === "pop_inventory" ? popInventory.length : tab === "media_ooh" ? mediaAssets.length : tab === "branding" ? brandingInventory.length : acts.length,
     onMenu: () => setMenuOpen(v => !v)
   }), /*#__PURE__*/React.createElement("div", {
     style: S.content
-  }, !["mystery", "influencers", "social_report", "pop_inventory", "media_ooh"].includes(tab) && /*#__PURE__*/React.createElement(Filters, {
+  }, !["mystery", "influencers", "social_report", "pop_inventory", "media_ooh", "branding"].includes(tab) && /*#__PURE__*/React.createElement(Filters, {
     zoneFilter,
     setZoneFilter,
     typeFilter,
@@ -1836,6 +1897,9 @@ function App() {
   }), tab === "media_ooh" && /*#__PURE__*/React.createElement(MediaOOH, {
     items: mediaAssets,
     setItems: setMediaAssets
+  }), tab === "branding" && /*#__PURE__*/React.createElement(BrandingInventory, {
+    items: brandingInventory,
+    setItems: setBrandingInventory
   }))), editing && /*#__PURE__*/React.createElement(Editor, {
     act: editing === "new" ? null : editing,
     alloc: alloc,
@@ -1995,6 +2059,13 @@ function Sidebar({
       icon: IconShield
     }]
   }, {
+    label: "Branding",
+    items: [{
+      id: "branding",
+      label: "Inventario Branding",
+      icon: IconTicket
+    }]
+  }, {
     label: "Social Media",
     items: [{
       id: "influencers",
@@ -2107,6 +2178,7 @@ function Header({
     activations: "Activaciones y validación",
     agency: "Admin agencia y evidencias",
     pop_inventory: "Material POP · Inventario",
+    branding: "Branding · Inventario",
     influencers: "IG, TikTok e Influencers",
     social_report: "Reporte Social Media",
     mystery: "Mystery Shopper",
@@ -2114,6 +2186,7 @@ function Header({
   };
   const subtitles = {
     pop_inventory: "Control de stock, reservados, salidas y valor estimado",
+    branding: "Oficina, partners, salidas y pérdida vs inventario real",
     influencers: `${count} creadores registrados · performance orgánico y paid`,
     social_report: "Reporte mensual por plataforma · Venezuela",
     mystery: `${count} activaciones registradas · validación operativa`,
@@ -3193,6 +3266,363 @@ function PopPhotosModal({
   }, "Quitar")))) : /*#__PURE__*/React.createElement(Empty, {
     msg: "Aún no hay fotos cargadas para este material."
   }))));
+}
+function BrandingInventory({
+  items,
+  setItems
+}) {
+  const [productFilter, setProductFilter] = useState("all");
+  const normalizedItems = items.map(normalizeBrandingItem);
+  const visible = normalizedItems.filter(item => productFilter === "all" || item.product === productFilter);
+  const productOptions = BRANDING_PRODUCTS.map(p => p.product);
+  const productVariants = product => (BRANDING_PRODUCTS.find(p => p.product === product) || BRANDING_PRODUCTS[0]).variants;
+  const patchItem = (id, updater) => setItems(previous => previous.map(row => row.id === id ? normalizeBrandingItem(updater(normalizeBrandingItem(row))) : row));
+  const update = (id, key, value) => patchItem(id, item => ({
+    ...item,
+    [key]: ["officeStock", "unitCost"].includes(key) ? Number(value) || 0 : value
+  }));
+  const updateProduct = (id, product) => patchItem(id, item => ({
+    ...item,
+    product,
+    variant: productVariants(product)[0] || ""
+  }));
+  const updatePartner = (id, partner, key, value) => patchItem(id, item => ({
+    ...item,
+    partners: {
+      ...item.partners,
+      [partner]: {
+        ...item.partners[partner],
+        [key]: Number(value) || 0
+      }
+    }
+  }));
+  const addItem = () => setItems(previous => [normalizeBrandingItem({
+    id: uid("brand"),
+    product: "Stickers",
+    variant: "Transfer Blancas",
+    officeStock: 0,
+    unitCost: 0,
+    partners: blankBrandingPartners(),
+    movements: [],
+    notes: ""
+  }), ...previous]);
+  const remove = id => setItems(previous => previous.filter(item => item.id !== id));
+  const transferToPartner = item => {
+    const partner = prompt(`¿A qué partner? (${BRANDING_PARTNERS.join(", ")})`, BRANDING_PARTNERS[0]) || "";
+    if (!BRANDING_PARTNERS.includes(partner)) return alert("Partner no válido. Usa BipBip, DragoPro o MotoGo.");
+    const qty = Number(prompt(`¿Cuántas unidades enviar desde Oficina a ${partner}?`) || 0);
+    if (!qty || qty <= 0) return;
+    if (qty > (Number(item.officeStock) || 0)) return alert("No hay suficiente stock en Oficina para esa salida.");
+    const reason = prompt("Detalle / guía / comentario") || `Transferencia a ${partner}`;
+    patchItem(item.id, current => ({
+      ...current,
+      officeStock: Math.max(0, (Number(current.officeStock) || 0) - qty),
+      partners: {
+        ...current.partners,
+        [partner]: {
+          stock: (Number(current.partners[partner].stock) || 0) + qty,
+          realStock: (Number(current.partners[partner].realStock) || 0) + qty
+        }
+      },
+      movements: [{
+        id: uid("mov"),
+        date: new Date().toISOString().slice(0, 10),
+        type: "Oficina → Partner",
+        partner,
+        qty,
+        reason
+      }, ...(current.movements || [])].slice(0, 18)
+    }));
+  };
+  const partnerOut = (item, partner) => {
+    const qty = Number(prompt(`¿Cuántas unidades salieron de ${partner}?`) || 0);
+    if (!qty || qty <= 0) return;
+    if (qty > (Number(item.partners[partner]?.stock) || 0)) return alert(`No hay suficiente stock en ${partner}.`);
+    const reason = prompt("¿Para qué fue la salida?") || "Salida partner";
+    patchItem(item.id, current => ({
+      ...current,
+      partners: {
+        ...current.partners,
+        [partner]: {
+          ...current.partners[partner],
+          stock: Math.max(0, (Number(current.partners[partner].stock) || 0) - qty)
+        }
+      },
+      movements: [{
+        id: uid("mov"),
+        date: new Date().toISOString().slice(0, 10),
+        type: "Salida partner",
+        partner,
+        qty,
+        reason
+      }, ...(current.movements || [])].slice(0, 18)
+    }));
+  };
+  const totals = normalizedItems.reduce((acc, item) => {
+    acc.office += Number(item.officeStock) || 0;
+    acc.value += (Number(item.officeStock) || 0) * (Number(item.unitCost) || 0);
+    BRANDING_PARTNERS.forEach(partner => {
+      const p = item.partners[partner] || {};
+      const stock = Number(p.stock) || 0;
+      const real = Number(p.realStock) || 0;
+      const loss = Math.max(0, stock - real);
+      acc.partnerStock += stock;
+      acc.realStock += real;
+      acc.loss += loss;
+      acc.value += stock * (Number(item.unitCost) || 0);
+      acc.lossValue += loss * (Number(item.unitCost) || 0);
+    });
+    return acc;
+  }, {
+    office: 0,
+    partnerStock: 0,
+    realStock: 0,
+    loss: 0,
+    value: 0,
+    lossValue: 0
+  });
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.resultBanner,
+      background: "linear-gradient(135deg,#E30613,#111827)"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 900,
+      fontSize: 20
+    }
+  }, "Branding · Oficina + Partners"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      opacity: .88,
+      marginTop: 4
+    }
+  }, "Oficina transfiere a partners; partners registran salidas. El inventario real permite calcular pérdida.")), /*#__PURE__*/React.createElement("button", {
+    className: "primarybtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#172554"
+    },
+    onClick: addItem
+  }, /*#__PURE__*/React.createElement(IconPlus, {
+    size: 16
+  }), " Nuevo SKU")), /*#__PURE__*/React.createElement("div", {
+    style: S.kpiGrid
+  }, /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconTicket,
+    label: "Stock Oficina",
+    value: fmt(totals.office),
+    accent: "#E30613"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconNav,
+    label: "Stock Partners",
+    value: fmt(totals.partnerStock),
+    accent: "#111827"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconCheck,
+    label: "Inventario real",
+    value: fmt(totals.realStock),
+    accent: "#16A34A"
+  }), /*#__PURE__*/React.createElement(Kpi, {
+    icon: IconAlert,
+    label: "Pérdida estimada",
+    value: `${fmt(totals.loss)} · ${usd(totals.lossValue)}`,
+    accent: "#DC2626"
+  })), /*#__PURE__*/React.createElement(Card, {
+    title: "Inventario Branding",
+    hint: "Pérdida = stock sistema partner - inventario real. Los envíos desde Oficina suman al partner."
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      flexWrap: "wrap",
+      margin: "8px 0 10px"
+    }
+  }, /*#__PURE__*/React.createElement("select", {
+    style: {
+      ...S.select,
+      maxWidth: 240
+    },
+    value: productFilter,
+    onChange: e => setProductFilter(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "Todos los productos"), productOptions.map(product => /*#__PURE__*/React.createElement("option", {
+    key: product,
+    value: product
+  }, product)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto",
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      ...S.table,
+      minWidth: 1480
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ["Producto", "Tipo / talla", "Oficina", ...BRANDING_PARTNERS, "Pérdida", "Costo unit.", "Notas", ""].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: S.th
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, visible.map(item => {
+    const variants = productVariants(item.product);
+    const loss = BRANDING_PARTNERS.reduce((sum, partner) => {
+      const p = item.partners[partner] || {};
+      return sum + Math.max(0, (Number(p.stock) || 0) - (Number(p.realStock) || 0));
+    }, 0);
+    return /*#__PURE__*/React.createElement("tr", {
+      key: item.id
+    }, /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("select", {
+      style: S.select,
+      value: item.product,
+      onChange: e => updateProduct(item.id, e.target.value)
+    }, productOptions.map(product => /*#__PURE__*/React.createElement("option", {
+      key: product,
+      value: product
+    }, product)))), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("select", {
+      style: S.select,
+      value: item.variant,
+      onChange: e => update(item.id, "variant", e.target.value)
+    }, variants.map(variant => /*#__PURE__*/React.createElement("option", {
+      key: variant,
+      value: variant
+    }, item.product === "Stickers" ? variant : `Talla ${variant}`)))), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      min: "0",
+      style: S.input,
+      value: item.officeStock,
+      onChange: e => update(item.id, "officeStock", e.target.value)
+    }), /*#__PURE__*/React.createElement("button", {
+      className: "ghostbtn",
+      style: {
+        ...S.ghostBtn,
+        padding: "6px 8px",
+        fontSize: 11,
+        marginTop: 6,
+        width: "100%"
+      },
+      onClick: () => transferToPartner(item)
+    }, "Enviar a partner")), BRANDING_PARTNERS.map(partner => {
+      const p = item.partners[partner] || {
+        stock: 0,
+        realStock: 0
+      };
+      const partnerLoss = Math.max(0, (Number(p.stock) || 0) - (Number(p.realStock) || 0));
+      return /*#__PURE__*/React.createElement("td", {
+        key: partner,
+        style: {
+          ...S.td,
+          minWidth: 165
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 6
+        }
+      }, /*#__PURE__*/React.createElement("label", {
+        style: {
+          fontSize: 10,
+          color: "#64748B",
+          fontWeight: 800
+        }
+      }, "Sistema", /*#__PURE__*/React.createElement("input", {
+        type: "number",
+        min: "0",
+        style: {
+          ...S.input,
+          marginTop: 3
+        },
+        value: p.stock,
+        onChange: e => updatePartner(item.id, partner, "stock", e.target.value)
+      })), /*#__PURE__*/React.createElement("label", {
+        style: {
+          fontSize: 10,
+          color: "#64748B",
+          fontWeight: 800
+        }
+      }, "Inv. real", /*#__PURE__*/React.createElement("input", {
+        type: "number",
+        min: "0",
+        style: {
+          ...S.input,
+          marginTop: 3
+        },
+        value: p.realStock,
+        onChange: e => updatePartner(item.id, partner, "realStock", e.target.value)
+      }))), /*#__PURE__*/React.createElement("div", {
+        style: {
+          marginTop: 5,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 6
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 11,
+          color: partnerLoss ? "#DC2626" : "#16A34A",
+          fontWeight: 900
+        }
+      }, "Pérdida ", fmt(partnerLoss)), /*#__PURE__*/React.createElement("button", {
+        className: "ghostbtn",
+        style: {
+          ...S.ghostBtn,
+          padding: "5px 7px",
+          fontSize: 11
+        },
+        onClick: () => partnerOut(item, partner)
+      }, "Salida")));
+    }), /*#__PURE__*/React.createElement("td", {
+      style: {
+        ...S.td,
+        color: loss ? "#DC2626" : "#16A34A",
+        fontWeight: 900
+      }
+    }, fmt(loss), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10.5,
+        color: "#94A3B8",
+        marginTop: 3
+      }
+    }, usd(loss * (Number(item.unitCost) || 0)))), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      min: "0",
+      step: "0.1",
+      style: S.input,
+      value: item.unitCost,
+      onChange: e => update(item.id, "unitCost", e.target.value)
+    })), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("input", {
+      style: S.input,
+      value: item.notes,
+      onChange: e => update(item.id, "notes", e.target.value)
+    }), (item.movements || [])[0] && /*#__PURE__*/React.createElement("div", {
+      style: {
+        color: "#94A3B8",
+        fontSize: 10.5,
+        marginTop: 4
+      }
+    }, item.movements[0].date, " · ", item.movements[0].type, " · ", item.movements[0].partner, " · ", fmt(item.movements[0].qty))), /*#__PURE__*/React.createElement("td", {
+      style: S.td
+    }, /*#__PURE__*/React.createElement("button", {
+      style: {
+        ...S.dangerBtn,
+        padding: "7px 9px",
+        fontSize: 12
+      },
+      onClick: () => remove(item.id)
+    }, "Eliminar")));
+  }))))));
 }
 function MediaOOH({
   items,
