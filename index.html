@@ -1897,7 +1897,7 @@ function App() {
   }), tab === "media_ooh" && /*#__PURE__*/React.createElement(MediaOOH, {
     items: mediaAssets,
     setItems: setMediaAssets
-  }), tab === "branding" && /*#__PURE__*/React.createElement(BrandingInventory, {
+  }), tab === "branding" && /*#__PURE__*/React.createElement(BrandingInventoryV2, {
     items: brandingInventory,
     setItems: setBrandingInventory
   }))), editing && /*#__PURE__*/React.createElement(Editor, {
@@ -3622,6 +3622,404 @@ function BrandingInventory({
       },
       onClick: () => remove(item.id)
     }, "Eliminar")));
+  }))))));
+}
+function BrandingInventoryV2({
+  items,
+  setItems
+}) {
+  const el = React.createElement;
+  const [scope, setScope] = useState("all");
+  const [productFilter, setProductFilter] = useState("all");
+  const fixedOrder = BRANDING_PRODUCTS.flatMap(group => group.variants.map(variant => `${group.product}__${variant}`));
+  const normalizedItems = items.map(normalizeBrandingItem).sort((a, b) => fixedOrder.indexOf(`${a.product}__${a.variant}`) - fixedOrder.indexOf(`${b.product}__${b.variant}`));
+  const productOptions = BRANDING_PRODUCTS.map(p => p.product);
+  const visible = normalizedItems.filter(item => productFilter === "all" || item.product === productFilter);
+  const patchItem = (id, updater) => setItems(previous => previous.map(row => row.id === id ? normalizeBrandingItem(updater(normalizeBrandingItem(row))) : row));
+  const update = (id, key, value) => patchItem(id, item => ({
+    ...item,
+    [key]: ["officeStock", "unitCost"].includes(key) ? Number(value) || 0 : value
+  }));
+  const updatePartner = (id, partner, key, value) => patchItem(id, item => ({
+    ...item,
+    partners: {
+      ...item.partners,
+      [partner]: {
+        ...item.partners[partner],
+        [key]: Number(value) || 0
+      }
+    }
+  }));
+  const partnerStock = (item, partner) => Number(item.partners?.[partner]?.stock) || 0;
+  const partnerReal = (item, partner) => Number(item.partners?.[partner]?.realStock) || 0;
+  const partnerLoss = (item, partner) => Math.max(0, partnerStock(item, partner) - partnerReal(item, partner));
+  const scopeLabel = scope === "all" ? "Todo el inventario" : scope === "office" ? "Oficina" : scope;
+  const scopeStock = item => scope === "office" ? Number(item.officeStock) || 0 : scope === "all" ? (Number(item.officeStock) || 0) + BRANDING_PARTNERS.reduce((sum, partner) => sum + partnerStock(item, partner), 0) : partnerStock(item, scope);
+  const scopeReal = item => scope === "office" ? Number(item.officeStock) || 0 : scope === "all" ? (Number(item.officeStock) || 0) + BRANDING_PARTNERS.reduce((sum, partner) => sum + partnerReal(item, partner), 0) : partnerReal(item, scope);
+  const scopeLoss = item => scope === "office" ? 0 : scope === "all" ? BRANDING_PARTNERS.reduce((sum, partner) => sum + partnerLoss(item, partner), 0) : partnerLoss(item, scope);
+  const variantLabel = item => item.product === "Stickers" ? item.variant : `Talla ${item.variant}`;
+  const transferToPartner = item => {
+    const partner = prompt(`¿A qué partner? (${BRANDING_PARTNERS.join(", ")})`, BRANDING_PARTNERS.includes(scope) ? scope : BRANDING_PARTNERS[0]) || "";
+    if (!BRANDING_PARTNERS.includes(partner)) return alert("Partner no válido. Usa BipBip, DragoPro o MotoGo.");
+    const qty = Number(prompt(`¿Cuántas unidades enviar desde Oficina a ${partner}?`) || 0);
+    if (!qty || qty <= 0) return;
+    if (qty > (Number(item.officeStock) || 0)) return alert("No hay suficiente stock en Oficina para esa salida.");
+    const reason = prompt("Detalle / guía / comentario") || `Transferencia a ${partner}`;
+    patchItem(item.id, current => ({
+      ...current,
+      officeStock: Math.max(0, (Number(current.officeStock) || 0) - qty),
+      partners: {
+        ...current.partners,
+        [partner]: {
+          stock: partnerStock(current, partner) + qty,
+          realStock: partnerReal(current, partner) + qty
+        }
+      },
+      movements: [{
+        id: uid("mov"),
+        date: new Date().toISOString().slice(0, 10),
+        type: "Oficina → Partner",
+        partner,
+        qty,
+        reason
+      }, ...(current.movements || [])].slice(0, 18)
+    }));
+  };
+  const partnerOut = (item, partner) => {
+    const qty = Number(prompt(`¿Cuántas unidades salieron de ${partner}?`) || 0);
+    if (!qty || qty <= 0) return;
+    if (qty > partnerStock(item, partner)) return alert(`No hay suficiente stock en ${partner}.`);
+    const reason = prompt("¿Para qué fue la salida?") || "Salida partner";
+    patchItem(item.id, current => ({
+      ...current,
+      partners: {
+        ...current.partners,
+        [partner]: {
+          ...current.partners[partner],
+          stock: Math.max(0, partnerStock(current, partner) - qty)
+        }
+      },
+      movements: [{
+        id: uid("mov"),
+        date: new Date().toISOString().slice(0, 10),
+        type: "Salida partner",
+        partner,
+        qty,
+        reason
+      }, ...(current.movements || [])].slice(0, 18)
+    }));
+  };
+  const totals = normalizedItems.reduce((acc, item) => {
+    const stock = scopeStock(item);
+    const real = scopeReal(item);
+    const loss = scopeLoss(item);
+    acc.stock += stock;
+    acc.real += real;
+    acc.loss += loss;
+    acc.value += stock * (Number(item.unitCost) || 0);
+    acc.lossValue += loss * (Number(item.unitCost) || 0);
+    acc.byProduct[item.product] = (acc.byProduct[item.product] || 0) + stock;
+    return acc;
+  }, {
+    stock: 0,
+    real: 0,
+    loss: 0,
+    value: 0,
+    lossValue: 0,
+    byProduct: {}
+  });
+  const chip = (label, value, accent = "#111827") => el("div", {
+    key: label,
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      gap: 8,
+      padding: "7px 9px",
+      borderRadius: 12,
+      background: "#F8FAFC",
+      color: "#475569",
+      fontSize: 11,
+      fontWeight: 800,
+      marginBottom: 5
+    }
+  }, el("span", null, label), el("b", {
+    style: {
+      color: accent
+    }
+  }, fmt(value)));
+  const productCard = product => el("div", {
+    key: product,
+    style: {
+      border: "1px solid #E2E8F0",
+      borderRadius: 18,
+      padding: 14,
+      background: productFilter === product ? "#FFF1F2" : "#fff"
+    }
+  }, el("div", {
+    style: {
+      color: "#64748B",
+      fontSize: 11,
+      fontWeight: 900,
+      textTransform: "uppercase",
+      letterSpacing: ".04em"
+    }
+  }, `Total ${product}`), el("div", {
+    style: {
+      marginTop: 7,
+      fontSize: 26,
+      fontWeight: 950,
+      color: "#111827",
+      fontFamily: "'YangoHeadline','YangoText',system-ui,sans-serif"
+    }
+  }, fmt(totals.byProduct[product] || 0)));
+  return el(React.Fragment, null, el("div", {
+    style: {
+      ...S.resultBanner,
+      background: "linear-gradient(135deg,#E30613,#111827)"
+    }
+  }, el("div", null, el("div", {
+    style: {
+      fontWeight: 900,
+      fontSize: 20
+    }
+  }, "Branding · Inventario"), el("div", {
+    style: {
+      fontSize: 12.5,
+      opacity: .88,
+      marginTop: 4
+    }
+  }, "SKUs fijos por producto y talla. Filtra por partner para ver exactamente qué tiene cada uno.")), el("div", {
+    style: {
+      ...S.pill,
+      background: "#fff",
+      color: "#111827"
+    }
+  }, scopeLabel)), el("div", {
+    style: S.kpiGrid
+  }, el(Kpi, {
+    icon: IconTicket,
+    label: "Stock seleccionado",
+    value: fmt(totals.stock),
+    accent: "#E30613"
+  }), el(Kpi, {
+    icon: IconCheck,
+    label: "Inventario real",
+    value: fmt(totals.real),
+    accent: "#16A34A"
+  }), el(Kpi, {
+    icon: IconAlert,
+    label: "Pérdida",
+    value: `${fmt(totals.loss)} · ${usd(totals.lossValue)}`,
+    accent: "#DC2626"
+  }), el(Kpi, {
+    icon: IconDollar,
+    label: "Valor stock",
+    value: usd(totals.value),
+    accent: "#111827"
+  })), el(Card, {
+    title: `Resumen por producto · ${scopeLabel}`,
+    hint: "Estos totales cambian con el filtro de partner/oficina."
+  }, el("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
+      gap: 10,
+      marginTop: 12
+    }
+  }, productOptions.map(productCard))), el(Card, {
+    title: "Detalle de inventario",
+    hint: "Producto y tipo/talla quedan fijos. Solo se editan cantidades, costo y notas."
+  }, el("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))",
+      gap: 10,
+      margin: "8px 0 14px"
+    }
+  }, el("select", {
+    style: S.select,
+    value: scope,
+    onChange: e => setScope(e.target.value)
+  }, el("option", {
+    value: "all"
+  }, "Todo el inventario"), el("option", {
+    value: "office"
+  }, "Solo Oficina"), BRANDING_PARTNERS.map(partner => el("option", {
+    key: partner,
+    value: partner
+  }, partner))), el("select", {
+    style: S.select,
+    value: productFilter,
+    onChange: e => setProductFilter(e.target.value)
+  }, el("option", {
+    value: "all"
+  }, "Todos los productos"), productOptions.map(product => el("option", {
+    key: product,
+    value: product
+  }, product)))), el("div", {
+    style: {
+      overflowX: "auto",
+      marginTop: 8
+    }
+  }, el("table", {
+    style: {
+      ...S.table,
+      minWidth: scope === "all" ? 1120 : 940
+    }
+  }, el("thead", null, el("tr", null, (scope === "all" ? ["Producto", "Tipo / talla", "Oficina", "Partners", "Inv. real", "Pérdida", "Último mov.", ""] : scope === "office" ? ["Producto", "Tipo / talla", "Stock Oficina", "Enviar", "Costo unit.", "Notas"] : ["Producto", "Tipo / talla", "Stock sistema", "Inv. real", "Pérdida", "Salida", "Costo unit.", "Notas"]).map(h => el("th", {
+    key: h,
+    style: S.th
+  }, h)))), el("tbody", null, visible.map(item => {
+    const loss = scopeLoss(item);
+    const last = (item.movements || [])[0];
+    return el("tr", {
+      key: item.id
+    }, el("td", {
+      style: {
+        ...S.td,
+        fontWeight: 900
+      }
+    }, item.product), el("td", {
+      style: S.td
+    }, el("span", {
+      style: {
+        ...S.pill,
+        background: "#F8FAFC",
+        color: "#475569"
+      }
+    }, variantLabel(item))), scope === "all" && el(React.Fragment, null, el("td", {
+      style: S.td
+    }, el("input", {
+      type: "number",
+      min: "0",
+      style: S.input,
+      value: item.officeStock,
+      onChange: e => update(item.id, "officeStock", e.target.value)
+    }), el("button", {
+      className: "ghostbtn",
+      style: {
+        ...S.ghostBtn,
+        padding: "6px 8px",
+        fontSize: 11,
+        marginTop: 6,
+        width: "100%"
+      },
+      onClick: () => transferToPartner(item)
+    }, "Enviar a partner")), el("td", {
+      style: S.td
+    }, BRANDING_PARTNERS.map(partner => chip(partner, partnerStock(item, partner)))), el("td", {
+      style: S.td
+    }, BRANDING_PARTNERS.map(partner => chip(partner, partnerReal(item, partner), "#16A34A"))), el("td", {
+      style: {
+        ...S.td,
+        color: loss ? "#DC2626" : "#16A34A",
+        fontWeight: 900
+      }
+    }, fmt(loss), el("div", {
+      style: {
+        fontSize: 10.5,
+        color: "#94A3B8",
+        marginTop: 3
+      }
+    }, usd(loss * (Number(item.unitCost) || 0)))), el("td", {
+      style: S.td
+    }, last ? `${last.date} · ${last.type} · ${last.partner} · ${fmt(last.qty)}` : "—"), el("td", {
+      style: S.td
+    }, el("button", {
+      className: "ghostbtn",
+      style: {
+        ...S.ghostBtn,
+        padding: "7px 9px",
+        fontSize: 12
+      },
+      onClick: () => transferToPartner(item)
+    }, "Enviar"))), scope === "office" && el(React.Fragment, null, el("td", {
+      style: S.td
+    }, el("input", {
+      type: "number",
+      min: "0",
+      style: S.input,
+      value: item.officeStock,
+      onChange: e => update(item.id, "officeStock", e.target.value)
+    })), el("td", {
+      style: S.td
+    }, el("button", {
+      className: "ghostbtn",
+      style: {
+        ...S.ghostBtn,
+        padding: "7px 9px",
+        fontSize: 12
+      },
+      onClick: () => transferToPartner(item)
+    }, "Enviar a partner")), el("td", {
+      style: S.td
+    }, el("input", {
+      type: "number",
+      min: "0",
+      step: "0.1",
+      style: S.input,
+      value: item.unitCost,
+      onChange: e => update(item.id, "unitCost", e.target.value)
+    })), el("td", {
+      style: S.td
+    }, el("input", {
+      style: S.input,
+      value: item.notes,
+      onChange: e => update(item.id, "notes", e.target.value)
+    }))), BRANDING_PARTNERS.includes(scope) && el(React.Fragment, null, el("td", {
+      style: S.td
+    }, el("input", {
+      type: "number",
+      min: "0",
+      style: S.input,
+      value: partnerStock(item, scope),
+      onChange: e => updatePartner(item.id, scope, "stock", e.target.value)
+    })), el("td", {
+      style: S.td
+    }, el("input", {
+      type: "number",
+      min: "0",
+      style: S.input,
+      value: partnerReal(item, scope),
+      onChange: e => updatePartner(item.id, scope, "realStock", e.target.value)
+    })), el("td", {
+      style: {
+        ...S.td,
+        color: loss ? "#DC2626" : "#16A34A",
+        fontWeight: 900
+      }
+    }, fmt(loss), el("div", {
+      style: {
+        fontSize: 10.5,
+        color: "#94A3B8",
+        marginTop: 3
+      }
+    }, usd(loss * (Number(item.unitCost) || 0)))), el("td", {
+      style: S.td
+    }, el("button", {
+      className: "ghostbtn",
+      style: {
+        ...S.ghostBtn,
+        padding: "7px 9px",
+        fontSize: 12
+      },
+      onClick: () => partnerOut(item, scope)
+    }, "Registrar salida")), el("td", {
+      style: S.td
+    }, el("input", {
+      type: "number",
+      min: "0",
+      step: "0.1",
+      style: S.input,
+      value: item.unitCost,
+      onChange: e => update(item.id, "unitCost", e.target.value)
+    })), el("td", {
+      style: S.td
+    }, el("input", {
+      style: S.input,
+      value: item.notes,
+      onChange: e => update(item.id, "notes", e.target.value)
+    }))));
   }))))));
 }
 function MediaOOH({
