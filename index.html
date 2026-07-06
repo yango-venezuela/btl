@@ -1897,7 +1897,7 @@ function App() {
   }), tab === "media_ooh" && /*#__PURE__*/React.createElement(MediaOOH, {
     items: mediaAssets,
     setItems: setMediaAssets
-  }), tab === "branding" && /*#__PURE__*/React.createElement(BrandingInventoryV2, {
+  }), tab === "branding" && /*#__PURE__*/React.createElement(BrandingInventoryV3, {
     items: brandingInventory,
     setItems: setBrandingInventory
   }))), editing && /*#__PURE__*/React.createElement(Editor, {
@@ -4021,6 +4021,540 @@ function BrandingInventoryV2({
       onChange: e => update(item.id, "notes", e.target.value)
     }))));
   }))))));
+}
+function BrandingInventoryV3({
+  items,
+  setItems
+}) {
+  const el = React.createElement;
+  const [view, setView] = useState("summary");
+  const [productFilter, setProductFilter] = useState("all");
+  const [movementModal, setMovementModal] = useState(null);
+  const fixedOrder = BRANDING_PRODUCTS.flatMap(group => group.variants.map(variant => `${group.product}__${variant}`));
+  const normalizedItems = items.map(normalizeBrandingItem).sort((a, b) => fixedOrder.indexOf(`${a.product}__${a.variant}`) - fixedOrder.indexOf(`${b.product}__${b.variant}`));
+  const productOptions = BRANDING_PRODUCTS.map(p => p.product);
+  const visible = normalizedItems.filter(item => productFilter === "all" || item.product === productFilter);
+  const selectedItem = movementModal ? normalizedItems.find(item => item.id === movementModal.itemId) : null;
+  const patchItem = (id, updater) => setItems(previous => previous.map(row => row.id === id ? normalizeBrandingItem(updater(normalizeBrandingItem(row))) : row));
+  const update = (id, key, value) => patchItem(id, item => ({
+    ...item,
+    [key]: ["officeStock", "unitCost"].includes(key) ? Number(value) || 0 : value
+  }));
+  const partnerStock = (item, partner) => Number(item.partners?.[partner]?.stock) || 0;
+  const partnerReal = (item, partner) => Number(item.partners?.[partner]?.realStock) || 0;
+  const partnerLoss = (item, partner) => Math.max(0, partnerStock(item, partner) - partnerReal(item, partner));
+  const variantLabel = item => item.product === "Stickers" ? item.variant : `Talla ${item.variant}`;
+  const scopeForView = view === "summary" ? "all" : view;
+  const scopeLabel = view === "summary" ? "Resumen general" : view === "office" ? "Oficina" : view;
+  const scopeStock = (item, scope) => scope === "office" ? Number(item.officeStock) || 0 : scope === "all" ? (Number(item.officeStock) || 0) + BRANDING_PARTNERS.reduce((sum, partner) => sum + partnerStock(item, partner), 0) : partnerStock(item, scope);
+  const scopeReal = (item, scope) => scope === "office" ? Number(item.officeStock) || 0 : scope === "all" ? (Number(item.officeStock) || 0) + BRANDING_PARTNERS.reduce((sum, partner) => sum + partnerReal(item, partner), 0) : partnerReal(item, scope);
+  const scopeLoss = (item, scope) => scope === "office" ? 0 : scope === "all" ? BRANDING_PARTNERS.reduce((sum, partner) => sum + partnerLoss(item, partner), 0) : partnerLoss(item, scope);
+  const totalsFor = (scope, list = normalizedItems) => list.reduce((acc, item) => {
+    const stock = scopeStock(item, scope);
+    const real = scopeReal(item, scope);
+    const loss = scopeLoss(item, scope);
+    acc.stock += stock;
+    acc.real += real;
+    acc.loss += loss;
+    acc.value += stock * (Number(item.unitCost) || 0);
+    acc.lossValue += loss * (Number(item.unitCost) || 0);
+    acc.byProduct[item.product] = (acc.byProduct[item.product] || 0) + stock;
+    return acc;
+  }, {
+    stock: 0,
+    real: 0,
+    loss: 0,
+    value: 0,
+    lossValue: 0,
+    byProduct: {}
+  });
+  const totals = totalsFor(scopeForView);
+  const transferToPartner = item => {
+    const partner = prompt(`¿A qué partner? (${BRANDING_PARTNERS.join(", ")})`, BRANDING_PARTNERS[0]) || "";
+    if (!BRANDING_PARTNERS.includes(partner)) return alert("Partner no válido. Usa BipBip, DragoPro o MotoGo.");
+    const qty = Number(prompt(`¿Cuántas unidades enviar desde Oficina a ${partner}?`) || 0);
+    if (!qty || qty <= 0) return;
+    if (qty > (Number(item.officeStock) || 0)) return alert("No hay suficiente stock en Oficina para esa salida.");
+    const reason = prompt("Detalle / guía / comentario") || `Transferencia a ${partner}`;
+    patchItem(item.id, current => ({
+      ...current,
+      officeStock: Math.max(0, (Number(current.officeStock) || 0) - qty),
+      partners: {
+        ...current.partners,
+        [partner]: {
+          stock: partnerStock(current, partner) + qty,
+          realStock: partnerReal(current, partner) + qty
+        }
+      },
+      movements: [{
+        id: uid("mov"),
+        date: new Date().toISOString().slice(0, 10),
+        type: "Oficina → Partner",
+        partner,
+        qty,
+        reason
+      }, ...(current.movements || [])].slice(0, 30)
+    }));
+  };
+  const partnerOut = (item, partner) => {
+    const qty = Number(prompt(`¿Cuántas unidades salieron de ${partner}?`) || 0);
+    if (!qty || qty <= 0) return;
+    if (qty > partnerStock(item, partner)) return alert(`No hay suficiente stock en ${partner}.`);
+    const reason = prompt("¿Para qué fue la salida?") || "Salida partner";
+    patchItem(item.id, current => ({
+      ...current,
+      partners: {
+        ...current.partners,
+        [partner]: {
+          ...current.partners[partner],
+          stock: Math.max(0, partnerStock(current, partner) - qty)
+        }
+      },
+      movements: [{
+        id: uid("mov"),
+        date: new Date().toISOString().slice(0, 10),
+        type: "Salida partner",
+        partner,
+        qty,
+        reason
+      }, ...(current.movements || [])].slice(0, 30)
+    }));
+  };
+  const setRealInventory = (item, partner) => {
+    const qty = Number(prompt(`Inventario real actual de ${partner}`, partnerReal(item, partner)) || 0);
+    if (qty < 0) return;
+    const reason = prompt("Nota del conteo / auditoría") || "Conteo inventario real";
+    patchItem(item.id, current => ({
+      ...current,
+      partners: {
+        ...current.partners,
+        [partner]: {
+          ...current.partners[partner],
+          realStock: qty
+        }
+      },
+      movements: [{
+        id: uid("mov"),
+        date: new Date().toISOString().slice(0, 10),
+        type: "Inventario real",
+        partner,
+        qty,
+        reason
+      }, ...(current.movements || [])].slice(0, 30)
+    }));
+  };
+  const productCard = product => el("div", {
+    key: product,
+    style: {
+      border: "1px solid #E2E8F0",
+      borderRadius: 18,
+      padding: 14,
+      background: productFilter === product ? "#FFF1F2" : "#fff"
+    }
+  }, el("div", {
+    style: {
+      color: "#64748B",
+      fontSize: 11,
+      fontWeight: 900,
+      textTransform: "uppercase",
+      letterSpacing: ".04em"
+    }
+  }, `Total ${product}`), el("div", {
+    style: {
+      marginTop: 7,
+      fontSize: 26,
+      fontWeight: 950,
+      color: "#111827",
+      fontFamily: "'YangoHeadline','YangoText',system-ui,sans-serif"
+    }
+  }, fmt(totals.byProduct[product] || 0)));
+  const viewButton = (id, label) => el("button", {
+    key: id,
+    className: "ghostbtn",
+    onClick: () => setView(id),
+    style: {
+      ...S.ghostBtn,
+      padding: "9px 12px",
+      background: view === id ? "#111827" : "#fff",
+      color: view === id ? "#fff" : "#111827",
+      borderColor: view === id ? "#111827" : "#E2E8F0"
+    }
+  }, label);
+  const renderMovementModal = () => {
+    if (!movementModal || !selectedItem) return null;
+    const moves = (selectedItem.movements || []).filter(m => movementModal.partner === "all" ? true : m.partner === movementModal.partner);
+    return el("div", {
+      style: S.overlay,
+      onClick: () => setMovementModal(null)
+    }, el("div", {
+      style: {
+        ...S.modal,
+        maxWidth: 760
+      },
+      onClick: e => e.stopPropagation()
+    }, el("div", {
+      style: S.modalHead
+    }, el("h2", {
+      style: {
+        margin: 0,
+        fontSize: 18,
+        fontWeight: 900
+      }
+    }, "Movimientos · ", selectedItem.product, " · ", variantLabel(selectedItem)), el("button", {
+      style: S.iconBtn,
+      onClick: () => setMovementModal(null)
+    }, el(IconX, {
+      size: 18
+    }))), el("div", {
+      style: S.modalBody
+    }, moves.length ? el("div", {
+      style: {
+        display: "grid",
+        gap: 8
+      }
+    }, moves.map(move => el("div", {
+      key: move.id,
+      style: {
+        border: "1px solid #E2E8F0",
+        borderRadius: 14,
+        padding: 12,
+        display: "grid",
+        gridTemplateColumns: "110px 1fr 90px",
+        gap: 10,
+        alignItems: "center"
+      }
+    }, el("b", null, move.date), el("div", null, el("div", {
+      style: {
+        fontWeight: 900
+      }
+    }, move.type, " · ", move.partner), el("div", {
+      style: {
+        color: "#64748B",
+        fontSize: 12,
+        marginTop: 2
+      }
+    }, move.reason)), el("div", {
+      style: {
+        textAlign: "right",
+        fontWeight: 900
+      }
+    }, fmt(move.qty))))) : el(Empty, {
+      msg: "Aún no hay movimientos registrados para este SKU."
+    }))));
+  };
+  const renderSummary = () => {
+    const scopes = ["office", ...BRANDING_PARTNERS];
+    return el("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
+        gap: 12,
+        marginTop: 12
+      }
+    }, scopes.map(scope => {
+      const t = totalsFor(scope);
+      return el("button", {
+        key: scope,
+        className: "ghostbtn",
+        onClick: () => setView(scope),
+        style: {
+          border: "1px solid #E2E8F0",
+          borderRadius: 18,
+          padding: 16,
+          background: "#fff",
+          textAlign: "left",
+          cursor: "pointer"
+        }
+      }, el("div", {
+        style: {
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 10
+        }
+      }, el("b", {
+        style: {
+          fontSize: 15
+        }
+      }, scope === "office" ? "Oficina" : scope), el("span", {
+        style: {
+          ...S.pill,
+          background: t.loss ? "#FEE2E2" : "#DCFCE7",
+          color: t.loss ? "#991B1B" : "#166534"
+        }
+      }, t.loss ? `${fmt(t.loss)} pérdida` : "OK")), el("div", {
+        style: {
+          marginTop: 14,
+          fontSize: 26,
+          fontWeight: 950,
+          fontFamily: "'YangoHeadline','YangoText',system-ui,sans-serif"
+        }
+      }, fmt(t.stock)), el("div", {
+        style: {
+          color: "#64748B",
+          fontSize: 12,
+          marginTop: 3
+        }
+      }, scope === "office" ? "Stock disponible en oficina" : `Inventario real ${fmt(t.real)} · Valor ${usd(t.value)}`));
+    }));
+  };
+  const renderOffice = () => el("div", {
+    style: {
+      overflowX: "auto",
+      marginTop: 10
+    }
+  }, el("table", {
+    style: {
+      ...S.table,
+      minWidth: 920
+    }
+  }, el("thead", null, el("tr", null, ["Producto", "Tipo / talla", "Stock oficina", "Costo unit.", "Notas", "Acción"].map(h => el("th", {
+    key: h,
+    style: S.th
+  }, h)))), el("tbody", null, visible.map(item => el("tr", {
+    key: item.id
+  }, el("td", {
+    style: {
+      ...S.td,
+      fontWeight: 900
+    }
+  }, item.product), el("td", {
+    style: S.td
+  }, el("span", {
+    style: {
+      ...S.pill,
+      background: "#F8FAFC",
+      color: "#475569"
+    }
+  }, variantLabel(item))), el("td", {
+    style: S.td
+  }, el("input", {
+    type: "number",
+    min: "0",
+    style: S.input,
+    value: item.officeStock,
+    onChange: e => update(item.id, "officeStock", e.target.value)
+  })), el("td", {
+    style: S.td
+  }, el("input", {
+    type: "number",
+    min: "0",
+    step: "0.1",
+    style: S.input,
+    value: item.unitCost,
+    onChange: e => update(item.id, "unitCost", e.target.value)
+  })), el("td", {
+    style: S.td
+  }, el("input", {
+    style: S.input,
+    value: item.notes,
+    onChange: e => update(item.id, "notes", e.target.value)
+  })), el("td", {
+    style: S.td
+  }, el("button", {
+    className: "ghostbtn",
+    style: {
+      ...S.ghostBtn,
+      padding: "8px 10px",
+      fontSize: 12
+    },
+    onClick: () => transferToPartner(item)
+  }, "Enviar a partner")))))));
+  const renderPartner = partner => el("div", {
+    style: {
+      overflowX: "auto",
+      marginTop: 10
+    }
+  }, el("table", {
+    style: {
+      ...S.table,
+      minWidth: 980
+    }
+  }, el("thead", null, el("tr", null, ["Producto", "Tipo / talla", "Stock sistema", "Inventario real", "Pérdida", "Acciones"].map(h => el("th", {
+    key: h,
+    style: S.th
+  }, h)))), el("tbody", null, visible.map(item => {
+    const loss = partnerLoss(item, partner);
+    return el("tr", {
+      key: item.id
+    }, el("td", {
+      style: {
+        ...S.td,
+        fontWeight: 900
+      }
+    }, item.product), el("td", {
+      style: S.td
+    }, el("span", {
+      style: {
+        ...S.pill,
+        background: "#F8FAFC",
+        color: "#475569"
+      }
+    }, variantLabel(item))), el("td", {
+      style: {
+        ...S.td,
+        fontWeight: 900
+      }
+    }, fmt(partnerStock(item, partner))), el("td", {
+      style: {
+        ...S.td,
+        color: "#16A34A",
+        fontWeight: 900
+      }
+    }, fmt(partnerReal(item, partner))), el("td", {
+      style: {
+        ...S.td,
+        color: loss ? "#DC2626" : "#16A34A",
+        fontWeight: 900
+      }
+    }, fmt(loss), el("div", {
+      style: {
+        color: "#94A3B8",
+        fontSize: 10.5,
+        marginTop: 2
+      }
+    }, usd(loss * (Number(item.unitCost) || 0)))), el("td", {
+      style: S.td
+    }, el("div", {
+      style: {
+        display: "flex",
+        gap: 6,
+        flexWrap: "wrap"
+      }
+    }, el("button", {
+      className: "ghostbtn",
+      style: {
+        ...S.ghostBtn,
+        padding: "7px 9px",
+        fontSize: 12
+      },
+      onClick: () => partnerOut(item, partner)
+    }, "Salida"), el("button", {
+      className: "ghostbtn",
+      style: {
+        ...S.ghostBtn,
+        padding: "7px 9px",
+        fontSize: 12
+      },
+      onClick: () => setRealInventory(item, partner)
+    }, "Inv. real"), el("button", {
+      className: "ghostbtn",
+      style: {
+        ...S.ghostBtn,
+        padding: "7px 9px",
+        fontSize: 12
+      },
+      onClick: () => setMovementModal({
+        itemId: item.id,
+        partner
+      })
+    }, "Movimientos"))));
+  }))));
+  return el(React.Fragment, null, el("div", {
+    style: {
+      ...S.resultBanner,
+      background: "linear-gradient(135deg,#E30613,#111827)"
+    }
+  }, el("div", null, el("div", {
+    style: {
+      fontWeight: 900,
+      fontSize: 20
+    }
+  }, "Branding · Inventario"), el("div", {
+    style: {
+      fontSize: 12.5,
+      opacity: .88,
+      marginTop: 4
+    }
+  }, "Resumen general, salidas desde oficina y control independiente por partner.")), el("div", {
+    style: {
+      ...S.pill,
+      background: "#fff",
+      color: "#111827"
+    }
+  }, scopeLabel)), el("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap",
+      marginBottom: 14
+    }
+  }, viewButton("summary", "Resumen"), viewButton("office", "Oficina"), BRANDING_PARTNERS.map(partner => viewButton(partner, partner))), el("div", {
+    style: S.kpiGrid
+  }, el(Kpi, {
+    icon: IconTicket,
+    label: "Stock seleccionado",
+    value: fmt(totals.stock),
+    accent: "#E30613"
+  }), el(Kpi, {
+    icon: IconCheck,
+    label: "Inventario real",
+    value: fmt(totals.real),
+    accent: "#16A34A"
+  }), el(Kpi, {
+    icon: IconAlert,
+    label: "Pérdida",
+    value: `${fmt(totals.loss)} · ${usd(totals.lossValue)}`,
+    accent: "#DC2626"
+  }), el(Kpi, {
+    icon: IconDollar,
+    label: "Valor stock",
+    value: usd(totals.value),
+    accent: "#111827"
+  })), el(Card, {
+    title: `Resumen por producto · ${scopeLabel}`,
+    hint: "Los SKUs son fijos. Filtra por producto si quieres enfocarte en una categoría."
+  }, el("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
+      gap: 10,
+      marginTop: 12
+    }
+  }, productOptions.map(product => el("div", {
+    key: product,
+    style: {
+      border: "1px solid #E2E8F0",
+      borderRadius: 18,
+      padding: 14,
+      background: productFilter === product ? "#FFF1F2" : "#fff"
+    }
+  }, el("div", {
+    style: {
+      color: "#64748B",
+      fontSize: 11,
+      fontWeight: 900,
+      textTransform: "uppercase",
+      letterSpacing: ".04em"
+    }
+  }, `Total ${product}`), el("div", {
+    style: {
+      marginTop: 7,
+      fontSize: 26,
+      fontWeight: 950,
+      color: "#111827",
+      fontFamily: "'YangoHeadline','YangoText',system-ui,sans-serif"
+    }
+  }, fmt(totals.byProduct[product] || 0)))))), el(Card, {
+    title: view === "summary" ? "Resumen por ubicación" : view === "office" ? "Oficina · Envíos a partners" : `${view} · Inventario real y salidas`,
+    hint: view === "summary" ? "Haz click en Oficina o un partner para entrar a su vista." : view === "office" ? "Desde aquí sale stock de oficina hacia BipBip, DragoPro o MotoGo." : "Aquí registras salidas del partner, inventario real y ves movimientos."
+  }, el("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))",
+      gap: 10,
+      margin: "8px 0 14px"
+    }
+  }, el("select", {
+    style: S.select,
+    value: productFilter,
+    onChange: e => setProductFilter(e.target.value)
+  }, el("option", {
+    value: "all"
+  }, "Todos los productos"), productOptions.map(product => el("option", {
+    key: product,
+    value: product
+  }, product)))), view === "summary" ? renderSummary() : view === "office" ? renderOffice() : renderPartner(view)), renderMovementModal());
 }
 function MediaOOH({
   items,
