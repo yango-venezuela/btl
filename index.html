@@ -7916,24 +7916,6 @@ function downloadInfluencerCSV(items) {
   a.click();
   URL.revokeObjectURL(url);
 }
-function downloadInfluencerBackup(items) {
-  const payload = {
-    exportedAt: new Date().toISOString(),
-    source: "Yango MKT Venezuela",
-    type: "influencers",
-    version: 1,
-    items: normalizeInfluencerList(items)
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json;charset=utf-8"
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `yango_influencers_respaldo_${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 function csvNumber(value) {
   const cleaned = String(value || "").replace("$", "").replaceAll(" ", "").replaceAll(".", "").replace(",", ".");
   const n = Number(cleaned);
@@ -8062,24 +8044,6 @@ function InfluencerTracker({
     onSave(item);
     setEditing(null);
   };
-  const importBackup = event => {
-    const file = event.target.files && event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result || ""));
-        const imported = normalizeInfluencerList(Array.isArray(parsed) ? parsed : parsed.items);
-        if (!imported.length) throw new Error("empty");
-        imported.forEach(onSave);
-        alert(`Listo: restauré ${imported.length} influencers. Si alguno ya existía, lo actualicé.`);
-      } catch (e) {
-        alert("No pude leer ese respaldo. Revisa que sea el archivo JSON descargado desde esta sección.");
-      }
-    };
-    reader.readAsText(file);
-    event.target.value = "";
-  };
   const importCSV = event => {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
@@ -8147,32 +8111,7 @@ function InfluencerTracker({
     onClick: () => downloadInfluencerCSV(rows)
   }, /*#__PURE__*/React.createElement(IconDownload, {
     size: 16
-  }), " Descargar CSV"), /*#__PURE__*/React.createElement("button", {
-    className: "ghostbtn",
-    style: {
-      ...S.primaryBtn,
-      background: "#fff",
-      color: "#172554"
-    },
-    onClick: () => downloadInfluencerBackup(items)
-  }, /*#__PURE__*/React.createElement(IconDownload, {
-    size: 16
-  }), " Descargar respaldo"), /*#__PURE__*/React.createElement("label", {
-    className: "ghostbtn",
-    style: {
-      ...S.primaryBtn,
-      background: "#fff",
-      color: "#172554",
-      cursor: "pointer"
-    }
-  }, "Restaurar respaldo", /*#__PURE__*/React.createElement("input", {
-    type: "file",
-    accept: "application/json,.json",
-    onChange: importBackup,
-    style: {
-      display: "none"
-    }
-  })), /*#__PURE__*/React.createElement("label", {
+  }), " Descargar CSV"), /*#__PURE__*/React.createElement("label", {
     className: "ghostbtn",
     style: {
       ...S.primaryBtn,
