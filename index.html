@@ -1967,6 +1967,12 @@ function emptyTeamPayload(panel) {
     panel: panel.id,
     panelLabel: panel.label,
     updatedAt: "",
+    acts: [],
+    qr: [],
+    mystery: [],
+    socialReport: null,
+    btlBudgets: null,
+    mediaAssets: [],
     popInventory: [],
     influencers: [],
     brandingInventory: []
@@ -1978,6 +1984,12 @@ function normalizeTeamPayload(panel, data = {}) {
     ...data,
     panel: panel.id,
     panelLabel: panel.label,
+    acts: Array.isArray(data.acts) ? data.acts : [],
+    qr: Array.isArray(data.qr) ? data.qr : [],
+    mystery: Array.isArray(data.mystery) ? data.mystery : [],
+    socialReport: data.socialReport ? normalizeSocialReport(data.socialReport) : null,
+    btlBudgets: data.btlBudgets || null,
+    mediaAssets: Array.isArray(data.mediaAssets) ? data.mediaAssets : [],
     popInventory: Array.isArray(data.popInventory) ? data.popInventory : [],
     influencers: normalizeInfluencerList(data.influencers || []),
     brandingInventory: Array.isArray(data.brandingInventory) ? data.brandingInventory.map(normalizeBrandingItem) : []
@@ -2411,6 +2423,18 @@ function App() {
     setImportingResults(false);
     setTab("results");
   };
+  const applyTeamPayload = payload => {
+    if (!payload) return;
+    if (payload.acts && payload.acts.length) setActs(payload.acts);
+    if (payload.qr && payload.qr.length) setQr(payload.qr);
+    if (payload.mystery && payload.mystery.length) setMystery(payload.mystery);
+    if (payload.socialReport) setSocialReport(normalizeSocialReport(payload.socialReport));
+    if (payload.btlBudgets) setBtlBudgets(payload.btlBudgets);
+    if (payload.mediaAssets && payload.mediaAssets.length) setMediaAssets(payload.mediaAssets);
+    if (payload.popInventory && payload.popInventory.length) setPopInventory(payload.popInventory);
+    if (payload.influencers && payload.influencers.length) setInfluencers(normalizeInfluencerList(payload.influencers));
+    if (payload.brandingInventory && payload.brandingInventory.length) setBrandingInventory(payload.brandingInventory.map(normalizeBrandingItem));
+  };
   const filtered = acts.filter(a => (zoneFilter === "all" || a.zone === zoneFilter) && (typeFilter === "all" || a.type === typeFilter) && inRange(a.date, from, to));
   const alloc = useMemo(() => allocate(acts, qr), [acts, qr]);
   const params = new URLSearchParams(window.location.search);
@@ -2523,7 +2547,9 @@ function App() {
   }), tab === "branding" && /*#__PURE__*/React.createElement(BrandingInventoryV3, {
     items: brandingInventory,
     setItems: setBrandingInventory
-  }), tab === "team_inputs" && /*#__PURE__*/React.createElement(TeamPanelAdmin, null))), editing && /*#__PURE__*/React.createElement(Editor, {
+  }), tab === "team_inputs" && /*#__PURE__*/React.createElement(TeamPanelAdmin, {
+    onApply: applyTeamPayload
+  }))), editing && /*#__PURE__*/React.createElement(Editor, {
     act: editing === "new" ? null : editing,
     alloc: alloc,
     onSave: save,
@@ -2545,20 +2571,99 @@ function TeamPanelStandalone({
   const el = React.createElement;
   const unlockKey = `yango_team_panel_${panel.id}_unlocked`;
   const tokenKey = `yango_github_token_${panel.id}`;
+  const isAdminLike = panel.id === "luis";
+  const baseActs = () => load(STORE_KEY, seed).map(a => ({
+    address: "",
+    lat: null,
+    lng: null,
+    clicks: 0,
+    installs: 0,
+    registrations: 0,
+    firstTrips: 0,
+    promoRedemptions: 0,
+    photos: [],
+    actualPromoters: null,
+    actualFlyers: null,
+    ...a
+  })).map(a => {
+    const zone = findZoneBucket(a.zone || a.realLocation || a.location) || a.zone || ZONES[0];
+    const realLocation = a.realLocation || a.location || (!ZONES.includes(a.zone) ? a.zone : "");
+    const type = safeTypeForZone(a.type, zone);
+    return {
+      ...a,
+      zone,
+      realLocation,
+      type,
+      adjustName: a.adjustName && !isLegacyAdjustName(a.adjustName) ? a.adjustName : adjustNameFor({
+        ...a,
+        zone,
+        realLocation,
+        type,
+        adjustName: ""
+      })
+    };
+  });
+  const baseQr = () => load(QR_KEY, seedQR);
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(unlockKey) === "1");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState(() => localStorage.getItem(tokenKey) || "");
-  const [active, setActive] = useState("pop");
+  const [active, setActive] = useState(isAdminLike ? "global" : "pop");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
-  const [popInventory, setPopInventory] = useState(() => load(`yango_team_${panel.id}_pop`, seedPopInventory));
-  const [influencers, setInfluencers] = useState(() => normalizeInfluencerList(load(`yango_team_${panel.id}_influencers`, () => [])));
-  const [brandingInventory, setBrandingInventory] = useState(() => load(`yango_team_${panel.id}_branding`, seedBrandingInventory).map(normalizeBrandingItem));
+  const [acts, setActs] = useState(() => load(`yango_team_${panel.id}_acts`, baseActs));
+  const [qr, setQr] = useState(() => load(`yango_team_${panel.id}_qr`, baseQr));
+  const [mystery, setMystery] = useState(() => load(`yango_team_${panel.id}_mystery`, seedMystery));
+  const [socialReport, setSocialReport] = useState(() => normalizeSocialReport(load(`yango_team_${panel.id}_social`, socialReportSeed)));
+  const [btlBudgets, setBtlBudgets] = useState(() => load(`yango_team_${panel.id}_budgets`, seedBtlBudgets));
+  const [mediaAssets, setMediaAssets] = useState(() => load(`yango_team_${panel.id}_media`, seedMediaAssets));
+  const [cfg] = useState(() => load(CFG_KEY, () => ({
+    appsScriptUrl: ""
+  })));
+  const [editing, setEditing] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importingResults, setImportingResults] = useState(false);
+  const [zoneFilter, setZoneFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [popInventory, setPopInventory] = useState(() => load(`yango_team_${panel.id}_pop`, () => load(POP_KEY, seedPopInventory)));
+  const [influencers, setInfluencers] = useState(() => normalizeInfluencerList(load(`yango_team_${panel.id}_influencers`, () => loadInfluencersSafe())));
+  const [brandingInventory, setBrandingInventory] = useState(() => load(`yango_team_${panel.id}_branding`, () => load(BRANDING_KEY, seedBrandingInventory)).map(normalizeBrandingItem));
   useEffect(() => {
     try {
       localStorage.setItem(tokenKey, token);
     } catch (e) {}
   }, [token]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(`yango_team_${panel.id}_acts`, JSON.stringify(acts));
+    } catch (e) {}
+  }, [acts]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(`yango_team_${panel.id}_qr`, JSON.stringify(qr));
+    } catch (e) {}
+  }, [qr]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(`yango_team_${panel.id}_mystery`, JSON.stringify(mystery));
+    } catch (e) {}
+  }, [mystery]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(`yango_team_${panel.id}_social`, JSON.stringify(socialReport));
+    } catch (e) {}
+  }, [socialReport]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(`yango_team_${panel.id}_budgets`, JSON.stringify(btlBudgets));
+    } catch (e) {}
+  }, [btlBudgets]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(`yango_team_${panel.id}_media`, JSON.stringify(mediaAssets));
+    } catch (e) {}
+  }, [mediaAssets]);
   useEffect(() => {
     try {
       localStorage.setItem(`yango_team_${panel.id}_pop`, JSON.stringify(popInventory));
@@ -2581,17 +2686,111 @@ function TeamPanelStandalone({
     setUnlocked(true);
     setMsg("");
   };
+  const saveAct = a => {
+    setActs(previous => previous.find(x => x.id === a.id) ? previous.map(x => x.id === a.id ? a : x) : [...previous, a]);
+    setEditing(null);
+  };
+  const removeAct = id => {
+    setActs(previous => previous.filter(x => x.id !== id));
+    setEditing(null);
+  };
   const saveInfluencer = item => setInfluencers(previous => previous.find(x => x.id === item.id) ? previous.map(x => x.id === item.id ? item : x) : [...previous, item]);
   const removeInfluencer = id => setInfluencers(previous => previous.filter(x => x.id !== id));
+  const bulkAdd = rows => {
+    setActs(previous => [...previous, ...rows.map(a => {
+      const zone = findZoneBucket(a.zone || a.realLocation || a.location) || a.zone || ZONES[0];
+      const realLocation = a.realLocation || a.location || (!ZONES.includes(a.zone) ? a.zone : "");
+      const type = safeTypeForZone(a.type, zone);
+      return {
+        ...a,
+        zone,
+        realLocation,
+        type,
+        adjustName: a.adjustName && !isLegacyAdjustName(a.adjustName) ? a.adjustName : adjustNameFor({
+          ...a,
+          zone,
+          realLocation,
+          type,
+          adjustName: ""
+        })
+      };
+    })]);
+    setImporting(false);
+    setActive("activations");
+  };
+  const bulkResults = rows => {
+    const qrByZone = rows.filter(r => r.zone).reduce((map, row) => {
+      const zone = findZoneBucket(row.zone) || row.zone;
+      const current = map.get(zone) || {
+        clicks: 0,
+        installs: 0,
+        registrations: 0,
+        firstTrips: 0,
+        promoRedemptions: 0
+      };
+      map.set(zone, {
+        clicks: current.clicks + row.clicks,
+        installs: current.installs + row.installs,
+        registrations: current.registrations + row.registrations,
+        firstTrips: current.firstTrips + row.firstTrips,
+        promoRedemptions: current.promoRedemptions + row.promoRedemptions
+      });
+      return map;
+    }, new Map());
+    if (qrByZone.size) {
+      setQr(previous => ZONES.map(zone => {
+        const existing = previous.find(q => (findZoneBucket(q.zone) || q.zone) === zone) || seedQR().find(q => q.zone === zone);
+        const imported = qrByZone.get(zone);
+        return imported ? {
+          ...existing,
+          zone,
+          clicks: imported.clicks,
+          installs: imported.installs,
+          registrations: imported.registrations,
+          firstTrips: imported.firstTrips,
+          promoRedemptions: imported.promoRedemptions,
+          source: "adjust"
+        } : {
+          ...existing,
+          zone,
+          source: existing.source || "empty"
+        };
+      }));
+    }
+    setActs(previous => previous.map(a => {
+      const keys = [a.adjustName, adjustNameFor(a)].filter(Boolean).map(normalizeAdjustKey);
+      const match = rows.find(r => r.adjustKey && keys.includes(r.adjustKey)) || rows.find(r => r.date === a.date && r.qrUrl && a.qrUrl && normalizeUrl(r.qrUrl) === normalizeUrl(a.qrUrl)) || rows.find(r => r.date === a.date && r.zone && r.zone.toLowerCase() === a.zone.toLowerCase() && (!r.type || r.type === a.type)) || rows.find(r => r.qrUrl && a.qrUrl && normalizeUrl(r.qrUrl) === normalizeUrl(a.qrUrl));
+      return match ? {
+        ...a,
+        adjustName: a.adjustName || match.adjustName || adjustNameFor(a),
+        address: match.address || a.address,
+        lat: match.lat || a.lat,
+        lng: match.lng || a.lng,
+        clicks: match.clicks,
+        installs: match.installs,
+        registrations: match.registrations,
+        firstTrips: match.firstTrips,
+        promoRedemptions: match.promoRedemptions
+      } : a;
+    }));
+    setImportingResults(false);
+    setActive("results");
+  };
   const loadRemote = async () => {
     setLoading(true);
     setMsg("Leyendo la última data guardada...");
     try {
       const remote = await githubReadJson(teamPanelPath(panel.id), token);
       const payload = normalizeTeamPayload(panel, remote.data || {});
-      setPopInventory(payload.popInventory.length ? payload.popInventory : seedPopInventory());
-      setInfluencers(payload.influencers);
-      setBrandingInventory(payload.brandingInventory.length ? payload.brandingInventory : seedBrandingInventory().map(normalizeBrandingItem));
+      setActs(payload.acts.length ? payload.acts : baseActs());
+      setQr(payload.qr.length ? payload.qr : baseQr());
+      setMystery(payload.mystery.length ? payload.mystery : seedMystery());
+      setSocialReport(payload.socialReport || normalizeSocialReport(socialReportSeed()));
+      setBtlBudgets(payload.btlBudgets || seedBtlBudgets());
+      setMediaAssets(payload.mediaAssets.length ? payload.mediaAssets : seedMediaAssets());
+      setPopInventory(payload.popInventory.length ? payload.popInventory : load(POP_KEY, seedPopInventory));
+      setInfluencers(payload.influencers.length ? payload.influencers : loadInfluencersSafe());
+      setBrandingInventory(payload.brandingInventory.length ? payload.brandingInventory : load(BRANDING_KEY, seedBrandingInventory).map(normalizeBrandingItem));
       setMsg(payload.updatedAt ? `Listo: cargué la data guardada el ${prettyDate(payload.updatedAt.slice(0, 10))}.` : "Listo: este panel todavía no tenía data en GitHub.");
     } catch (error) {
       setMsg(`No pude traer la data: ${error.message}`);
@@ -2607,6 +2806,12 @@ function TeamPanelStandalone({
       const payload = normalizeTeamPayload(panel, {
         updatedAt: new Date().toISOString(),
         updatedBy: panel.label,
+        acts,
+        qr,
+        mystery,
+        socialReport,
+        btlBudgets,
+        mediaAssets,
         popInventory,
         influencers,
         brandingInventory
@@ -2680,7 +2885,45 @@ function TeamPanelStandalone({
       justifyContent: "center"
     }
   }, "Entrar")));
-  const tabs = [{
+  const filtered = acts.filter(a => (zoneFilter === "all" || a.zone === zoneFilter) && (typeFilter === "all" || a.type === typeFilter) && inRange(a.date, from, to));
+  const alloc = useMemo(() => allocate(acts, qr), [acts, qr]);
+  const tabs = isAdminLike ? [{
+    id: "global",
+    label: "Vista global"
+  }, {
+    id: "results",
+    label: "Resultados"
+  }, {
+    id: "map",
+    label: "Mapa"
+  }, {
+    id: "calendar",
+    label: "Calendario"
+  }, {
+    id: "activations",
+    label: "Activaciones"
+  }, {
+    id: "agency",
+    label: "Admin agencia"
+  }, {
+    id: "pop",
+    label: "Material POP"
+  }, {
+    id: "mystery",
+    label: "Mystery Shopper"
+  }, {
+    id: "branding",
+    label: "Branding"
+  }, {
+    id: "influencers",
+    label: "Influencers"
+  }, {
+    id: "social_report",
+    label: "Reporte SMM"
+  }, {
+    id: "media_ooh",
+    label: "Media OOH"
+  }] : [{
     id: "pop",
     label: "Material POP"
   }, {
@@ -2690,7 +2933,7 @@ function TeamPanelStandalone({
     id: "branding",
     label: "Branding"
   }];
-  return el("div", {
+  return el(React.Fragment, null, el("div", {
     style: {
       minHeight: "100vh",
       background: "#F8FAFC",
@@ -2770,7 +3013,22 @@ function TeamPanelStandalone({
       gap: 8,
       flexWrap: "wrap"
     }
-  }, tabs.map(t => el("button", {
+  }, isAdminLike && el(React.Fragment, null, el("button", {
+    className: "ghostbtn",
+    style: S.ghostBtn,
+    onClick: () => setImporting(true)
+  }, "Cargar calendario"), el("button", {
+    className: "ghostbtn",
+    style: S.ghostBtn,
+    onClick: () => setImportingResults(true)
+  }, "Cargar resultados"), el("button", {
+    className: "primarybtn",
+    style: S.primaryBtn,
+    onClick: () => {
+      setEditing("new");
+      setActive("activations");
+    }
+  }, "Nueva activación")), tabs.map(t => el("button", {
     key: t.id,
     className: "ghostbtn",
     onClick: () => setActive(t.id),
@@ -2780,7 +3038,58 @@ function TeamPanelStandalone({
       color: active === t.id ? "#fff" : "#111827",
       borderColor: active === t.id ? "#111827" : "#E2E8F0"
     }
-  }, t.label))), active === "pop" && el(PopInventory, {
+  }, t.label))), isAdminLike && !["mystery", "influencers", "social_report", "pop", "media_ooh", "branding"].includes(active) && el(Filters, {
+    zoneFilter,
+    setZoneFilter,
+    typeFilter,
+    setTypeFilter,
+    from,
+    setFrom,
+    to,
+    setTo,
+    showZoneType: active !== "global"
+  }), active === "global" && el(Global, {
+    acts: filtered,
+    qr,
+    alloc
+  }), active === "results" && el(Results, {
+    acts: filtered,
+    qr,
+    alloc
+  }), active === "map" && el(MapView, {
+    acts: filtered,
+    alloc,
+    onOpen: setEditing
+  }), active === "calendar" && el(CalendarView, {
+    acts: filtered,
+    onOpen: setEditing,
+    mystery,
+    budgets: btlBudgets,
+    setBudgets: setBtlBudgets
+  }), active === "activations" && el(ActivationList, {
+    acts: filtered,
+    alloc,
+    onOpen: setEditing,
+    onSave: saveAct,
+    onNew: () => setEditing("new")
+  }), active === "agency" && el(AgencyPortal, {
+    acts: filtered,
+    onSave: saveAct,
+    alloc,
+    from,
+    to
+  }), active === "mystery" && el(Mystery, {
+    mystery,
+    setMystery,
+    acts,
+    cfg
+  }), active === "social_report" && el(SocialMediaReport, {
+    report: socialReport,
+    onChange: setSocialReport
+  }), active === "media_ooh" && el(MediaOOH, {
+    items: mediaAssets,
+    setItems: setMediaAssets
+  }), active === "pop" && el(PopInventory, {
     items: popInventory,
     setItems: setPopInventory
   }), active === "influencers" && el(InfluencerTracker, {
@@ -2790,9 +3099,23 @@ function TeamPanelStandalone({
   }), active === "branding" && el(BrandingInventoryV3, {
     items: brandingInventory,
     setItems: setBrandingInventory
-  })));
+  }))), editing && el(Editor, {
+    act: editing === "new" ? null : editing,
+    alloc,
+    onSave: saveAct,
+    onClose: () => setEditing(null),
+    onDelete: removeAct
+  }), importing && el(BulkImport, {
+    onAdd: bulkAdd,
+    onClose: () => setImporting(false)
+  }), importingResults && el(ResultsImport, {
+    onAdd: bulkResults,
+    onClose: () => setImportingResults(false)
+  }));
 }
-function TeamPanelAdmin() {
+function TeamPanelAdmin({
+  onApply
+}) {
   const el = React.createElement;
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -2841,6 +3164,7 @@ function TeamPanelAdmin() {
   const panelRows = TEAM_PANELS.map(panel => {
     const row = items.find(x => x.panel === panel.id) || emptyTeamPayload(panel);
     const link = `${location.origin}${location.pathname}?panel=${panel.id}`;
+    const hasData = row.updatedAt || row.popInventory.length || row.influencers.length || row.brandingInventory.length || row.acts.length;
     return el("tr", {
       key: panel.id
     }, el("td", {
@@ -2860,6 +3184,12 @@ function TeamPanelAdmin() {
       style: S.td
     }, fmt(row.brandingInventory.length)), el("td", {
       style: S.td
+    }, el("div", {
+      style: {
+        display: "flex",
+        gap: 8,
+        flexWrap: "wrap"
+      }
     }, el("a", {
       href: link,
       target: "_blank",
@@ -2869,7 +3199,18 @@ function TeamPanelAdmin() {
         fontWeight: 900,
         textDecoration: "none"
       }
-    }, "Abrir panel")));
+    }, "Abrir panel"), hasData && el("button", {
+      className: "ghostbtn",
+      style: {
+        ...S.ghostBtn,
+        padding: "7px 10px",
+        fontSize: 12
+      },
+      onClick: () => {
+        onApply && onApply(row);
+        setMsg(`Listo: apliqué la data de ${row.panelLabel} en tu Master local.`);
+      }
+    }, "Aplicar al Master"))));
   });
   const influencerRows = allInfluencers.slice(0, 80).map(item => el("tr", {
     key: `${item.panelLabel}-${item.id}`
@@ -2961,7 +3302,7 @@ function TeamPanelAdmin() {
   })), el(Card, {
     title: "Paneles activos",
     hint: "Abre el link de cada persona para que cargue su información."
-  }, table(["Usuario", "Última subida", "Material POP", "Influencers", "Branding", "Link"], panelRows)), el(Card, {
+  }, table(["Usuario", "Última subida", "Material POP", "Influencers", "Branding", "Acciones"], panelRows)), el(Card, {
     title: "Influencers cargados por equipo",
     hint: "Vista rápida consolidada. La edición se hace en el panel de cada persona."
   }, allInfluencers.length ? table(["Nombre", "Cargado por", "Tipo", "Followers IG", "Followers TikTok", "Publicación"], influencerRows) : el(Empty, {
