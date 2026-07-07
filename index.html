@@ -22,7 +22,6 @@
       '</p>' +
       '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">' +
       '<button onclick="window.location.reload()" style="padding:10px 18px;background:#E30613;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Recargar</button>' +
-      '<button onclick="localStorage.clear();window.location.reload()" style="padding:10px 18px;background:#fff;color:#DC2626;border:1px solid #FECACA;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Limpiar datos y recargar</button>' +
       '</div></div></div>';
   }
   window.addEventListener('error', function(e) {
@@ -179,7 +178,7 @@ class ErrorBoundary extends React.Component {
           margin: "0 0 20px",
           fontSize: 12
         }
-      }, "Si el error persiste, limpia los datos guardados y recarga."), /*#__PURE__*/React.createElement("div", {
+      }, "Si el error persiste, recarga la página. Tus datos guardados no se limpian desde esta pantalla."), /*#__PURE__*/React.createElement("div", {
         style: {
           display: "flex",
           gap: 10,
@@ -198,22 +197,7 @@ class ErrorBoundary extends React.Component {
           fontWeight: 700,
           cursor: "pointer"
         }
-      }, "Recargar"), /*#__PURE__*/React.createElement("button", {
-        onClick: () => {
-          localStorage.clear();
-          window.location.reload();
-        },
-        style: {
-          padding: "10px 18px",
-          background: "#fff",
-          color: "#DC2626",
-          border: "1px solid #FECACA",
-          borderRadius: 8,
-          fontSize: 14,
-          fontWeight: 600,
-          cursor: "pointer"
-        }
-      }, "Limpiar datos y recargar"))));
+      }, "Recargar"))));
     }
     return this.props.children;
   }
@@ -767,6 +751,8 @@ const STORE_KEY = "yango_btl_h1",
   MYS_KEY = "yango_btl_mys_h1",
   CFG_KEY = "yango_btl_cfg_h1",
   INF_KEY = "yango_influencers_h1",
+  INF_BACKUP_KEY = "yango_influencers_backup_h1",
+  INF_SNAPSHOTS_KEY = "yango_influencers_snapshots_h1",
   SOC_KEY = "yango_social_report_h1",
   BTL_BUDGET_KEY = "yango_btl_budgets_h1",
   POP_KEY = "yango_pop_inventory_h1",
@@ -1374,6 +1360,38 @@ function load(key, fb) {
   } catch (e) {}
   return fb();
 }
+function normalizeInfluencerList(list) {
+  return Array.isArray(list) ? list.map(i => influencerTemplate(i)) : [];
+}
+function loadInfluencersSafe() {
+  const primary = normalizeInfluencerList(load(INF_KEY, () => []));
+  if (primary.length) return primary;
+  const backup = normalizeInfluencerList(load(INF_BACKUP_KEY, () => []));
+  if (backup.length) return backup;
+  const snapshots = load(INF_SNAPSHOTS_KEY, () => []);
+  if (Array.isArray(snapshots)) {
+    const best = snapshots.map(s => normalizeInfluencerList(s && s.items)).sort((a, b) => b.length - a.length)[0];
+    if (best && best.length) return best;
+  }
+  return normalizeInfluencerList(seedInfluencers());
+}
+function saveInfluencersSafe(items) {
+  try {
+    const normalized = normalizeInfluencerList(items);
+    localStorage.setItem(INF_KEY, JSON.stringify(normalized));
+    if (!normalized.length) return;
+    localStorage.setItem(INF_BACKUP_KEY, JSON.stringify(normalized));
+    const previous = load(INF_SNAPSHOTS_KEY, () => []);
+    const snapshots = Array.isArray(previous) ? previous : [];
+    const latest = snapshots[0] && JSON.stringify(snapshots[0].items || []) === JSON.stringify(normalized);
+    const next = latest ? snapshots : [{
+      ts: new Date().toISOString(),
+      count: normalized.length,
+      items: normalized
+    }, ...snapshots].slice(0, 10);
+    localStorage.setItem(INF_SNAPSHOTS_KEY, JSON.stringify(next));
+  } catch (e) {}
+}
 const typeOf = id => TYPES.find(t => t.id === id) || TYPES[0];
 const fmt = n => new Intl.NumberFormat("es-VE").format(Math.round(n) || 0);
 const usd = n => "$" + new Intl.NumberFormat("es-VE", {
@@ -1590,49 +1608,7 @@ function App() {
   const [cfg, setCfg] = useState(() => load(CFG_KEY, () => ({
     appsScriptUrl: ""
   })));
-  const [influencers, setInfluencers] = useState(() => load(INF_KEY, seedInfluencers).map(i => ({
-    id: i.id || uid(),
-    name: "",
-    handle: "",
-    tier: "micro",
-    platform: "Instagram",
-    igFollowers: 0,
-    tiktokFollowers: 0,
-    sameTiktokHandle: true,
-    tiktokHandle: "",
-    deliverables: [],
-    budget: 0,
-    paid: false,
-    recorded: false,
-    published: false,
-    publishDate: "",
-    link: "",
-    promoCode: "",
-    hasPromoCode: false,
-    redemptions: 0,
-    igReach: 0,
-    igLikes: 0,
-    igComments: 0,
-    igShares: 0,
-    igSaves: 0,
-    tiktokReach: 0,
-    tiktokLikes: 0,
-    tiktokComments: 0,
-    tiktokShares: 0,
-    tiktokSaves: 0,
-    likes: 0,
-    shares: 0,
-    reach: 0,
-    saves: 0,
-    comments: 0,
-    notes: "",
-    ...i,
-    budget: Number(i.budget) || Number(i.closedBudget) || Number(i.negotiatedBudget) || 0,
-    sameTiktokHandle: i.sameTiktokHandle !== false,
-    tiktokHandle: i.sameTiktokHandle === false ? i.tiktokHandle || "" : "",
-    tiktokLink: i.tiktokLink || "",
-    paymentDate: i.paymentDate || ""
-  })));
+  const [influencers, setInfluencers] = useState(() => loadInfluencersSafe());
   const [socialReport, setSocialReport] = useState(() => {
     const saved = load(SOC_KEY, socialReportSeed);
     return normalizeSocialReport(saved);
@@ -1672,9 +1648,7 @@ function App() {
     } catch (e) {}
   }, [cfg]);
   useEffect(() => {
-    try {
-      localStorage.setItem(INF_KEY, JSON.stringify(influencers));
-    } catch (e) {}
+    saveInfluencersSafe(influencers);
   }, [influencers]);
   useEffect(() => {
     try {
@@ -7388,6 +7362,24 @@ function downloadInfluencerCSV(items) {
   a.click();
   URL.revokeObjectURL(url);
 }
+function downloadInfluencerBackup(items) {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    source: "Yango MKT Venezuela",
+    type: "influencers",
+    version: 1,
+    items: normalizeInfluencerList(items)
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `yango_influencers_respaldo_${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 function InfluencerTracker({
   items,
   onSave,
@@ -7455,6 +7447,24 @@ function InfluencerTracker({
     onSave(item);
     setEditing(null);
   };
+  const importBackup = event => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result || ""));
+        const imported = normalizeInfluencerList(Array.isArray(parsed) ? parsed : parsed.items);
+        if (!imported.length) throw new Error("empty");
+        imported.forEach(onSave);
+        alert(`Listo: restauré ${imported.length} influencers. Si alguno ya existía, lo actualicé.`);
+      } catch (e) {
+        alert("No pude leer ese respaldo. Revisa que sea el archivo JSON descargado desde esta sección.");
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  };
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       ...S.resultBanner,
@@ -7497,7 +7507,32 @@ function InfluencerTracker({
     onClick: () => downloadInfluencerCSV(rows)
   }, /*#__PURE__*/React.createElement(IconDownload, {
     size: 16
-  }), " Descargar CSV"))), /*#__PURE__*/React.createElement("div", {
+  }), " Descargar CSV"), /*#__PURE__*/React.createElement("button", {
+    className: "ghostbtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#172554"
+    },
+    onClick: () => downloadInfluencerBackup(items)
+  }, /*#__PURE__*/React.createElement(IconDownload, {
+    size: 16
+  }), " Descargar respaldo"), /*#__PURE__*/React.createElement("label", {
+    className: "ghostbtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#172554",
+      cursor: "pointer"
+    }
+  }, "Restaurar respaldo", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: "application/json,.json",
+    onChange: importBackup,
+    style: {
+      display: "none"
+    }
+  })))), /*#__PURE__*/React.createElement("div", {
     style: S.kpiGrid
   }, /*#__PURE__*/React.createElement(Kpi, {
     icon: IconUserPlus,
@@ -7745,7 +7780,7 @@ function InfluencerTracker({
       onClick: () => setEditing(influencerTemplate(i))
     }, "Editar")));
   }))))) : /*#__PURE__*/React.createElement(Empty, {
-    msg: "Todavía no hay influencers para este filtro."
+    msg: items.length ? `Hay ${fmt(items.length)} influencers guardados, pero los filtros activos no los muestran. Limpia filtros o cambia fechas.` : "Todavía no hay influencers cargados."
   }), editing && /*#__PURE__*/React.createElement(InfluencerEditor, {
     item: editing,
     onSave: saveAndClose,
