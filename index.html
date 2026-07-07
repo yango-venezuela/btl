@@ -759,6 +759,18 @@ const STORE_KEY = "yango_btl_h1",
   MEDIA_KEY = "yango_media_ooh_h1",
   BRANDING_KEY = "yango_branding_inventory_h1";
 const MASTER_PASS = "Yango2026!";
+const GITHUB_REPO = "yango-venezuela/btl";
+const GITHUB_BRANCH = "main";
+const TEAM_DATA_DIR = "data/team-panels";
+const TEAM_PANELS = [{
+  id: "luis",
+  label: "Luis",
+  role: "Operaciones"
+}, {
+  id: "giselle",
+  label: "Giselle",
+  role: "Marketing"
+}];
 const LIGHT_TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 const LIGHT_TILE_ATTR = "&copy; OpenStreetMap &copy; CARTO";
 const POP_CATEGORIES = ["Users General", "Drivers General", "Mundial", "Universidades"];
@@ -1946,6 +1958,84 @@ function saveInfluencersSafe(items) {
     localStorage.setItem(INF_SNAPSHOTS_KEY, JSON.stringify(next));
   } catch (e) {}
 }
+function teamPanelById(id) {
+  return TEAM_PANELS.find(p => p.id === String(id || "").toLowerCase());
+}
+function emptyTeamPayload(panel) {
+  return {
+    version: 1,
+    panel: panel.id,
+    panelLabel: panel.label,
+    updatedAt: "",
+    popInventory: [],
+    influencers: [],
+    brandingInventory: []
+  };
+}
+function normalizeTeamPayload(panel, data = {}) {
+  return {
+    ...emptyTeamPayload(panel),
+    ...data,
+    panel: panel.id,
+    panelLabel: panel.label,
+    popInventory: Array.isArray(data.popInventory) ? data.popInventory : [],
+    influencers: normalizeInfluencerList(data.influencers || []),
+    brandingInventory: Array.isArray(data.brandingInventory) ? data.brandingInventory.map(normalizeBrandingItem) : []
+  };
+}
+function teamPanelPath(panelId) {
+  return `${TEAM_DATA_DIR}/${panelId}.json`;
+}
+function utf8ToBase64(text) {
+  return btoa(unescape(encodeURIComponent(text)));
+}
+function base64ToUtf8(text) {
+  return decodeURIComponent(escape(atob(String(text || "").replace(/\n/g, ""))));
+}
+async function githubReadJson(path, token = "") {
+  const headers = {
+    Accept: "application/vnd.github+json"
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${path}?ref=${GITHUB_BRANCH}&_=${Date.now()}`, {
+    headers
+  });
+  if (res.status === 404) return {
+    data: null,
+    sha: null
+  };
+  if (!res.ok) throw new Error(`GitHub respondió ${res.status}`);
+  const file = await res.json();
+  const content = file.content ? JSON.parse(base64ToUtf8(file.content)) : null;
+  return {
+    data: content,
+    sha: file.sha
+  };
+}
+async function githubWriteJson(path, payload, token, message) {
+  if (!token) throw new Error("Falta token de GitHub.");
+  const current = await githubReadJson(path, token);
+  const body = {
+    message,
+    branch: GITHUB_BRANCH,
+    content: utf8ToBase64(JSON.stringify(payload, null, 2))
+  };
+  if (current.sha) body.sha = current.sha;
+  const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${path}`, {
+    method: "PUT",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`GitHub respondió ${res.status}. ${detail.slice(0, 120)}`);
+  }
+  return res.json();
+}
 const typeOf = id => TYPES.find(t => t.id === id) || TYPES[0];
 const fmt = n => new Intl.NumberFormat("es-VE").format(Math.round(n) || 0);
 const usd = n => "$" + new Intl.NumberFormat("es-VE", {
@@ -2323,7 +2413,12 @@ function App() {
   };
   const filtered = acts.filter(a => (zoneFilter === "all" || a.zone === zoneFilter) && (typeFilter === "all" || a.type === typeFilter) && inRange(a.date, from, to));
   const alloc = useMemo(() => allocate(acts, qr), [acts, qr]);
-  const agencyOnly = new URLSearchParams(window.location.search).get("agency") === "1" || window.location.hash === "#agency";
+  const params = new URLSearchParams(window.location.search);
+  const teamPanel = teamPanelById(params.get("panel") || window.location.hash.replace("#panel-", ""));
+  const agencyOnly = params.get("agency") === "1" || window.location.hash === "#agency";
+  if (teamPanel) return /*#__PURE__*/React.createElement(TeamPanelStandalone, {
+    panel: teamPanel
+  });
   if (agencyOnly) return /*#__PURE__*/React.createElement(AgencyStandalone, {
     acts: acts,
     onSave: save
@@ -2358,11 +2453,11 @@ function App() {
     style: S.main
   }, /*#__PURE__*/React.createElement(Header, {
     tab: tab,
-    count: tab === "influencers" ? influencers.length : tab === "social_report" ? socialReport.months.length : tab === "pop_inventory" ? popInventory.length : tab === "media_ooh" ? mediaAssets.length : tab === "branding" ? brandingInventory.length : acts.length,
+    count: tab === "influencers" ? influencers.length : tab === "social_report" ? socialReport.months.length : tab === "pop_inventory" ? popInventory.length : tab === "media_ooh" ? mediaAssets.length : tab === "branding" ? brandingInventory.length : tab === "team_inputs" ? TEAM_PANELS.length : acts.length,
     onMenu: () => setMenuOpen(v => !v)
   }), /*#__PURE__*/React.createElement("div", {
     style: S.content
-  }, !["mystery", "influencers", "social_report", "pop_inventory", "media_ooh", "branding"].includes(tab) && /*#__PURE__*/React.createElement(Filters, {
+  }, !["mystery", "influencers", "social_report", "pop_inventory", "media_ooh", "branding", "team_inputs"].includes(tab) && /*#__PURE__*/React.createElement(Filters, {
     zoneFilter,
     setZoneFilter,
     typeFilter,
@@ -2428,7 +2523,7 @@ function App() {
   }), tab === "branding" && /*#__PURE__*/React.createElement(BrandingInventoryV3, {
     items: brandingInventory,
     setItems: setBrandingInventory
-  }))), editing && /*#__PURE__*/React.createElement(Editor, {
+  }), tab === "team_inputs" && /*#__PURE__*/React.createElement(TeamPanelAdmin, null))), editing && /*#__PURE__*/React.createElement(Editor, {
     act: editing === "new" ? null : editing,
     alloc: alloc,
     onSave: save,
@@ -2444,6 +2539,440 @@ function App() {
 }
 
 /* ============================ SIDEBAR ============================ */
+function TeamPanelStandalone({
+  panel
+}) {
+  const el = React.createElement;
+  const unlockKey = `yango_team_panel_${panel.id}_unlocked`;
+  const tokenKey = `yango_github_token_${panel.id}`;
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(unlockKey) === "1");
+  const [password, setPassword] = useState("");
+  const [token, setToken] = useState(() => localStorage.getItem(tokenKey) || "");
+  const [active, setActive] = useState("pop");
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [popInventory, setPopInventory] = useState(() => load(`yango_team_${panel.id}_pop`, seedPopInventory));
+  const [influencers, setInfluencers] = useState(() => normalizeInfluencerList(load(`yango_team_${panel.id}_influencers`, () => [])));
+  const [brandingInventory, setBrandingInventory] = useState(() => load(`yango_team_${panel.id}_branding`, seedBrandingInventory).map(normalizeBrandingItem));
+  useEffect(() => {
+    try {
+      localStorage.setItem(tokenKey, token);
+    } catch (e) {}
+  }, [token]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(`yango_team_${panel.id}_pop`, JSON.stringify(popInventory));
+    } catch (e) {}
+  }, [popInventory]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(`yango_team_${panel.id}_influencers`, JSON.stringify(influencers));
+    } catch (e) {}
+  }, [influencers]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(`yango_team_${panel.id}_branding`, JSON.stringify(brandingInventory));
+    } catch (e) {}
+  }, [brandingInventory]);
+  const unlock = e => {
+    e.preventDefault();
+    if (password !== MASTER_PASS) return setMsg("Clave incorrecta.");
+    sessionStorage.setItem(unlockKey, "1");
+    setUnlocked(true);
+    setMsg("");
+  };
+  const saveInfluencer = item => setInfluencers(previous => previous.find(x => x.id === item.id) ? previous.map(x => x.id === item.id ? item : x) : [...previous, item]);
+  const removeInfluencer = id => setInfluencers(previous => previous.filter(x => x.id !== id));
+  const loadRemote = async () => {
+    setLoading(true);
+    setMsg("Leyendo la última data guardada...");
+    try {
+      const remote = await githubReadJson(teamPanelPath(panel.id), token);
+      const payload = normalizeTeamPayload(panel, remote.data || {});
+      setPopInventory(payload.popInventory.length ? payload.popInventory : seedPopInventory());
+      setInfluencers(payload.influencers);
+      setBrandingInventory(payload.brandingInventory.length ? payload.brandingInventory : seedBrandingInventory().map(normalizeBrandingItem));
+      setMsg(payload.updatedAt ? `Listo: cargué la data guardada el ${prettyDate(payload.updatedAt.slice(0, 10))}.` : "Listo: este panel todavía no tenía data en GitHub.");
+    } catch (error) {
+      setMsg(`No pude traer la data: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const saveRemote = async () => {
+    if (!token.trim()) return setMsg("Pega primero el token de GitHub para poder guardar.");
+    setLoading(true);
+    setMsg("Guardando en GitHub...");
+    try {
+      const payload = normalizeTeamPayload(panel, {
+        updatedAt: new Date().toISOString(),
+        updatedBy: panel.label,
+        popInventory,
+        influencers,
+        brandingInventory
+      });
+      await githubWriteJson(teamPanelPath(panel.id), payload, token.trim(), `Update ${panel.label} team panel data`);
+      setMsg("Listo: quedó guardado en GitHub y tu Master lo puede ver.");
+    } catch (error) {
+      setMsg(`No pude guardar: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+  if (!unlocked) return el("div", {
+    style: {
+      minHeight: "100vh",
+      background: "linear-gradient(135deg,#111827,#E30613)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+      fontFamily: "'YangoText',system-ui,sans-serif"
+    }
+  }, el("form", {
+    onSubmit: unlock,
+    style: {
+      width: "100%",
+      maxWidth: 430,
+      background: "#fff",
+      borderRadius: 24,
+      padding: 28,
+      boxShadow: "0 24px 70px rgba(15,23,42,.32)"
+    }
+  }, el("div", {
+    style: {
+      fontFamily: "'YangoHeadline','YangoText',system-ui,sans-serif",
+      fontWeight: 950,
+      fontSize: 24,
+      letterSpacing: "-0.03em",
+      marginBottom: 6
+    }
+  }, "Panel de carga · ", panel.label), el("div", {
+    style: {
+      color: "#64748B",
+      fontSize: 13,
+      marginBottom: 18
+    }
+  }, "Usa la misma clave del Master Panel."), el(Field, {
+    label: "Clave"
+  }, el("input", {
+    type: "password",
+    autoFocus: true,
+    style: S.input,
+    value: password,
+    onChange: e => {
+      setPassword(e.target.value);
+      setMsg("");
+    },
+    placeholder: "Escribe la clave"
+  })), msg && el("div", {
+    style: {
+      color: "#DC2626",
+      fontSize: 12,
+      fontWeight: 800,
+      margin: "2px 0 12px"
+    }
+  }, msg), el("button", {
+    type: "submit",
+    style: {
+      ...S.primaryBtn,
+      width: "100%",
+      justifyContent: "center"
+    }
+  }, "Entrar")));
+  const tabs = [{
+    id: "pop",
+    label: "Material POP"
+  }, {
+    id: "influencers",
+    label: "Influencers"
+  }, {
+    id: "branding",
+    label: "Branding"
+  }];
+  return el("div", {
+    style: {
+      minHeight: "100vh",
+      background: "#F8FAFC",
+      padding: 18,
+      fontFamily: "'YangoText',system-ui,sans-serif"
+    }
+  }, el("div", {
+    style: {
+      maxWidth: 1460,
+      margin: "0 auto",
+      display: "grid",
+      gap: 14
+    }
+  }, el("div", {
+    style: {
+      ...S.resultBanner,
+      background: "linear-gradient(135deg,#111827,#E30613)"
+    }
+  }, el("div", null, el("div", {
+    style: {
+      fontWeight: 950,
+      fontSize: 22,
+      letterSpacing: "-0.02em"
+    }
+  }, "Panel de carga · ", panel.label), el("div", {
+    style: {
+      fontSize: 12.5,
+      opacity: .88,
+      marginTop: 4
+    }
+  }, "Lo que guardes aquí queda en GitHub y se ve en el Master Panel.")), el("a", {
+    href: location.pathname,
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#111827",
+      textDecoration: "none"
+    }
+  }, "Abrir Master")), el(Card, {
+    title: "Sincronización",
+    hint: "El token se guarda solo en esta computadora. No queda escrito en la página."
+  }, el("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "minmax(240px,1fr) auto auto",
+      gap: 10,
+      alignItems: "end"
+    }
+  }, el(Field, {
+    label: "Token GitHub para guardar"
+  }, el("input", {
+    type: "password",
+    style: S.input,
+    value: token,
+    onChange: e => setToken(e.target.value),
+    placeholder: "Pegar una sola vez"
+  })), el("button", {
+    className: "ghostbtn",
+    style: S.ghostBtn,
+    disabled: loading,
+    onClick: loadRemote
+  }, "Traer de GitHub"), el("button", {
+    className: "primarybtn",
+    style: S.primaryBtn,
+    disabled: loading,
+    onClick: saveRemote
+  }, loading ? "Guardando..." : "Guardar en GitHub")), msg && el("div", {
+    style: {
+      marginTop: 10,
+      color: msg.startsWith("No pude") || msg.startsWith("Pega") ? "#DC2626" : "#16A34A",
+      fontSize: 12,
+      fontWeight: 800
+    }
+  }, msg)), el("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap"
+    }
+  }, tabs.map(t => el("button", {
+    key: t.id,
+    className: "ghostbtn",
+    onClick: () => setActive(t.id),
+    style: {
+      ...S.ghostBtn,
+      background: active === t.id ? "#111827" : "#fff",
+      color: active === t.id ? "#fff" : "#111827",
+      borderColor: active === t.id ? "#111827" : "#E2E8F0"
+    }
+  }, t.label))), active === "pop" && el(PopInventory, {
+    items: popInventory,
+    setItems: setPopInventory
+  }), active === "influencers" && el(InfluencerTracker, {
+    items: influencers,
+    onSave: saveInfluencer,
+    onDelete: removeInfluencer
+  }), active === "branding" && el(BrandingInventoryV3, {
+    items: brandingInventory,
+    setItems: setBrandingInventory
+  })));
+}
+function TeamPanelAdmin() {
+  const el = React.createElement;
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+  const loadAll = async () => {
+    setLoading(true);
+    setMsg("Actualizando desde GitHub...");
+    try {
+      const rows = await Promise.all(TEAM_PANELS.map(async panel => {
+        const remote = await githubReadJson(teamPanelPath(panel.id));
+        return normalizeTeamPayload(panel, remote.data || {});
+      }));
+      setItems(rows);
+      setMsg("Listo: data del equipo actualizada.");
+    } catch (error) {
+      setMsg(`No pude actualizar: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    loadAll();
+  }, []);
+  const allInfluencers = items.flatMap(row => row.influencers.map(item => ({
+    ...item,
+    panelLabel: row.panelLabel
+  })));
+  const allPop = items.flatMap(row => row.popInventory.map(item => ({
+    ...item,
+    panelLabel: row.panelLabel
+  })));
+  const allBranding = items.flatMap(row => row.brandingInventory.map(item => ({
+    ...item,
+    panelLabel: row.panelLabel
+  })));
+  const table = (headers, rows) => el("div", {
+    style: {
+      overflowX: "auto"
+    }
+  }, el("table", {
+    style: S.table
+  }, el("thead", null, el("tr", null, headers.map(h => el("th", {
+    key: h,
+    style: S.th
+  }, h)))), el("tbody", null, rows)));
+  const panelRows = TEAM_PANELS.map(panel => {
+    const row = items.find(x => x.panel === panel.id) || emptyTeamPayload(panel);
+    const link = `${location.origin}${location.pathname}?panel=${panel.id}`;
+    return el("tr", {
+      key: panel.id
+    }, el("td", {
+      style: S.td
+    }, el("b", null, panel.label), el("div", {
+      style: {
+        color: "#94A3B8",
+        fontSize: 11
+      }
+    }, panel.role)), el("td", {
+      style: S.td
+    }, row.updatedAt ? prettyDate(row.updatedAt.slice(0, 10)) : "—"), el("td", {
+      style: S.td
+    }, fmt(row.popInventory.length)), el("td", {
+      style: S.td
+    }, fmt(row.influencers.length)), el("td", {
+      style: S.td
+    }, fmt(row.brandingInventory.length)), el("td", {
+      style: S.td
+    }, el("a", {
+      href: link,
+      target: "_blank",
+      rel: "noreferrer",
+      style: {
+        color: "#E30613",
+        fontWeight: 900,
+        textDecoration: "none"
+      }
+    }, "Abrir panel")));
+  });
+  const influencerRows = allInfluencers.slice(0, 80).map(item => el("tr", {
+    key: `${item.panelLabel}-${item.id}`
+  }, el("td", {
+    style: S.td
+  }, item.name || "—"), el("td", {
+    style: S.td
+  }, item.panelLabel), el("td", {
+    style: S.td
+  }, item.tier === "micro" ? "Micro" : "Influencer"), el("td", {
+    style: S.td
+  }, fmt(item.igFollowers)), el("td", {
+    style: S.td
+  }, fmt(item.tiktokFollowers)), el("td", {
+    style: S.td
+  }, item.publishDate || "—")));
+  const popRows = allPop.slice(0, 80).map(item => el("tr", {
+    key: `${item.panelLabel}-${item.id}`
+  }, el("td", {
+    style: S.td
+  }, item.item || "—"), el("td", {
+    style: S.td
+  }, normalizePopCategory(item.category)), el("td", {
+    style: S.td
+  }, item.panelLabel), el("td", {
+    style: S.td
+  }, fmt(item.stock)), el("td", {
+    style: S.td
+  }, fmt(item.reserved)), el("td", {
+    style: {
+      ...S.td,
+      color: "#16A34A",
+      fontWeight: 900
+    }
+  }, fmt(Math.max(0, (Number(item.stock) || 0) - (Number(item.reserved) || 0))))));
+  return el(React.Fragment, null, el("div", {
+    style: {
+      ...S.resultBanner,
+      background: "linear-gradient(135deg,#111827,#E30613)"
+    }
+  }, el("div", null, el("div", {
+    style: {
+      fontWeight: 950,
+      fontSize: 20
+    }
+  }, "Cargas del equipo"), el("div", {
+    style: {
+      opacity: .88,
+      fontSize: 12.5,
+      marginTop: 4
+    }
+  }, "Resumen de lo que Luis y Giselle guardaron en sus paneles.")), el("button", {
+    className: "primarybtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#111827"
+    },
+    disabled: loading,
+    onClick: loadAll
+  }, loading ? "Actualizando..." : "Actualizar desde GitHub")), msg && el("div", {
+    style: {
+      color: msg.startsWith("No pude") ? "#DC2626" : "#16A34A",
+      fontSize: 12,
+      fontWeight: 800
+    }
+  }, msg), el("div", {
+    style: S.kpiGrid
+  }, el(Kpi, {
+    icon: IconUserPlus,
+    label: "Paneles",
+    value: fmt(TEAM_PANELS.length),
+    accent: "#111827"
+  }), el(Kpi, {
+    icon: IconTicket,
+    label: "Material POP",
+    value: fmt(allPop.length),
+    accent: "#E30613"
+  }), el(Kpi, {
+    icon: IconUserPlus,
+    label: "Influencers",
+    value: fmt(allInfluencers.length),
+    accent: "#0EA5E9"
+  }), el(Kpi, {
+    icon: IconTicket,
+    label: "Branding SKUs",
+    value: fmt(allBranding.length),
+    accent: "#16A34A"
+  })), el(Card, {
+    title: "Paneles activos",
+    hint: "Abre el link de cada persona para que cargue su información."
+  }, table(["Usuario", "Última subida", "Material POP", "Influencers", "Branding", "Link"], panelRows)), el(Card, {
+    title: "Influencers cargados por equipo",
+    hint: "Vista rápida consolidada. La edición se hace en el panel de cada persona."
+  }, allInfluencers.length ? table(["Nombre", "Cargado por", "Tipo", "Followers IG", "Followers TikTok", "Publicación"], influencerRows) : el(Empty, {
+    msg: "Aún no hay influencers guardados por el equipo."
+  })), el(Card, {
+    title: "Material POP cargado por equipo",
+    hint: "Resumen de stock disponible por persona."
+  }, allPop.length ? table(["Material", "Categoría", "Cargado por", "Stock", "Reservado", "Disponible"], popRows) : el(Empty, {
+    msg: "Aún no hay Material POP guardado por el equipo."
+  })));
+}
 function MasterLogin({
   onUnlock
 }) {
@@ -2594,6 +3123,13 @@ function Sidebar({
       icon: IconTicket
     }]
   }, {
+    label: "Equipo",
+    items: [{
+      id: "team_inputs",
+      label: "Cargas equipo",
+      icon: IconUserPlus
+    }]
+  }, {
     label: "Social Media",
     items: [{
       id: "influencers",
@@ -2707,6 +3243,7 @@ function Header({
     agency: "Admin agencia y evidencias",
     pop_inventory: "Material POP · Inventario",
     branding: "Branding · Inventario",
+    team_inputs: "Cargas equipo",
     influencers: "IG, TikTok e Influencers",
     social_report: "Reporte Social Media",
     mystery: "Mystery Shopper",
@@ -2715,6 +3252,7 @@ function Header({
   const subtitles = {
     pop_inventory: "Control de stock, reservados, salidas y valor estimado",
     branding: "Oficina, partners, salidas y pérdida vs inventario real",
+    team_inputs: "Paneles de Luis y Giselle conectados a GitHub",
     influencers: `${count} creadores registrados · performance orgánico y paid`,
     social_report: "Reporte mensual por plataforma · Venezuela",
     mystery: `${count} activaciones registradas · validación operativa`,
