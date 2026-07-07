@@ -759,6 +759,7 @@ const STORE_KEY = "yango_btl_h1",
   MEDIA_KEY = "yango_media_ooh_h1",
   BRANDING_KEY = "yango_branding_inventory_h1";
 const MASTER_PASS = "Yango2026!";
+const TEAM_AUTO_SYNC_KEY = "yango_team_auto_sync_last_h1";
 const GITHUB_REPO = "yango-venezuela/btl";
 const GITHUB_BRANCH = "main";
 const TEAM_DATA_DIR = "data/team-panels";
@@ -2283,6 +2284,7 @@ function App() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [teamSyncStatus, setTeamSyncStatus] = useState(() => localStorage.getItem(TEAM_AUTO_SYNC_KEY) ? "Sincronización automática activa." : "Buscando cargas del equipo...");
   useEffect(() => {
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(acts));
@@ -2434,7 +2436,45 @@ function App() {
     if (payload.popInventory && payload.popInventory.length) setPopInventory(payload.popInventory);
     if (payload.influencers && payload.influencers.length) setInfluencers(normalizeInfluencerList(payload.influencers));
     if (payload.brandingInventory && payload.brandingInventory.length) setBrandingInventory(payload.brandingInventory.map(normalizeBrandingItem));
+    if (payload.updatedAt) {
+      try {
+        localStorage.setItem(TEAM_AUTO_SYNC_KEY, payload.updatedAt);
+      } catch (e) {}
+      setTeamSyncStatus(`Sincronizado automáticamente con ${payload.panelLabel || "equipo"} · ${prettyDate(payload.updatedAt.slice(0, 10))}`);
+    }
   };
+  useEffect(() => {
+    if (!masterUnlocked) return;
+    let cancelled = false;
+    const syncTeamPanels = async () => {
+      try {
+        const rows = await Promise.all(TEAM_PANELS.map(async panel => {
+          const remote = await githubReadJson(teamPanelPath(panel.id));
+          return normalizeTeamPayload(panel, remote.data || {});
+        }));
+        if (cancelled) return;
+        const latest = rows.filter(row => row.updatedAt).sort((a, b) => Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0))[0];
+        if (!latest) {
+          setTeamSyncStatus("Sincronización automática activa. Aún no hay cargas del equipo.");
+          return;
+        }
+        const lastApplied = localStorage.getItem(TEAM_AUTO_SYNC_KEY) || "";
+        if (latest.updatedAt !== lastApplied) {
+          applyTeamPayload(latest);
+        } else {
+          setTeamSyncStatus(`Sincronización automática activa · última carga: ${latest.panelLabel} ${prettyDate(latest.updatedAt.slice(0, 10))}`);
+        }
+      } catch (error) {
+        if (!cancelled) setTeamSyncStatus(`No pude sincronizar automático: ${error.message}`);
+      }
+    };
+    syncTeamPanels();
+    const timer = setInterval(syncTeamPanels, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [masterUnlocked]);
   const filtered = acts.filter(a => (zoneFilter === "all" || a.zone === zoneFilter) && (typeFilter === "all" || a.type === typeFilter) && inRange(a.date, from, to));
   const alloc = useMemo(() => allocate(acts, qr), [acts, qr]);
   const params = new URLSearchParams(window.location.search);
@@ -2548,7 +2588,8 @@ function App() {
     items: brandingInventory,
     setItems: setBrandingInventory
   }), tab === "team_inputs" && /*#__PURE__*/React.createElement(TeamPanelAdmin, {
-    onApply: applyTeamPayload
+    onApply: applyTeamPayload,
+    autoStatus: teamSyncStatus
   }))), editing && /*#__PURE__*/React.createElement(Editor, {
     act: editing === "new" ? null : editing,
     alloc: alloc,
@@ -3114,7 +3155,8 @@ function TeamPanelStandalone({
   }));
 }
 function TeamPanelAdmin({
-  onApply
+  onApply,
+  autoStatus = ""
 }) {
   const el = React.createElement;
   const [items, setItems] = useState([]);
@@ -3138,6 +3180,8 @@ function TeamPanelAdmin({
   };
   useEffect(() => {
     loadAll();
+    const timer = setInterval(loadAll, 30000);
+    return () => clearInterval(timer);
   }, []);
   const allInfluencers = items.flatMap(row => row.influencers.map(item => ({
     ...item,
@@ -3164,7 +3208,6 @@ function TeamPanelAdmin({
   const panelRows = TEAM_PANELS.map(panel => {
     const row = items.find(x => x.panel === panel.id) || emptyTeamPayload(panel);
     const link = `${location.origin}${location.pathname}?panel=${panel.id}`;
-    const hasData = row.updatedAt || row.popInventory.length || row.influencers.length || row.brandingInventory.length || row.acts.length;
     return el("tr", {
       key: panel.id
     }, el("td", {
@@ -3184,12 +3227,6 @@ function TeamPanelAdmin({
       style: S.td
     }, fmt(row.brandingInventory.length)), el("td", {
       style: S.td
-    }, el("div", {
-      style: {
-        display: "flex",
-        gap: 8,
-        flexWrap: "wrap"
-      }
     }, el("a", {
       href: link,
       target: "_blank",
@@ -3199,18 +3236,7 @@ function TeamPanelAdmin({
         fontWeight: 900,
         textDecoration: "none"
       }
-    }, "Abrir panel"), hasData && el("button", {
-      className: "ghostbtn",
-      style: {
-        ...S.ghostBtn,
-        padding: "7px 10px",
-        fontSize: 12
-      },
-      onClick: () => {
-        onApply && onApply(row);
-        setMsg(`Listo: apliqué la data de ${row.panelLabel} en tu Master local.`);
-      }
-    }, "Aplicar al Master"))));
+    }, "Abrir panel")));
   });
   const influencerRows = allInfluencers.slice(0, 80).map(item => el("tr", {
     key: `${item.panelLabel}-${item.id}`
@@ -3262,18 +3288,19 @@ function TeamPanelAdmin({
       fontSize: 12.5,
       marginTop: 4
     }
-  }, "Resumen de lo que Luis y Giselle guardaron en sus paneles.")), el("button", {
-    className: "primarybtn",
+  }, autoStatus || "El Master trae y aplica las cargas nuevas automáticamente."))), el("div", {
     style: {
-      ...S.primaryBtn,
-      background: "#fff",
-      color: "#111827"
-    },
-    disabled: loading,
-    onClick: loadAll
-  }, loading ? "Actualizando..." : "Actualizar desde GitHub")), msg && el("div", {
+      padding: "10px 12px",
+      borderRadius: 14,
+      background: "#ECFDF5",
+      color: "#047857",
+      fontSize: 12,
+      fontWeight: 900,
+      border: "1px solid #A7F3D0"
+    }
+  }, autoStatus || msg || "Sincronización automática activa."), msg && msg.startsWith("No pude") && el("div", {
     style: {
-      color: msg.startsWith("No pude") ? "#DC2626" : "#16A34A",
+      color: "#DC2626",
       fontSize: 12,
       fontWeight: 800
     }
@@ -3302,7 +3329,7 @@ function TeamPanelAdmin({
   })), el(Card, {
     title: "Paneles activos",
     hint: "Abre el link de cada persona para que cargue su información."
-  }, table(["Usuario", "Última subida", "Material POP", "Influencers", "Branding", "Acciones"], panelRows)), el(Card, {
+  }, table(["Usuario", "Última subida", "Material POP", "Influencers", "Branding", "Panel"], panelRows)), el(Card, {
     title: "Influencers cargados por equipo",
     hint: "Vista rápida consolidada. La edición se hace en el panel de cada persona."
   }, allInfluencers.length ? table(["Nombre", "Cargado por", "Tipo", "Followers IG", "Followers TikTok", "Publicación"], influencerRows) : el(Empty, {
