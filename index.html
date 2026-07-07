@@ -757,20 +757,74 @@ const STORE_KEY = "yango_btl_h1",
   BTL_BUDGET_KEY = "yango_btl_budgets_h1",
   POP_KEY = "yango_pop_inventory_h1",
   MEDIA_KEY = "yango_media_ooh_h1",
-  BRANDING_KEY = "yango_branding_inventory_h1";
+  BRANDING_KEY = "yango_branding_inventory_h1",
+  USERS_KEY = "yango_team_users_h1";
 const MASTER_PASS = "Yango2026!";
 const TEAM_AUTO_SYNC_KEY = "yango_team_auto_sync_last_h1";
 const GITHUB_REPO = "yango-venezuela/btl";
 const GITHUB_BRANCH = "main";
 const TEAM_DATA_DIR = "data/team-panels";
-const TEAM_PANELS = [{
+const ACCESS_SECTIONS = [{
+  id: "global",
+  label: "Vista global",
+  group: "BTL"
+}, {
+  id: "results",
+  label: "Resultados",
+  group: "BTL"
+}, {
+  id: "map",
+  label: "Mapa",
+  group: "BTL"
+}, {
+  id: "calendar",
+  label: "Calendario",
+  group: "BTL"
+}, {
+  id: "activations",
+  label: "Activaciones",
+  group: "BTL"
+}, {
+  id: "agency",
+  label: "Admin agencia",
+  group: "BTL"
+}, {
+  id: "pop",
+  label: "Material POP",
+  group: "BTL"
+}, {
+  id: "mystery",
+  label: "Mystery Shopper",
+  group: "BTL"
+}, {
+  id: "branding",
+  label: "Branding",
+  group: "Branding"
+}, {
+  id: "influencers",
+  label: "Influencers",
+  group: "Social Media"
+}, {
+  id: "social_report",
+  label: "Reporte Social Media",
+  group: "Social Media"
+}, {
+  id: "media_ooh",
+  label: "Media OOH",
+  group: "Media"
+}];
+const DEFAULT_TEAM_USERS = [{
   id: "luis",
   label: "Luis",
-  role: "Operaciones"
+  role: "Operaciones",
+  adminLike: true,
+  access: ACCESS_SECTIONS.map(s => s.id)
 }, {
   id: "giselle",
   label: "Giselle",
-  role: "Marketing"
+  role: "Marketing",
+  adminLike: false,
+  access: ["pop", "influencers", "branding"]
 }];
 const LIGHT_TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 const LIGHT_TILE_ATTR = "&copy; OpenStreetMap &copy; CARTO";
@@ -1959,8 +2013,29 @@ function saveInfluencersSafe(items) {
     localStorage.setItem(INF_SNAPSHOTS_KEY, JSON.stringify(next));
   } catch (e) {}
 }
-function teamPanelById(id) {
-  return TEAM_PANELS.find(p => p.id === String(id || "").toLowerCase());
+function userSlug(value) {
+  return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+function normalizeTeamUser(user = {}) {
+  const label = String(user.label || user.name || "Usuario").trim();
+  const id = userSlug(user.id || label);
+  const access = Array.isArray(user.access) && user.access.length ? user.access.filter(id => ACCESS_SECTIONS.some(s => s.id === id)) : ["pop", "influencers", "branding"];
+  return {
+    id: id || uid("user"),
+    label,
+    role: String(user.role || "Equipo").trim(),
+    adminLike: Boolean(user.adminLike),
+    access
+  };
+}
+function normalizeTeamUsers(users) {
+  const incoming = (Array.isArray(users) ? users : DEFAULT_TEAM_USERS).map(normalizeTeamUser);
+  const byId = new Map();
+  incoming.forEach(user => byId.set(user.id, user));
+  return [...byId.values()];
+}
+function teamPanelById(id, users = DEFAULT_TEAM_USERS) {
+  return normalizeTeamUsers(users).find(p => p.id === String(id || "").toLowerCase());
 }
 function emptyTeamPayload(panel) {
   return {
@@ -2274,6 +2349,7 @@ function App() {
   const [popInventory, setPopInventory] = useState(() => load(POP_KEY, seedPopInventory));
   const [mediaAssets, setMediaAssets] = useState(() => load(MEDIA_KEY, seedMediaAssets));
   const [brandingInventory, setBrandingInventory] = useState(() => load(BRANDING_KEY, seedBrandingInventory).map(normalizeBrandingItem));
+  const [teamUsers, setTeamUsers] = useState(() => normalizeTeamUsers(load(USERS_KEY, () => DEFAULT_TEAM_USERS)));
   const [masterUnlocked, setMasterUnlocked] = useState(() => sessionStorage.getItem("yango_master_unlocked") === "1");
   const [tab, setTab] = useState("global");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -2333,6 +2409,11 @@ function App() {
       localStorage.setItem(BRANDING_KEY, JSON.stringify(brandingInventory));
     } catch (e) {}
   }, [brandingInventory]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(USERS_KEY, JSON.stringify(teamUsers));
+    } catch (e) {}
+  }, [teamUsers]);
   const save = a => {
     setActs(p => p.find(x => x.id === a.id) ? p.map(x => x.id === a.id ? a : x) : [...p, a]);
     setEditing(null);
@@ -2448,7 +2529,7 @@ function App() {
     let cancelled = false;
     const syncTeamPanels = async () => {
       try {
-        const rows = await Promise.all(TEAM_PANELS.map(async panel => {
+        const rows = await Promise.all(teamUsers.map(async panel => {
           const remote = await githubReadJson(teamPanelPath(panel.id));
           return normalizeTeamPayload(panel, remote.data || {});
         }));
@@ -2474,11 +2555,19 @@ function App() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [masterUnlocked]);
+  }, [masterUnlocked, teamUsers]);
   const filtered = acts.filter(a => (zoneFilter === "all" || a.zone === zoneFilter) && (typeFilter === "all" || a.type === typeFilter) && inRange(a.date, from, to));
   const alloc = useMemo(() => allocate(acts, qr), [acts, qr]);
   const params = new URLSearchParams(window.location.search);
-  const teamPanel = teamPanelById(params.get("panel") || window.location.hash.replace("#panel-", ""));
+  const panelId = params.get("panel") || window.location.hash.replace("#panel-", "");
+  const urlPanelConfig = panelId && params.has("access") ? normalizeTeamUser({
+    id: panelId,
+    label: params.get("name") || panelId,
+    role: params.get("role") || "Equipo",
+    adminLike: params.get("admin") === "1",
+    access: String(params.get("access") || "").split(",").filter(Boolean)
+  }) : null;
+  const teamPanel = urlPanelConfig || teamPanelById(panelId, teamUsers);
   const agencyOnly = params.get("agency") === "1" || window.location.hash === "#agency";
   if (teamPanel) return /*#__PURE__*/React.createElement(TeamPanelStandalone, {
     panel: teamPanel
@@ -2517,11 +2606,11 @@ function App() {
     style: S.main
   }, /*#__PURE__*/React.createElement(Header, {
     tab: tab,
-    count: tab === "influencers" ? influencers.length : tab === "social_report" ? socialReport.months.length : tab === "pop_inventory" ? popInventory.length : tab === "media_ooh" ? mediaAssets.length : tab === "branding" ? brandingInventory.length : tab === "team_inputs" ? TEAM_PANELS.length : acts.length,
+    count: tab === "influencers" ? influencers.length : tab === "social_report" ? socialReport.months.length : tab === "pop_inventory" ? popInventory.length : tab === "media_ooh" ? mediaAssets.length : tab === "branding" ? brandingInventory.length : tab === "team_inputs" || tab === "users" ? teamUsers.length : acts.length,
     onMenu: () => setMenuOpen(v => !v)
   }), /*#__PURE__*/React.createElement("div", {
     style: S.content
-  }, !["mystery", "influencers", "social_report", "pop_inventory", "media_ooh", "branding", "team_inputs"].includes(tab) && /*#__PURE__*/React.createElement(Filters, {
+  }, !["mystery", "influencers", "social_report", "pop_inventory", "media_ooh", "branding", "team_inputs", "users"].includes(tab) && /*#__PURE__*/React.createElement(Filters, {
     zoneFilter,
     setZoneFilter,
     typeFilter,
@@ -2589,7 +2678,11 @@ function App() {
     setItems: setBrandingInventory
   }), tab === "team_inputs" && /*#__PURE__*/React.createElement(TeamPanelAdmin, {
     onApply: applyTeamPayload,
-    autoStatus: teamSyncStatus
+    autoStatus: teamSyncStatus,
+    users: teamUsers
+  }), tab === "users" && /*#__PURE__*/React.createElement(UsersAdmin, {
+    users: teamUsers,
+    setUsers: setTeamUsers
   }))), editing && /*#__PURE__*/React.createElement(Editor, {
     act: editing === "new" ? null : editing,
     alloc: alloc,
@@ -2612,7 +2705,7 @@ function TeamPanelStandalone({
   const el = React.createElement;
   const unlockKey = `yango_team_panel_${panel.id}_unlocked`;
   const tokenKey = `yango_github_token_${panel.id}`;
-  const isAdminLike = panel.id === "luis";
+  const isAdminLike = Boolean(panel.adminLike);
   const baseActs = () => load(STORE_KEY, seed).map(a => ({
     address: "",
     lat: null,
@@ -2928,7 +3021,8 @@ function TeamPanelStandalone({
   }, "Entrar")));
   const filtered = acts.filter(a => (zoneFilter === "all" || a.zone === zoneFilter) && (typeFilter === "all" || a.type === typeFilter) && inRange(a.date, from, to));
   const alloc = useMemo(() => allocate(acts, qr), [acts, qr]);
-  const tabs = isAdminLike ? [{
+  const access = new Set(panel.access && panel.access.length ? panel.access : ACCESS_SECTIONS.map(s => s.id));
+  const tabs = (isAdminLike ? [{
     id: "global",
     label: "Vista global"
   }, {
@@ -2973,7 +3067,8 @@ function TeamPanelStandalone({
   }, {
     id: "branding",
     label: "Branding"
-  }];
+  }]).filter(tab => access.has(tab.id));
+  const currentActive = tabs.some(tab => tab.id === active) ? active : tabs[0]?.id || "influencers";
   return el(React.Fragment, null, el("div", {
     style: {
       minHeight: "100vh",
@@ -3054,15 +3149,15 @@ function TeamPanelStandalone({
       gap: 8,
       flexWrap: "wrap"
     }
-  }, isAdminLike && el(React.Fragment, null, el("button", {
+  }, isAdminLike && access.has("calendar") && el(React.Fragment, null, el("button", {
     className: "ghostbtn",
     style: S.ghostBtn,
     onClick: () => setImporting(true)
-  }, "Cargar calendario"), el("button", {
+  }, "Cargar calendario"), access.has("results") && el("button", {
     className: "ghostbtn",
     style: S.ghostBtn,
     onClick: () => setImportingResults(true)
-  }, "Cargar resultados"), el("button", {
+  }, "Cargar resultados"), access.has("activations") && el("button", {
     className: "primarybtn",
     style: S.primaryBtn,
     onClick: () => {
@@ -3075,11 +3170,11 @@ function TeamPanelStandalone({
     onClick: () => setActive(t.id),
     style: {
       ...S.ghostBtn,
-      background: active === t.id ? "#111827" : "#fff",
-      color: active === t.id ? "#fff" : "#111827",
-      borderColor: active === t.id ? "#111827" : "#E2E8F0"
+      background: currentActive === t.id ? "#111827" : "#fff",
+      color: currentActive === t.id ? "#fff" : "#111827",
+      borderColor: currentActive === t.id ? "#111827" : "#E2E8F0"
     }
-  }, t.label))), isAdminLike && !["mystery", "influencers", "social_report", "pop", "media_ooh", "branding"].includes(active) && el(Filters, {
+  }, t.label))), isAdminLike && !["mystery", "influencers", "social_report", "pop", "media_ooh", "branding"].includes(currentActive) && el(Filters, {
     zoneFilter,
     setZoneFilter,
     typeFilter,
@@ -3088,56 +3183,56 @@ function TeamPanelStandalone({
     setFrom,
     to,
     setTo,
-    showZoneType: active !== "global"
-  }), active === "global" && el(Global, {
+    showZoneType: currentActive !== "global"
+  }), currentActive === "global" && el(Global, {
     acts: filtered,
     qr,
     alloc
-  }), active === "results" && el(Results, {
+  }), currentActive === "results" && el(Results, {
     acts: filtered,
     qr,
     alloc
-  }), active === "map" && el(MapView, {
+  }), currentActive === "map" && el(MapView, {
     acts: filtered,
     alloc,
     onOpen: setEditing
-  }), active === "calendar" && el(CalendarView, {
+  }), currentActive === "calendar" && el(CalendarView, {
     acts: filtered,
     onOpen: setEditing,
     mystery,
     budgets: btlBudgets,
     setBudgets: setBtlBudgets
-  }), active === "activations" && el(ActivationList, {
+  }), currentActive === "activations" && el(ActivationList, {
     acts: filtered,
     alloc,
     onOpen: setEditing,
     onSave: saveAct,
     onNew: () => setEditing("new")
-  }), active === "agency" && el(AgencyPortal, {
+  }), currentActive === "agency" && el(AgencyPortal, {
     acts: filtered,
     onSave: saveAct,
     alloc,
     from,
     to
-  }), active === "mystery" && el(Mystery, {
+  }), currentActive === "mystery" && el(Mystery, {
     mystery,
     setMystery,
     acts,
     cfg
-  }), active === "social_report" && el(SocialMediaReport, {
+  }), currentActive === "social_report" && el(SocialMediaReport, {
     report: socialReport,
     onChange: setSocialReport
-  }), active === "media_ooh" && el(MediaOOH, {
+  }), currentActive === "media_ooh" && el(MediaOOH, {
     items: mediaAssets,
     setItems: setMediaAssets
-  }), active === "pop" && el(PopInventory, {
+  }), currentActive === "pop" && el(PopInventory, {
     items: popInventory,
     setItems: setPopInventory
-  }), active === "influencers" && el(InfluencerTracker, {
+  }), currentActive === "influencers" && el(InfluencerTracker, {
     items: influencers,
     onSave: saveInfluencer,
     onDelete: removeInfluencer
-  }), active === "branding" && el(BrandingInventoryV3, {
+  }), currentActive === "branding" && el(BrandingInventoryV3, {
     items: brandingInventory,
     setItems: setBrandingInventory
   }))), editing && el(Editor, {
@@ -3154,9 +3249,265 @@ function TeamPanelStandalone({
     onClose: () => setImportingResults(false)
   }));
 }
+function UsersAdmin({
+  users,
+  setUsers
+}) {
+  const el = React.createElement;
+  const [draft, setDraft] = useState({
+    label: "",
+    role: "Equipo",
+    adminLike: false
+  });
+  const accessByGroup = ACCESS_SECTIONS.reduce((acc, item) => {
+    acc[item.group] = [...(acc[item.group] || []), item];
+    return acc;
+  }, {});
+  const addUser = () => {
+    const next = normalizeTeamUser({
+      ...draft,
+      access: draft.adminLike ? ACCESS_SECTIONS.map(s => s.id) : ["pop", "influencers", "branding"]
+    });
+    if (!next.label || next.label === "Usuario") return alert("Ponle un nombre al usuario.");
+    if (users.some(user => user.id === next.id)) return alert("Ya existe un usuario con ese nombre.");
+    setUsers(previous => normalizeTeamUsers([...previous, next]));
+    setDraft({
+      label: "",
+      role: "Equipo",
+      adminLike: false
+    });
+  };
+  const patchUser = (id, patch) => setUsers(previous => normalizeTeamUsers(previous.map(user => user.id === id ? {
+    ...user,
+    ...patch
+  } : user)));
+  const toggleAccess = (user, sectionId) => {
+    const has = (user.access || []).includes(sectionId);
+    const nextAccess = has ? user.access.filter(id => id !== sectionId) : [...(user.access || []), sectionId];
+    patchUser(user.id, {
+      access: nextAccess
+    });
+  };
+  const removeUser = user => {
+    if (!confirm(`¿Eliminar a ${user.label}? Su data guardada en GitHub no se borra, solo se quita el acceso desde este Master.`)) return;
+    setUsers(previous => previous.filter(item => item.id !== user.id));
+  };
+  const userCard = user => {
+    const panelParams = new URLSearchParams({
+      panel: user.id,
+      name: user.label,
+      role: user.role,
+      admin: user.adminLike ? "1" : "0",
+      access: (user.access || []).join(",")
+    });
+    const panelUrl = `${location.origin}${location.pathname}?${panelParams.toString()}`;
+    return el("div", {
+      key: user.id,
+      style: {
+        border: "1px solid #E2E8F0",
+        borderRadius: 18,
+        background: "#fff",
+        padding: 16,
+        display: "grid",
+        gap: 14
+      }
+    }, el("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 12,
+        alignItems: "flex-start"
+      }
+    }, el("div", null, el("div", {
+      style: {
+        fontWeight: 950,
+        fontSize: 18
+      }
+    }, user.label), el("div", {
+      style: {
+        color: "#64748B",
+        fontSize: 12,
+        marginTop: 2
+      }
+    }, user.role, " · /?panel=", user.id)), el("div", {
+      style: {
+        display: "flex",
+        gap: 8,
+        flexWrap: "wrap",
+        justifyContent: "flex-end"
+      }
+    }, el("a", {
+      href: panelUrl,
+      target: "_blank",
+      rel: "noreferrer",
+      style: {
+        ...S.ghostBtn,
+        textDecoration: "none",
+        padding: "8px 10px",
+        fontSize: 12
+      }
+    }, "Abrir panel"), el("button", {
+      style: {
+        ...S.dangerBtn,
+        padding: "8px 10px",
+        fontSize: 12
+      },
+      onClick: () => removeUser(user)
+    }, "Eliminar"))), el("label", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        fontSize: 12,
+        fontWeight: 900,
+        color: "#334155"
+      }
+    }, el("input", {
+      type: "checkbox",
+      checked: Boolean(user.adminLike),
+      onChange: e => patchUser(user.id, {
+        adminLike: e.target.checked,
+        access: e.target.checked ? ACCESS_SECTIONS.map(s => s.id) : user.access
+      })
+    }), "Versión tipo Admin"), el("div", {
+      style: {
+        display: "grid",
+        gap: 12
+      }
+    }, Object.entries(accessByGroup).map(([group, sections]) => el("div", {
+      key: group,
+      style: {
+        display: "grid",
+        gap: 8
+      }
+    }, el("div", {
+      style: {
+        color: "#94A3B8",
+        fontSize: 10,
+        fontWeight: 950,
+        letterSpacing: ".08em",
+        textTransform: "uppercase"
+      }
+    }, group), el("div", {
+      style: {
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 8
+      }
+    }, sections.map(section => {
+      const checked = (user.access || []).includes(section.id);
+      return el("button", {
+        key: section.id,
+        className: "ghostbtn",
+        onClick: () => toggleAccess(user, section.id),
+        style: {
+          ...S.ghostBtn,
+          padding: "8px 10px",
+          fontSize: 12,
+          background: checked ? "#111827" : "#fff",
+          color: checked ? "#fff" : "#334155",
+          borderColor: checked ? "#111827" : "#E2E8F0"
+        }
+      }, checked ? "✓ " : "", section.label);
+    }))))));
+  };
+  return el(React.Fragment, null, el("div", {
+    style: {
+      ...S.resultBanner,
+      background: "linear-gradient(135deg,#111827,#E30613)"
+    }
+  }, el("div", null, el("div", {
+    style: {
+      fontWeight: 950,
+      fontSize: 20
+    }
+  }, "Usuarios"), el("div", {
+    style: {
+      opacity: .88,
+      fontSize: 12.5,
+      marginTop: 4
+    }
+  }, "Crea usuarios y define qué secciones puede ver cada panel."))), el("div", {
+    style: S.kpiGrid
+  }, el(Kpi, {
+    icon: IconUserPlus,
+    label: "Usuarios",
+    value: fmt(users.length),
+    accent: "#111827"
+  }), el(Kpi, {
+    icon: IconShield,
+    label: "Tipo Admin",
+    value: fmt(users.filter(u => u.adminLike).length),
+    accent: "#E30613"
+  }), el(Kpi, {
+    icon: IconCheck,
+    label: "Accesos activos",
+    value: fmt(users.reduce((sum, user) => sum + (user.access || []).length, 0)),
+    accent: "#16A34A"
+  })), el(Card, {
+    title: "Nuevo usuario",
+    hint: "El link se crea con el nombre del usuario. Ejemplo: Luis → ?panel=luis."
+  }, el("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "minmax(180px,1fr) minmax(160px,220px) auto auto",
+      gap: 10,
+      alignItems: "end"
+    }
+  }, el(Field, {
+    label: "Nombre"
+  }, el("input", {
+    style: S.input,
+    value: draft.label,
+    onChange: e => setDraft(previous => ({
+      ...previous,
+      label: e.target.value
+    })),
+    placeholder: "Ej. Valentina"
+  })), el(Field, {
+    label: "Rol"
+  }, el("input", {
+    style: S.input,
+    value: draft.role,
+    onChange: e => setDraft(previous => ({
+      ...previous,
+      role: e.target.value
+    })),
+    placeholder: "Ej. Agencia"
+  })), el("label", {
+    style: {
+      display: "flex",
+      gap: 8,
+      alignItems: "center",
+      fontWeight: 900,
+      fontSize: 12,
+      paddingBottom: 12
+    }
+  }, el("input", {
+    type: "checkbox",
+    checked: draft.adminLike,
+    onChange: e => setDraft(previous => ({
+      ...previous,
+      adminLike: e.target.checked
+    }))
+  }), "Tipo Admin"), el("button", {
+    className: "primarybtn",
+    style: S.primaryBtn,
+    onClick: addUser
+  }, "Crear usuario"))), el(Card, {
+    title: "Permisos por usuario",
+    hint: "Los botones negros son accesos activos. Si quitas una sección, ese usuario no la verá en su panel."
+  }, el("div", {
+    style: {
+      display: "grid",
+      gap: 12
+    }
+  }, users.map(userCard))));
+}
 function TeamPanelAdmin({
   onApply,
-  autoStatus = ""
+  autoStatus = "",
+  users = DEFAULT_TEAM_USERS
 }) {
   const el = React.createElement;
   const [items, setItems] = useState([]);
@@ -3166,7 +3517,7 @@ function TeamPanelAdmin({
     setLoading(true);
     setMsg("Actualizando desde GitHub...");
     try {
-      const rows = await Promise.all(TEAM_PANELS.map(async panel => {
+      const rows = await Promise.all(users.map(async panel => {
         const remote = await githubReadJson(teamPanelPath(panel.id));
         return normalizeTeamPayload(panel, remote.data || {});
       }));
@@ -3205,9 +3556,16 @@ function TeamPanelAdmin({
     key: h,
     style: S.th
   }, h)))), el("tbody", null, rows)));
-  const panelRows = TEAM_PANELS.map(panel => {
+  const panelRows = users.map(panel => {
     const row = items.find(x => x.panel === panel.id) || emptyTeamPayload(panel);
-    const link = `${location.origin}${location.pathname}?panel=${panel.id}`;
+    const panelParams = new URLSearchParams({
+      panel: panel.id,
+      name: panel.label,
+      role: panel.role,
+      admin: panel.adminLike ? "1" : "0",
+      access: (panel.access || []).join(",")
+    });
+    const link = `${location.origin}${location.pathname}?${panelParams.toString()}`;
     return el("tr", {
       key: panel.id
     }, el("td", {
@@ -3309,7 +3667,7 @@ function TeamPanelAdmin({
   }, el(Kpi, {
     icon: IconUserPlus,
     label: "Paneles",
-    value: fmt(TEAM_PANELS.length),
+    value: fmt(users.length),
     accent: "#111827"
   }), el(Kpi, {
     icon: IconTicket,
@@ -3496,6 +3854,10 @@ function Sidebar({
       id: "team_inputs",
       label: "Cargas equipo",
       icon: IconUserPlus
+    }, {
+      id: "users",
+      label: "Usuarios",
+      icon: IconShield
     }]
   }, {
     label: "Social Media",
@@ -3612,6 +3974,7 @@ function Header({
     pop_inventory: "Material POP · Inventario",
     branding: "Branding · Inventario",
     team_inputs: "Cargas equipo",
+    users: "Usuarios",
     influencers: "IG, TikTok e Influencers",
     social_report: "Reporte Social Media",
     mystery: "Mystery Shopper",
@@ -3621,6 +3984,7 @@ function Header({
     pop_inventory: "Control de stock, reservados, salidas y valor estimado",
     branding: "Oficina, partners, salidas y pérdida vs inventario real",
     team_inputs: "Paneles de Luis y Giselle conectados a GitHub",
+    users: "Crea usuarios y define accesos por sección",
     influencers: `${count} creadores registrados · performance orgánico y paid`,
     social_report: "Reporte mensual por plataforma · Venezuela",
     mystery: `${count} activaciones registradas · validación operativa`,
