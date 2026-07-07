@@ -1061,63 +1061,599 @@ function influencerBudget(i) {
   return Number(i.budget) || Number(i.closedBudget) || Number(i.negotiatedBudget) || 0;
 }
 const seedInfluencers = () => [{
-  id: "inf1",
+  id: "inf_csv_001",
   name: "Ana López",
   handle: "@analopez",
   tier: "micro",
   platform: "Instagram",
   igFollowers: 8500,
   tiktokFollowers: 0,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
   deliverables: ["Stories", "Reel"],
   budget: 150,
   paid: false,
+  paymentDate: "",
   recorded: true,
   published: false,
-  publishDate: offset(6),
+  publishDate: "2026-07-10",
   link: "",
-  promoCode: "",
+  tiktokLink: "",
   hasPromoCode: false,
+  promoCode: "",
   redemptions: 0,
-  igLikes: 0,
-  igShares: 0,
   igReach: 0,
-  igSaves: 0,
+  igLikes: 0,
   igComments: 0,
-  tiktokLikes: 0,
-  tiktokShares: 0,
+  igShares: 0,
+  igSaves: 0,
   tiktokReach: 0,
-  tiktokSaves: 0,
+  tiktokLikes: 0,
   tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
   notes: "Pendiente publicación."
 }, {
-  id: "inf2",
+  id: "inf_csv_002",
   name: "Carlos Rides",
   handle: "@carlosrides",
   tier: "influencer",
   platform: "IG + TikTok",
   igFollowers: 92000,
   tiktokFollowers: 135000,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
   deliverables: ["Reel", "TikTok", "Stories"],
   budget: 800,
   paid: true,
+  paymentDate: "",
   recorded: true,
   published: true,
-  publishDate: offset(-2),
+  publishDate: "2026-07-02",
   link: "",
-  promoCode: "CARLOSYANGO",
+  tiktokLink: "",
   hasPromoCode: true,
+  promoCode: "CARLOSYANGO",
   redemptions: 38,
-  igLikes: 840,
-  igShares: 52,
   igReach: 30000,
-  igSaves: 160,
+  igLikes: 840,
   igComments: 48,
-  tiktokLikes: 400,
-  tiktokShares: 34,
+  igShares: 52,
+  igSaves: 160,
   tiktokReach: 12000,
-  tiktokSaves: 60,
+  tiktokLikes: 400,
   tiktokComments: 26,
+  tiktokShares: 34,
+  tiktokSaves: 60,
   notes: "Buen fit para adquisición."
+}, {
+  id: "inf_csv_003",
+  name: "Fausto Antonino",
+  handle: "@faustoantonino",
+  tier: "influencer",
+  platform: "IG + TikTok",
+  igFollowers: 78200,
+  tiktokFollowers: 231800,
+  sameTiktokHandle: false,
+  tiktokHandle: "@faustitook",
+  deliverables: ["Reel", "TikTok"],
+  budget: 300,
+  paid: true,
+  paymentDate: "2026-06-30",
+  recorded: true,
+  published: true,
+  publishDate: "2026-06-22",
+  link: "https://www.instagram.com/reel/DZ51YT3sLtt/",
+  tiktokLink: "https://www.tiktok.com/@faustitook/video/7654333608743800085",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 48700,
+  igLikes: 0,
+  igComments: 224,
+  igShares: 159,
+  igSaves: 0,
+  tiktokReach: 167500,
+  tiktokLikes: 16900,
+  tiktokComments: 563,
+  tiktokShares: 5502,
+  tiktokSaves: 811,
+  notes: ""
+}, {
+  id: "inf_csv_004",
+  name: "Carla Ferreño",
+  handle: "@_carlacra",
+  tier: "influencer",
+  platform: "IG + TikTok",
+  igFollowers: 19300,
+  tiktokFollowers: 21600,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel", "TikTok"],
+  budget: 400,
+  paid: true,
+  paymentDate: "2026-07-06",
+  recorded: true,
+  published: true,
+  publishDate: "2026-06-20",
+  link: "https://www.instagram.com/reel/DZ0qtngPk_3/",
+  tiktokLink: "https://www.tiktok.com/@_carlacra/video/7653656015715519765",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 32700,
+  igLikes: 0,
+  igComments: 98,
+  igShares: 204,
+  igSaves: 0,
+  tiktokReach: 15000,
+  tiktokLikes: 1930,
+  tiktokComments: 17,
+  tiktokShares: 307,
+  tiktokSaves: 47,
+  notes: ""
+}, {
+  id: "inf_csv_005",
+  name: "Gloi",
+  handle: "@gloiandrisvialva",
+  tier: "influencer",
+  platform: "IG + TikTok",
+  igFollowers: 34000,
+  tiktokFollowers: 355300,
+  sameTiktokHandle: false,
+  tiktokHandle: "@gloiandris1406",
+  deliverables: ["Reel"],
+  budget: 300,
+  paid: true,
+  paymentDate: "2026-06-18",
+  recorded: true,
+  published: true,
+  publishDate: "2026-06-18",
+  link: "https://www.instagram.com/p/DZvRXhjP2_2/",
+  tiktokLink: "https://www.tiktok.com/@gloiandris1406/video/7652817808107195656",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 17600,
+  igLikes: 0,
+  igComments: 39,
+  igShares: 48,
+  igSaves: 0,
+  tiktokReach: 262300,
+  tiktokLikes: 45200,
+  tiktokComments: 374,
+  tiktokShares: 846,
+  tiktokSaves: 1245,
+  notes: ""
+}, {
+  id: "inf_csv_006",
+  name: "Germán Méndez",
+  handle: "@german_mendezz",
+  tier: "micro",
+  platform: "Instagram",
+  igFollowers: 39900,
+  tiktokFollowers: 146300,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel"],
+  budget: 150,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "",
+  link: "https://www.instagram.com/german_mendezz/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_007",
+  name: "churquito",
+  handle: "@elchurquito_",
+  tier: "micro",
+  platform: "Instagram",
+  igFollowers: 358000,
+  tiktokFollowers: 2100000,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel", "TikTok"],
+  budget: 850,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "",
+  link: "https://www.instagram.com/elchurquito_/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_008",
+  name: "Kelvyn Padilla",
+  handle: "@preguuntaseria",
+  tier: "influencer",
+  platform: "IG + TikTok",
+  igFollowers: 701000,
+  tiktokFollowers: 2200000,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel", "TikTok"],
+  budget: 1500,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "",
+  link: "https://www.instagram.com/preguuntaseria/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_009",
+  name: "Revista Amarilla",
+  handle: "@revistaamarilla.vzla",
+  tier: "influencer",
+  platform: "Instagram",
+  igFollowers: 437000,
+  tiktokFollowers: 699700,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Stories"],
+  budget: 420,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "",
+  link: "https://www.instagram.com/revistaamarilla.vzla/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_010",
+  name: "Peetfoodie",
+  handle: "@peetfoodie",
+  tier: "influencer",
+  platform: "Instagram",
+  igFollowers: 159000,
+  tiktokFollowers: 181500,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel", "TikTok"],
+  budget: 780,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "",
+  link: "https://www.instagram.com/peetfoodie/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_011",
+  name: "Karlenys",
+  handle: "@karlenys._15",
+  tier: "influencer",
+  platform: "IG + TikTok",
+  igFollowers: 647000,
+  tiktokFollowers: 2500000,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel", "TikTok"],
+  budget: 750,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "",
+  link: "https://www.instagram.com/karlenys._15/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_012",
+  name: "Eguita",
+  handle: "@eguitaa_",
+  tier: "influencer",
+  platform: "IG + TikTok",
+  igFollowers: 140000,
+  tiktokFollowers: 435200,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel", "TikTok"],
+  budget: 700,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "",
+  link: "https://www.instagram.com/eguitaa_/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_013",
+  name: "Valerie Perez",
+  handle: "@valerievperez",
+  tier: "influencer",
+  platform: "Instagram",
+  igFollowers: 115000,
+  tiktokFollowers: 504500,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel", "TikTok"],
+  budget: 350,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "",
+  link: "https://www.instagram.com/valerievperez/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_014",
+  name: "Adrián Epi",
+  handle: "@adrian_epi",
+  tier: "influencer",
+  platform: "Instagram",
+  igFollowers: 6208,
+  tiktokFollowers: 0,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel"],
+  budget: 65,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "",
+  link: "https://www.instagram.com/adrian_epi/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_015",
+  name: "Orianna Pérezz",
+  handle: "@oriannaperezz",
+  tier: "micro",
+  platform: "Instagram",
+  igFollowers: 19900,
+  tiktokFollowers: 0,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel"],
+  budget: 200,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "",
+  link: "https://www.instagram.com/oriannaperezz/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_016",
+  name: "Michiencaracas",
+  handle: "@michiencaracas",
+  tier: "influencer",
+  platform: "Instagram",
+  igFollowers: 272000,
+  tiktokFollowers: 0,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel"],
+  budget: 300,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "",
+  link: "https://www.instagram.com/michiencaracas/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_017",
+  name: "Valentinabelike",
+  handle: "@valentinabelike",
+  tier: "influencer",
+  platform: "Instagram",
+  igFollowers: 56300,
+  tiktokFollowers: 0,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Stories"],
+  budget: 950,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "",
+  link: "https://www.instagram.com/valentinabelike/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_018",
+  name: "Oscar Borges",
+  handle: "@oscaraleb",
+  tier: "influencer",
+  platform: "Instagram",
+  igFollowers: 11400,
+  tiktokFollowers: 0,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel"],
+  budget: 100,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "",
+  link: "https://www.instagram.com/oscaraleb/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
 }];
 const seedBtlBudgets = () => ({
   months: {},
@@ -1363,17 +1899,35 @@ function load(key, fb) {
 function normalizeInfluencerList(list) {
   return Array.isArray(list) ? list.map(i => influencerTemplate(i)) : [];
 }
+function influencerMergeKey(item) {
+  const name = String(item && item.name || "").trim().toLowerCase();
+  const handle = String(item && item.handle || "").trim().toLowerCase();
+  return name || handle ? `${name}|${handle}` : String(item && item.id || uid("inf"));
+}
+function mergeInfluencerLists(base, override) {
+  const map = new Map();
+  normalizeInfluencerList(base).forEach(item => map.set(influencerMergeKey(item), item));
+  normalizeInfluencerList(override).forEach(item => {
+    const key = influencerMergeKey(item);
+    map.set(key, {
+      ...(map.get(key) || {}),
+      ...item
+    });
+  });
+  return Array.from(map.values());
+}
 function loadInfluencersSafe() {
+  const seeded = normalizeInfluencerList(seedInfluencers());
   const primary = normalizeInfluencerList(load(INF_KEY, () => []));
-  if (primary.length) return primary;
+  if (primary.length) return primary.length < seeded.length ? mergeInfluencerLists(primary, seeded) : mergeInfluencerLists(seeded, primary);
   const backup = normalizeInfluencerList(load(INF_BACKUP_KEY, () => []));
-  if (backup.length) return backup;
+  if (backup.length) return backup.length < seeded.length ? mergeInfluencerLists(backup, seeded) : mergeInfluencerLists(seeded, backup);
   const snapshots = load(INF_SNAPSHOTS_KEY, () => []);
   if (Array.isArray(snapshots)) {
     const best = snapshots.map(s => normalizeInfluencerList(s && s.items)).sort((a, b) => b.length - a.length)[0];
-    if (best && best.length) return best;
+    if (best && best.length) return best.length < seeded.length ? mergeInfluencerLists(best, seeded) : mergeInfluencerLists(seeded, best);
   }
-  return normalizeInfluencerList(seedInfluencers());
+  return seeded;
 }
 function saveInfluencersSafe(items) {
   try {
@@ -7380,6 +7934,67 @@ function downloadInfluencerBackup(items) {
   a.click();
   URL.revokeObjectURL(url);
 }
+function csvNumber(value) {
+  const cleaned = String(value || "").replace("$", "").replaceAll(" ", "").replaceAll(".", "").replace(",", ".");
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? Math.round(n) : 0;
+}
+function csvBool(value) {
+  return ["sí", "si", "yes", "true", "1"].includes(String(value || "").trim().toLowerCase());
+}
+function csvHandle(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const match = text.match(/(?:instagram\.com\/|tiktok\.com\/@)([^/?#\s]+)/i);
+  if (match) return `@${match[1].replace("@", "")}`;
+  return text.startsWith("@") ? text : "";
+}
+function csvLink(value, domain) {
+  const text = String(value || "").trim();
+  return text.includes(domain) ? text : "";
+}
+function csvDeliverables(value) {
+  return String(value || "").split("+").map(x => x.trim()).filter(Boolean);
+}
+function influencerFromCsvRow(row, index = 0) {
+  const ig = csvHandle(row["Usuario IG"]);
+  const tt = csvHandle(row["Usuario TikTok"]);
+  const same = Boolean(ig && (!tt || ig.toLowerCase() === tt.toLowerCase()));
+  return influencerTemplate({
+    id: `inf_import_${Date.now()}_${index}`,
+    name: String(row.Nombre || "").trim(),
+    handle: ig,
+    tier: String(row.Tipo || "").toLowerCase().includes("influencer") && !String(row.Tipo || "").toLowerCase().includes("micro") ? "influencer" : "micro",
+    platform: String(row.Plataforma || "Instagram").trim(),
+    igFollowers: csvNumber(row["Followers IG"]),
+    tiktokFollowers: csvNumber(row["Followers TikTok"]),
+    sameTiktokHandle: same,
+    tiktokHandle: same ? "" : tt,
+    deliverables: csvDeliverables(row.Entregables),
+    budget: csvNumber(row.Presupuesto),
+    paid: csvBool(row.Pagado),
+    paymentDate: String(row["Fecha de pago"] || "").trim(),
+    recorded: csvBool(row.Grabó),
+    published: csvBool(row.Publicó),
+    publishDate: String(row["Fecha publicación"] || "").trim(),
+    link: String(row.Link || "").trim() || csvLink(row["Usuario IG"], "instagram.com"),
+    tiktokLink: String(row["Link TikTok"] || "").trim() || csvLink(row["Usuario TikTok"], "tiktok.com"),
+    hasPromoCode: csvBool(row["Tiene Promo Code"]),
+    promoCode: String(row["Promo Code"] || "").trim(),
+    redemptions: csvNumber(row.Redenciones),
+    igReach: csvNumber(row["IG Reach"]),
+    igLikes: csvNumber(row["IG Likes"]),
+    igComments: csvNumber(row["IG Comentarios"]),
+    igShares: csvNumber(row["IG Shares"]),
+    igSaves: csvNumber(row["IG Saves"]),
+    tiktokReach: csvNumber(row["TikTok Reach"]),
+    tiktokLikes: csvNumber(row["TikTok Likes"]),
+    tiktokComments: csvNumber(row["TikTok Comentarios"]),
+    tiktokShares: csvNumber(row["TikTok Shares"]),
+    tiktokSaves: csvNumber(row["TikTok Saves"]),
+    notes: String(row.Notas || "").trim()
+  });
+}
 function InfluencerTracker({
   items,
   onSave,
@@ -7465,6 +8080,31 @@ function InfluencerTracker({
     reader.readAsText(file);
     event.target.value = "";
   };
+  const importCSV = event => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        if (!window.XLSX) throw new Error("xlsx");
+        const workbook = XLSX.read(reader.result, {
+          type: "array"
+        });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rowsCsv = XLSX.utils.sheet_to_json(sheet, {
+          defval: ""
+        });
+        const imported = rowsCsv.map(influencerFromCsvRow).filter(i => i.name);
+        if (!imported.length) throw new Error("empty");
+        imported.forEach(onSave);
+        alert(`Listo: importé ${imported.length} influencers desde el CSV.`);
+      } catch (e) {
+        alert("No pude leer ese CSV. Usa el archivo descargado desde la sección de Influencers.");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    event.target.value = "";
+  };
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       ...S.resultBanner,
@@ -7529,6 +8169,21 @@ function InfluencerTracker({
     type: "file",
     accept: "application/json,.json",
     onChange: importBackup,
+    style: {
+      display: "none"
+    }
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "ghostbtn",
+    style: {
+      ...S.primaryBtn,
+      background: "#fff",
+      color: "#172554",
+      cursor: "pointer"
+    }
+  }, "Importar CSV", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: ".csv,text/csv",
+    onChange: importCSV,
     style: {
       display: "none"
     }
