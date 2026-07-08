@@ -826,6 +826,38 @@ const DEFAULT_TEAM_USERS = [{
   adminLike: false,
   access: ["pop", "influencers", "branding"]
 }];
+const SHARED_STATE_KEYS = [STORE_KEY, QR_KEY, MYS_KEY, CFG_KEY, INF_KEY, SOC_KEY, BTL_BUDGET_KEY, POP_KEY, MEDIA_KEY, BRANDING_KEY, USERS_KEY];
+const remoteSaveTimers = {};
+if (typeof window !== "undefined") window.__railwayHydrating = true;
+function apiEnabled() {
+  return typeof window !== "undefined" && window.location.protocol !== "file:";
+}
+async function fetchSharedState(keys = SHARED_STATE_KEYS) {
+  if (!apiEnabled()) return null;
+  const res = await fetch(`/api/state?keys=${encodeURIComponent(keys.join(","))}`, {
+    cache: "no-store"
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return res.json();
+}
+function saveSharedState(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {}
+  if (!apiEnabled() || window.__railwayHydrating) return;
+  clearTimeout(remoteSaveTimers[key]);
+  remoteSaveTimers[key] = setTimeout(() => {
+    fetch(`/api/state/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        value
+      })
+    }).catch(() => {});
+  }, 700);
+}
 const LIGHT_TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 const LIGHT_TILE_ATTR = "&copy; OpenStreetMap &copy; CARTO";
 const POP_CATEGORIES = ["Users General", "Drivers General", "Mundial", "Universidades"];
@@ -2362,57 +2394,38 @@ function App() {
   const [to, setTo] = useState("");
   const [teamSyncStatus, setTeamSyncStatus] = useState(() => localStorage.getItem(TEAM_AUTO_SYNC_KEY) ? "Sincronización automática activa." : "Buscando cargas del equipo...");
   useEffect(() => {
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(acts));
-    } catch (e) {}
+    saveSharedState(STORE_KEY, acts);
   }, [acts]);
   useEffect(() => {
-    try {
-      localStorage.setItem(QR_KEY, JSON.stringify(qr));
-    } catch (e) {}
+    saveSharedState(QR_KEY, qr);
   }, [qr]);
   useEffect(() => {
-    try {
-      localStorage.setItem(MYS_KEY, JSON.stringify(mystery));
-    } catch (e) {}
+    saveSharedState(MYS_KEY, mystery);
   }, [mystery]);
   useEffect(() => {
-    try {
-      localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
-    } catch (e) {}
+    saveSharedState(CFG_KEY, cfg);
   }, [cfg]);
   useEffect(() => {
     saveInfluencersSafe(influencers);
+    saveSharedState(INF_KEY, normalizeInfluencerList(influencers));
   }, [influencers]);
   useEffect(() => {
-    try {
-      localStorage.setItem(SOC_KEY, JSON.stringify(socialReport));
-    } catch (e) {}
+    saveSharedState(SOC_KEY, socialReport);
   }, [socialReport]);
   useEffect(() => {
-    try {
-      localStorage.setItem(BTL_BUDGET_KEY, JSON.stringify(btlBudgets));
-    } catch (e) {}
+    saveSharedState(BTL_BUDGET_KEY, btlBudgets);
   }, [btlBudgets]);
   useEffect(() => {
-    try {
-      localStorage.setItem(POP_KEY, JSON.stringify(popInventory));
-    } catch (e) {}
+    saveSharedState(POP_KEY, popInventory);
   }, [popInventory]);
   useEffect(() => {
-    try {
-      localStorage.setItem(MEDIA_KEY, JSON.stringify(mediaAssets));
-    } catch (e) {}
+    saveSharedState(MEDIA_KEY, mediaAssets);
   }, [mediaAssets]);
   useEffect(() => {
-    try {
-      localStorage.setItem(BRANDING_KEY, JSON.stringify(brandingInventory));
-    } catch (e) {}
+    saveSharedState(BRANDING_KEY, brandingInventory);
   }, [brandingInventory]);
   useEffect(() => {
-    try {
-      localStorage.setItem(USERS_KEY, JSON.stringify(teamUsers));
-    } catch (e) {}
+    saveSharedState(USERS_KEY, teamUsers);
   }, [teamUsers]);
   const save = a => {
     setActs(p => p.find(x => x.id === a.id) ? p.map(x => x.id === a.id ? a : x) : [...p, a]);
@@ -2524,6 +2537,48 @@ function App() {
       setTeamSyncStatus(`Sincronizado automáticamente con ${payload.panelLabel || "equipo"} · ${prettyDate(payload.updatedAt.slice(0, 10))}`);
     }
   };
+  const applySharedValues = values => {
+    if (!values) return;
+    window.__railwayHydrating = true;
+    if (values[STORE_KEY]) setActs(values[STORE_KEY]);
+    if (values[QR_KEY]) setQr(values[QR_KEY]);
+    if (values[MYS_KEY]) setMystery(values[MYS_KEY]);
+    if (values[CFG_KEY]) setCfg(values[CFG_KEY]);
+    if (values[INF_KEY]) setInfluencers(normalizeInfluencerList(values[INF_KEY]));
+    if (values[SOC_KEY]) setSocialReport(normalizeSocialReport(values[SOC_KEY]));
+    if (values[BTL_BUDGET_KEY]) setBtlBudgets(values[BTL_BUDGET_KEY]);
+    if (values[POP_KEY]) setPopInventory(values[POP_KEY]);
+    if (values[MEDIA_KEY]) setMediaAssets(values[MEDIA_KEY]);
+    if (values[BRANDING_KEY]) setBrandingInventory(values[BRANDING_KEY].map(normalizeBrandingItem));
+    if (values[USERS_KEY]) setTeamUsers(normalizeTeamUsers(values[USERS_KEY]));
+    setTimeout(() => {
+      window.__railwayHydrating = false;
+    }, 1000);
+  };
+  useEffect(() => {
+    let cancelled = false;
+    const syncRailwayState = async () => {
+      try {
+        const remote = await fetchSharedState(SHARED_STATE_KEYS);
+        if (cancelled || !remote || !remote.values) return;
+        applySharedValues(remote.values);
+        setTeamSyncStatus("Railway conectado · data central sincronizada.");
+      } catch (error) {
+        if (!cancelled && String(error.message || "").startsWith("API")) {
+          setTeamSyncStatus("Modo GitHub Pages/local activo. Railway se activará al deploy.");
+        }
+        setTimeout(() => {
+          window.__railwayHydrating = false;
+        }, 1000);
+      }
+    };
+    syncRailwayState();
+    const timer = setInterval(syncRailwayState, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
   useEffect(() => {
     if (!masterUnlocked) return;
     let cancelled = false;
@@ -2764,6 +2819,38 @@ function TeamPanelStandalone({
   const [influencers, setInfluencers] = useState(() => normalizeInfluencerList(load(`yango_team_${panel.id}_influencers`, () => loadInfluencersSafe())));
   const [brandingInventory, setBrandingInventory] = useState(() => load(`yango_team_${panel.id}_branding`, () => load(BRANDING_KEY, seedBrandingInventory)).map(normalizeBrandingItem));
   useEffect(() => {
+    let cancelled = false;
+    const hydratePanel = async () => {
+      try {
+        const remote = await fetchSharedState(SHARED_STATE_KEYS);
+        if (cancelled || !remote || !remote.values) return;
+        const values = remote.values;
+        window.__railwayHydrating = true;
+        if (values[STORE_KEY]) setActs(values[STORE_KEY]);
+        if (values[QR_KEY]) setQr(values[QR_KEY]);
+        if (values[MYS_KEY]) setMystery(values[MYS_KEY]);
+        if (values[SOC_KEY]) setSocialReport(normalizeSocialReport(values[SOC_KEY]));
+        if (values[BTL_BUDGET_KEY]) setBtlBudgets(values[BTL_BUDGET_KEY]);
+        if (values[MEDIA_KEY]) setMediaAssets(values[MEDIA_KEY]);
+        if (values[POP_KEY]) setPopInventory(values[POP_KEY]);
+        if (values[INF_KEY]) setInfluencers(normalizeInfluencerList(values[INF_KEY]));
+        if (values[BRANDING_KEY]) setBrandingInventory(values[BRANDING_KEY].map(normalizeBrandingItem));
+        setMsg("Railway conectado · data central cargada.");
+        setTimeout(() => {
+          window.__railwayHydrating = false;
+        }, 1000);
+      } catch (error) {
+        setTimeout(() => {
+          window.__railwayHydrating = false;
+        }, 1000);
+      }
+    };
+    hydratePanel();
+    return () => {
+      cancelled = true;
+    };
+  }, [panel.id]);
+  useEffect(() => {
     try {
       localStorage.setItem(tokenKey, token);
     } catch (e) {}
@@ -2772,46 +2859,55 @@ function TeamPanelStandalone({
     try {
       localStorage.setItem(`yango_team_${panel.id}_acts`, JSON.stringify(acts));
     } catch (e) {}
+    if (isAdminLike || (panel.access || []).includes("activations")) saveSharedState(STORE_KEY, acts);
   }, [acts]);
   useEffect(() => {
     try {
       localStorage.setItem(`yango_team_${panel.id}_qr`, JSON.stringify(qr));
     } catch (e) {}
+    if (isAdminLike || (panel.access || []).includes("results")) saveSharedState(QR_KEY, qr);
   }, [qr]);
   useEffect(() => {
     try {
       localStorage.setItem(`yango_team_${panel.id}_mystery`, JSON.stringify(mystery));
     } catch (e) {}
+    if (isAdminLike || (panel.access || []).includes("mystery")) saveSharedState(MYS_KEY, mystery);
   }, [mystery]);
   useEffect(() => {
     try {
       localStorage.setItem(`yango_team_${panel.id}_social`, JSON.stringify(socialReport));
     } catch (e) {}
+    if (isAdminLike || (panel.access || []).includes("social_report")) saveSharedState(SOC_KEY, socialReport);
   }, [socialReport]);
   useEffect(() => {
     try {
       localStorage.setItem(`yango_team_${panel.id}_budgets`, JSON.stringify(btlBudgets));
     } catch (e) {}
+    if (isAdminLike || (panel.access || []).includes("calendar")) saveSharedState(BTL_BUDGET_KEY, btlBudgets);
   }, [btlBudgets]);
   useEffect(() => {
     try {
       localStorage.setItem(`yango_team_${panel.id}_media`, JSON.stringify(mediaAssets));
     } catch (e) {}
+    if (isAdminLike || (panel.access || []).includes("media_ooh")) saveSharedState(MEDIA_KEY, mediaAssets);
   }, [mediaAssets]);
   useEffect(() => {
     try {
       localStorage.setItem(`yango_team_${panel.id}_pop`, JSON.stringify(popInventory));
     } catch (e) {}
+    if (isAdminLike || (panel.access || []).includes("pop")) saveSharedState(POP_KEY, popInventory);
   }, [popInventory]);
   useEffect(() => {
     try {
       localStorage.setItem(`yango_team_${panel.id}_influencers`, JSON.stringify(influencers));
     } catch (e) {}
+    if (isAdminLike || (panel.access || []).includes("influencers")) saveSharedState(INF_KEY, normalizeInfluencerList(influencers));
   }, [influencers]);
   useEffect(() => {
     try {
       localStorage.setItem(`yango_team_${panel.id}_branding`, JSON.stringify(brandingInventory));
     } catch (e) {}
+    if (isAdminLike || (panel.access || []).includes("branding")) saveSharedState(BRANDING_KEY, brandingInventory);
   }, [brandingInventory]);
   const unlock = e => {
     e.preventDefault();
@@ -3022,6 +3118,7 @@ function TeamPanelStandalone({
   const filtered = acts.filter(a => (zoneFilter === "all" || a.zone === zoneFilter) && (typeFilter === "all" || a.type === typeFilter) && inRange(a.date, from, to));
   const alloc = useMemo(() => allocate(acts, qr), [acts, qr]);
   const access = new Set(panel.access && panel.access.length ? panel.access : ACCESS_SECTIONS.map(s => s.id));
+  const railwayMode = apiEnabled();
   const tabs = (isAdminLike ? [{
     id: "global",
     label: "Vista global"
@@ -3100,7 +3197,7 @@ function TeamPanelStandalone({
       opacity: .88,
       marginTop: 4
     }
-  }, "Lo que guardes aquí queda en GitHub y se ve en el Master Panel.")), el("a", {
+  }, railwayMode ? "Lo que guardes aquí queda en Railway y se ve en el Master Panel." : "Lo que guardes aquí queda en GitHub y se ve en el Master Panel.")), el("a", {
     href: location.pathname,
     style: {
       ...S.primaryBtn,
@@ -3110,8 +3207,18 @@ function TeamPanelStandalone({
     }
   }, "Abrir Master")), el(Card, {
     title: "Sincronización",
-    hint: "El token se guarda solo en esta computadora. No queda escrito en la página."
-  }, el("div", {
+    hint: railwayMode ? "Railway guarda automáticamente cada cambio en la base de datos central." : "Fallback GitHub Pages: usa token solo si necesitas guardar en archivos JSON."
+  }, railwayMode ? el("div", {
+    style: {
+      padding: "12px 14px",
+      borderRadius: 14,
+      background: "#ECFDF5",
+      color: "#047857",
+      border: "1px solid #A7F3D0",
+      fontWeight: 900,
+      fontSize: 12.5
+    }
+  }, msg || "Railway conectado · guardado automático activo.") : el("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "minmax(240px,1fr) auto auto",
