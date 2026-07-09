@@ -802,6 +802,7 @@ const STORE_KEY = "yango_btl_h1",
   POP_KEY = "yango_pop_inventory_h1",
   MEDIA_KEY = "yango_media_ooh_h1",
   BRANDING_KEY = "yango_branding_inventory_h1",
+  SAMSUNG_RAFFLE_KEY = "yango_samsung_raffle_h1",
   USERS_KEY = "yango_team_users_h1";
 const MASTER_PASS = "Yango2026!";
 const TEAM_PANEL_PASSWORDS = {
@@ -849,6 +850,10 @@ const ACCESS_SECTIONS = [{
   label: "Branding",
   group: "Branding"
 }, {
+  id: "samsung_raffle",
+  label: "Rifa Samsung",
+  group: "Rifa"
+}, {
   id: "influencers",
   label: "Influencers",
   group: "Social Media"
@@ -876,7 +881,7 @@ const DEFAULT_TEAM_USERS = [{
   password: TEAM_PANEL_PASSWORDS.giselle,
   access: ["pop", "influencers", "branding"]
 }];
-const SHARED_STATE_KEYS = [STORE_KEY, QR_KEY, MYS_KEY, CFG_KEY, INF_KEY, SOC_KEY, BTL_BUDGET_KEY, POP_KEY, MEDIA_KEY, BRANDING_KEY, USERS_KEY];
+const SHARED_STATE_KEYS = [STORE_KEY, QR_KEY, MYS_KEY, CFG_KEY, INF_KEY, SOC_KEY, BTL_BUDGET_KEY, POP_KEY, MEDIA_KEY, BRANDING_KEY, SAMSUNG_RAFFLE_KEY, USERS_KEY];
 const remoteSaveTimers = {};
 if (typeof window !== "undefined") window.__railwayHydrating = true;
 function apiEnabled() {
@@ -2134,6 +2139,7 @@ const seedInfluencers = () => [{
   tiktokSaves: 0,
   notes: ""
 }];
+const seedSamsungRaffle = () => [{"id":"samsung_01","rank":1,"uid":"2379367571","completedTrips":158,"phone":"+584126325768","prize":"SAMSUNG A57 128 GB","prizeGroup":"Top 5","status":"pending","address":"","notes":""},{"id":"samsung_02","rank":2,"uid":"2284692753","completedTrips":140,"phone":"+584123097466","prize":"SAMSUNG A57 128 GB","prizeGroup":"Top 5","status":"pending","address":"","notes":""},{"id":"samsung_03","rank":3,"uid":"2292835646","completedTrips":121,"phone":"+584120605147","prize":"SAMSUNG A57 128 GB","prizeGroup":"Top 5","status":"pending","address":"","notes":""},{"id":"samsung_04","rank":4,"uid":"2368400652","completedTrips":104,"phone":"+584242104661","prize":"SAMSUNG A57 128 GB","prizeGroup":"Top 5","status":"pending","address":"","notes":""},{"id":"samsung_05","rank":5,"uid":"2226889454","completedTrips":99,"phone":"+584242405088","prize":"SAMSUNG A57 128 GB","prizeGroup":"Top 5","status":"pending","address":"","notes":""},{"id":"samsung_06","rank":6,"uid":"2306180437","completedTrips":96,"phone":"+584241931226","prize":"SAMSUNG TV 43 UN43T5300APXPA","prizeGroup":"Ranks 6-15","status":"pending","address":"","notes":""},{"id":"samsung_07","rank":7,"uid":"2309159487","completedTrips":93,"phone":"+584244162151","prize":"SAMSUNG TV 43 UN43T5300APXPA","prizeGroup":"Ranks 6-15","status":"pending","address":"","notes":""},{"id":"samsung_08","rank":8,"uid":"2309226093","completedTrips":90,"phone":"+584241542157","prize":"SAMSUNG TV 43 UN43T5300APXPA","prizeGroup":"Ranks 6-15","status":"pending","address":"","notes":""},{"id":"samsung_09","rank":9,"uid":"2334640396","completedTrips":88,"phone":"+584128521211","prize":"SAMSUNG TV 43 UN43T5300APXPA","prizeGroup":"Ranks 6-15","status":"pending","address":"","notes":""},{"id":"samsung_10","rank":10,"uid":"2324580863","completedTrips":86,"phone":"+584125371268","prize":"SAMSUNG TV 43 UN43T5300APXPA","prizeGroup":"Ranks 6-15","status":"pending","address":"","notes":""},{"id":"samsung_11","rank":11,"uid":"2322627805","completedTrips":84,"phone":"+584241338012","prize":"SAMSUNG TV 43 UN43T5300APXPA","prizeGroup":"Ranks 6-15","status":"pending","address":"","notes":""},{"id":"samsung_12","rank":12,"uid":"2226478656","completedTrips":83,"phone":"+584121914082","prize":"SAMSUNG TV 43 UN43T5300APXPA","prizeGroup":"Ranks 6-15","status":"pending","address":"","notes":""},{"id":"samsung_13","rank":13,"uid":"2234348510","completedTrips":82,"phone":"+584126197286","prize":"SAMSUNG TV 43 UN43T5300APXPA","prizeGroup":"Ranks 6-15","status":"pending","address":"","notes":""},{"id":"samsung_14","rank":14,"uid":"2254679768","completedTrips":82,"phone":"+584123339537","prize":"SAMSUNG TV 43 UN43T5300APXPA","prizeGroup":"Ranks 6-15","status":"pending","address":"","notes":""},{"id":"samsung_15","rank":15,"uid":"2229728119","completedTrips":80,"phone":"+584129854595","prize":"SAMSUNG TV 43 UN43T5300APXPA","prizeGroup":"Ranks 6-15","status":"pending","address":"","notes":""},{"id":"samsung_16","rank":16,"uid":"2258289474","completedTrips":79,"phone":"+584241236727","prize":"SAMSUNG TAB A11 64GB","prizeGroup":"Ranks 16-25","status":"pending","address":"","notes":""},{"id":"samsung_17","rank":17,"uid":"2323357257","completedTrips":79,"phone":"+584242303761","prize":"SAMSUNG TAB A11 64GB","prizeGroup":"Ranks 16-25","status":"pending","address":"","notes":""},{"id":"samsung_18","rank":18,"uid":"2273643724","completedTrips":77,"phone":"+584129375788","prize":"SAMSUNG TAB A11 64GB","prizeGroup":"Ranks 16-25","status":"pending","address":"","notes":""},{"id":"samsung_19","rank":19,"uid":"2227189451","completedTrips":76,"phone":"+584120202603","prize":"SAMSUNG TAB A11 64GB","prizeGroup":"Ranks 16-25","status":"pending","address":"","notes":""},{"id":"samsung_20","rank":20,"uid":"2373484358","completedTrips":76,"phone":"+584242199433","prize":"SAMSUNG TAB A11 64GB","prizeGroup":"Ranks 16-25","status":"pending","address":"","notes":""},{"id":"samsung_21","rank":21,"uid":"2381182674","completedTrips":76,"phone":"+584140333341","prize":"SAMSUNG TAB A11 64GB","prizeGroup":"Ranks 16-25","status":"pending","address":"","notes":""},{"id":"samsung_22","rank":22,"uid":"2381628561","completedTrips":76,"phone":"+584241257600","prize":"SAMSUNG TAB A11 64GB","prizeGroup":"Ranks 16-25","status":"pending","address":"","notes":""},{"id":"samsung_23","rank":23,"uid":"2233873479","completedTrips":75,"phone":"+584142466490","prize":"SAMSUNG TAB A11 64GB","prizeGroup":"Ranks 16-25","status":"pending","address":"","notes":""},{"id":"samsung_24","rank":24,"uid":"2363331691","completedTrips":75,"phone":"+584241659750","prize":"SAMSUNG TAB A11 64GB","prizeGroup":"Ranks 16-25","status":"pending","address":"","notes":""},{"id":"samsung_25","rank":25,"uid":"2234288123","completedTrips":74,"phone":"+584123761029","prize":"SAMSUNG TAB A11 64GB","prizeGroup":"Ranks 16-25","status":"pending","address":"","notes":""},{"id":"samsung_26","rank":26,"uid":"2335392350","completedTrips":74,"phone":"+584126300579","prize":"SAMSUNG TV 32 UN32T4202APXPA","prizeGroup":"Ranks 26-35","status":"pending","address":"","notes":""},{"id":"samsung_27","rank":27,"uid":"2360473370","completedTrips":74,"phone":"+584242764353","prize":"SAMSUNG TV 32 UN32T4202APXPA","prizeGroup":"Ranks 26-35","status":"pending","address":"","notes":""},{"id":"samsung_28","rank":28,"uid":"2381121341","completedTrips":74,"phone":"+584241594783","prize":"SAMSUNG TV 32 UN32T4202APXPA","prizeGroup":"Ranks 26-35","status":"pending","address":"","notes":""},{"id":"samsung_29","rank":29,"uid":"2338051233","completedTrips":73,"phone":"+584242029031","prize":"SAMSUNG TV 32 UN32T4202APXPA","prizeGroup":"Ranks 26-35","status":"pending","address":"","notes":""},{"id":"samsung_30","rank":30,"uid":"2228616666","completedTrips":72,"phone":"+584242848009","prize":"SAMSUNG TV 32 UN32T4202APXPA","prizeGroup":"Ranks 26-35","status":"pending","address":"","notes":""},{"id":"samsung_31","rank":31,"uid":"2230420614","completedTrips":72,"phone":"+584129179544","prize":"SAMSUNG TV 32 UN32T4202APXPA","prizeGroup":"Ranks 26-35","status":"pending","address":"","notes":""},{"id":"samsung_32","rank":32,"uid":"2370850956","completedTrips":72,"phone":"+584129230824","prize":"SAMSUNG TV 32 UN32T4202APXPA","prizeGroup":"Ranks 26-35","status":"pending","address":"","notes":""},{"id":"samsung_33","rank":33,"uid":"2256169807","completedTrips":71,"phone":"+584241808358","prize":"SAMSUNG TV 32 UN32T4202APXPA","prizeGroup":"Ranks 26-35","status":"pending","address":"","notes":""},{"id":"samsung_34","rank":34,"uid":"2236268253","completedTrips":70,"phone":"+584249336186","prize":"SAMSUNG TV 32 UN32T4202APXPA","prizeGroup":"Ranks 26-35","status":"pending","address":"","notes":""},{"id":"samsung_35","rank":35,"uid":"2306637058","completedTrips":70,"phone":"+584142006259","prize":"SAMSUNG TV 32 UN32T4202APXPA","prizeGroup":"Ranks 26-35","status":"pending","address":"","notes":""},{"id":"samsung_36","rank":36,"uid":"2231736711","completedTrips":69,"phone":"+584144072546","prize":"SAMSUNG A07 64 GB","prizeGroup":"Ranks 36-40","status":"pending","address":"","notes":""},{"id":"samsung_37","rank":37,"uid":"2233803439","completedTrips":69,"phone":"+584169073894","prize":"SAMSUNG A07 64 GB","prizeGroup":"Ranks 36-40","status":"pending","address":"","notes":""},{"id":"samsung_38","rank":38,"uid":"2291505764","completedTrips":69,"phone":"+584149104329","prize":"SAMSUNG A07 64 GB","prizeGroup":"Ranks 36-40","status":"pending","address":"","notes":""},{"id":"samsung_39","rank":39,"uid":"2353910515","completedTrips":69,"phone":"+584121536633","prize":"SAMSUNG A07 64 GB","prizeGroup":"Ranks 36-40","status":"pending","address":"","notes":""},{"id":"samsung_40","rank":40,"uid":"2381218847","completedTrips":68,"phone":"+584241099338","prize":"SAMSUNG A07 64 GB","prizeGroup":"Ranks 36-40","status":"pending","address":"","notes":""}];
 const seedBtlBudgets = () => ({
   months: {},
   quarters: {}
@@ -2375,6 +2381,69 @@ function load(key, fb) {
   } catch (e) {}
   return fb();
 }
+const SAMSUNG_RAFFLE_STATUSES = [{
+  id: "pending",
+  label: "Pendiente contacto",
+  color: "#64748B",
+  bg: "#F1F5F9"
+}, {
+  id: "contacted",
+  label: "Contactado",
+  color: "#2563EB",
+  bg: "#DBEAFE"
+}, {
+  id: "no_response",
+  label: "No ha respondido",
+  color: "#DC2626",
+  bg: "#FEE2E2"
+}, {
+  id: "responded",
+  label: "Respondió",
+  color: "#7C3AED",
+  bg: "#EDE9FE"
+}, {
+  id: "address",
+  label: "Dirección recibida",
+  color: "#D97706",
+  bg: "#FEF3C7"
+}, {
+  id: "delivered",
+  label: "Entregado",
+  color: "#16A34A",
+  bg: "#DCFCE7"
+}];
+function samsungStatusOf(status) {
+  return SAMSUNG_RAFFLE_STATUSES.find(item => item.id === status) || SAMSUNG_RAFFLE_STATUSES[0];
+}
+function normalizeSamsungRaffleItem(item = {}) {
+  const fallback = seedSamsungRaffle().find(row => row.id === item.id || row.rank === Number(item.rank)) || {};
+  const status = SAMSUNG_RAFFLE_STATUSES.some(s => s.id === item.status) ? item.status : fallback.status || "pending";
+  return {
+    id: String(item.id || fallback.id || uid("samsung")),
+    rank: Number(item.rank || fallback.rank) || 0,
+    uid: String(item.uid || fallback.uid || ""),
+    completedTrips: Number(item.completedTrips || item.completed_trips || fallback.completedTrips) || 0,
+    phone: String(item.phone || fallback.phone || ""),
+    prize: String(item.prize || item.assigned_prize || fallback.prize || ""),
+    prizeGroup: String(item.prizeGroup || item.prize_group || fallback.prizeGroup || ""),
+    status,
+    address: String(item.address || ""),
+    notes: String(item.notes || ""),
+    updatedAt: item.updatedAt || ""
+  };
+}
+function normalizeSamsungRaffle(list) {
+  const map = new Map(seedSamsungRaffle().map(item => [item.id, normalizeSamsungRaffleItem(item)]));
+  (Array.isArray(list) ? list : []).forEach(item => {
+    const normalized = normalizeSamsungRaffleItem(item);
+    const key = normalized.id || `rank_${normalized.rank}`;
+    map.set(key, {
+      ...(map.get(key) || {}),
+      ...normalized
+    });
+  });
+  return [...map.values()].sort((a, b) => a.rank - b.rank);
+}
 function normalizeInfluencerList(list) {
   return Array.isArray(list) ? list.map(i => influencerTemplate(i)) : [];
 }
@@ -2435,12 +2504,13 @@ function normalizeTeamUser(user = {}) {
   const label = String(user.label || user.name || "Usuario").trim();
   const id = userSlug(user.id || label);
   const defaultUser = DEFAULT_TEAM_USERS.find(item => item.id === id);
-  const access = Array.isArray(user.access) && user.access.length ? user.access.filter(id => ACCESS_SECTIONS.some(s => s.id === id)) : ["pop", "influencers", "branding"];
+  const adminLike = Boolean(user.adminLike);
+  const access = adminLike ? ACCESS_SECTIONS.map(s => s.id) : Array.isArray(user.access) && user.access.length ? user.access.filter(id => ACCESS_SECTIONS.some(s => s.id === id)) : ["pop", "influencers", "branding"];
   return {
     id: id || uid("user"),
     label,
     role: String(user.role || "Equipo").trim(),
-    adminLike: Boolean(user.adminLike),
+    adminLike,
     password: String(user.password || TEAM_PANEL_PASSWORDS[id] || (defaultUser && defaultUser.password) || MASTER_PASS),
     access
   };
@@ -2468,7 +2538,8 @@ function emptyTeamPayload(panel) {
     mediaAssets: [],
     popInventory: [],
     influencers: [],
-    brandingInventory: []
+    brandingInventory: [],
+    samsungRaffle: []
   };
 }
 function normalizeTeamPayload(panel, data = {}) {
@@ -2485,7 +2556,8 @@ function normalizeTeamPayload(panel, data = {}) {
     mediaAssets: Array.isArray(data.mediaAssets) ? data.mediaAssets : [],
     popInventory: Array.isArray(data.popInventory) ? data.popInventory : [],
     influencers: normalizeInfluencerList(data.influencers || []),
-    brandingInventory: Array.isArray(data.brandingInventory) ? data.brandingInventory.map(normalizeBrandingItem) : []
+    brandingInventory: Array.isArray(data.brandingInventory) ? data.brandingInventory.map(normalizeBrandingItem) : [],
+    samsungRaffle: normalizeSamsungRaffle(data.samsungRaffle || [])
   };
 }
 function teamPanelPath(panelId) {
@@ -2766,6 +2838,7 @@ function App() {
   const [popInventory, setPopInventory] = useState(() => load(POP_KEY, seedPopInventory));
   const [mediaAssets, setMediaAssets] = useState(() => load(MEDIA_KEY, seedMediaAssets));
   const [brandingInventory, setBrandingInventory] = useState(() => load(BRANDING_KEY, seedBrandingInventory).map(normalizeBrandingItem));
+  const [samsungRaffle, setSamsungRaffle] = useState(() => normalizeSamsungRaffle(load(SAMSUNG_RAFFLE_KEY, seedSamsungRaffle)));
   const [teamUsers, setTeamUsers] = useState(() => normalizeTeamUsers(load(USERS_KEY, () => DEFAULT_TEAM_USERS)));
   const [masterUnlocked, setMasterUnlocked] = useState(() => sessionStorage.getItem("yango_master_unlocked") === "1");
   const [tab, setTab] = useState("global");
@@ -2809,6 +2882,9 @@ function App() {
   useEffect(() => {
     saveSharedState(BRANDING_KEY, brandingInventory);
   }, [brandingInventory]);
+  useEffect(() => {
+    saveSharedState(SAMSUNG_RAFFLE_KEY, normalizeSamsungRaffle(samsungRaffle));
+  }, [samsungRaffle]);
   useEffect(() => {
     saveSharedState(USERS_KEY, teamUsers);
   }, [teamUsers]);
@@ -2915,6 +2991,7 @@ function App() {
     if (payload.popInventory && payload.popInventory.length) setPopInventory(payload.popInventory);
     if (payload.influencers && payload.influencers.length) setInfluencers(mergeInfluencerSeeds(payload.influencers));
     if (payload.brandingInventory && payload.brandingInventory.length) setBrandingInventory(payload.brandingInventory.map(normalizeBrandingItem));
+    if (payload.samsungRaffle && payload.samsungRaffle.length) setSamsungRaffle(normalizeSamsungRaffle(payload.samsungRaffle));
     if (payload.updatedAt) {
       try {
         localStorage.setItem(TEAM_AUTO_SYNC_KEY, payload.updatedAt);
@@ -2941,6 +3018,7 @@ function App() {
     if (values[POP_KEY]) setPopInventory(values[POP_KEY]);
     if (values[MEDIA_KEY]) setMediaAssets(values[MEDIA_KEY]);
     if (values[BRANDING_KEY]) setBrandingInventory(values[BRANDING_KEY].map(normalizeBrandingItem));
+    if (values[SAMSUNG_RAFFLE_KEY]) setSamsungRaffle(normalizeSamsungRaffle(values[SAMSUNG_RAFFLE_KEY]));
     if (values[USERS_KEY]) setTeamUsers(normalizeTeamUsers(values[USERS_KEY]));
     setTimeout(() => {
       window.__railwayHydrating = false;
@@ -2957,6 +3035,7 @@ function App() {
     saveSharedState(POP_KEY, popInventory);
     saveSharedState(MEDIA_KEY, mediaAssets);
     saveSharedState(BRANDING_KEY, brandingInventory);
+    saveSharedState(SAMSUNG_RAFFLE_KEY, normalizeSamsungRaffle(samsungRaffle));
     saveSharedState(USERS_KEY, teamUsers);
   };
   useEffect(() => {
@@ -2966,11 +3045,15 @@ function App() {
         const remote = await fetchSharedState(SHARED_STATE_KEYS);
         if (cancelled || !remote || !remote.values) return;
         const isEmptyDatabase = !Object.keys(remote.values).length;
+        const hasSamsungRaffle = Boolean(remote.values[SAMSUNG_RAFFLE_KEY]);
         applySharedValues(remote.values);
         if (isEmptyDatabase) {
           setTeamSyncStatus("Railway conectado · sembrando data inicial del Master...");
           setTimeout(pushCurrentSharedState, 1300);
         } else {
+          if (!hasSamsungRaffle) {
+            setTimeout(() => saveSharedState(SAMSUNG_RAFFLE_KEY, normalizeSamsungRaffle(samsungRaffle)), 1300);
+          }
           setTeamSyncStatus("Railway conectado · data central sincronizada.");
         }
       } catch (error) {
@@ -3071,11 +3154,11 @@ function App() {
     style: S.main
   }, /*#__PURE__*/React.createElement(Header, {
     tab: tab,
-    count: tab === "influencers" ? influencers.length : tab === "social_report" ? socialReport.months.length : tab === "pop_inventory" ? popInventory.length : tab === "media_ooh" ? mediaAssets.length : tab === "branding" ? brandingInventory.length : tab === "users" ? teamUsers.length : acts.length,
+    count: tab === "influencers" ? influencers.length : tab === "social_report" ? socialReport.months.length : tab === "pop_inventory" ? popInventory.length : tab === "media_ooh" ? mediaAssets.length : tab === "branding" ? brandingInventory.length : tab === "samsung_raffle" ? samsungRaffle.length : tab === "users" ? teamUsers.length : acts.length,
     onMenu: () => setMenuOpen(v => !v)
   }), /*#__PURE__*/React.createElement("div", {
     style: S.content
-  }, !["mystery", "influencers", "social_report", "pop_inventory", "media_ooh", "branding", "users"].includes(tab) && /*#__PURE__*/React.createElement(Filters, {
+  }, !["mystery", "influencers", "social_report", "pop_inventory", "media_ooh", "branding", "samsung_raffle", "users"].includes(tab) && /*#__PURE__*/React.createElement(Filters, {
     zoneFilter,
     setZoneFilter,
     typeFilter,
@@ -3141,6 +3224,9 @@ function App() {
   }), tab === "branding" && /*#__PURE__*/React.createElement(BrandingInventoryV3, {
     items: brandingInventory,
     setItems: setBrandingInventory
+  }), tab === "samsung_raffle" && /*#__PURE__*/React.createElement(SamsungRaffleTracker, {
+    items: samsungRaffle,
+    setItems: setSamsungRaffle
   }), tab === "users" && /*#__PURE__*/React.createElement(UsersAdmin, {
     users: teamUsers,
     setUsers: setTeamUsers
@@ -3225,6 +3311,7 @@ function TeamPanelStandalone({
   const [popInventory, setPopInventory] = useState(() => load(`yango_team_${panel.id}_pop`, () => load(POP_KEY, seedPopInventory)));
   const [influencers, setInfluencers] = useState(() => mergeInfluencerSeeds(load(`yango_team_${panel.id}_influencers`, () => loadInfluencersSafe())));
   const [brandingInventory, setBrandingInventory] = useState(() => load(`yango_team_${panel.id}_branding`, () => load(BRANDING_KEY, seedBrandingInventory)).map(normalizeBrandingItem));
+  const [samsungRaffle, setSamsungRaffle] = useState(() => normalizeSamsungRaffle(load(`yango_team_${panel.id}_samsung`, () => load(SAMSUNG_RAFFLE_KEY, seedSamsungRaffle))));
   useEffect(() => {
     let cancelled = false;
     const hydratePanel = async () => {
@@ -3248,6 +3335,7 @@ function TeamPanelStandalone({
           }
         }
         if (values[BRANDING_KEY]) setBrandingInventory(values[BRANDING_KEY].map(normalizeBrandingItem));
+        if (values[SAMSUNG_RAFFLE_KEY]) setSamsungRaffle(normalizeSamsungRaffle(values[SAMSUNG_RAFFLE_KEY]));
         setMsg("Railway conectado · data central cargada.");
         setTimeout(() => {
           window.__railwayHydrating = false;
@@ -3322,6 +3410,12 @@ function TeamPanelStandalone({
     } catch (e) {}
     if (isAdminLike || (panel.access || []).includes("branding")) saveSharedState(BRANDING_KEY, brandingInventory);
   }, [brandingInventory]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(`yango_team_${panel.id}_samsung`, JSON.stringify(samsungRaffle));
+    } catch (e) {}
+    if (isAdminLike || (panel.access || []).includes("samsung_raffle")) saveSharedState(SAMSUNG_RAFFLE_KEY, normalizeSamsungRaffle(samsungRaffle));
+  }, [samsungRaffle]);
   const unlock = e => {
     e.preventDefault();
     const panelPassword = panel.password || TEAM_PANEL_PASSWORDS[panel.id] || MASTER_PASS;
@@ -3435,6 +3529,7 @@ function TeamPanelStandalone({
       setPopInventory(payload.popInventory.length ? payload.popInventory : load(POP_KEY, seedPopInventory));
       setInfluencers(payload.influencers.length ? mergeInfluencerSeeds(payload.influencers) : loadInfluencersSafe());
       setBrandingInventory(payload.brandingInventory.length ? payload.brandingInventory : load(BRANDING_KEY, seedBrandingInventory).map(normalizeBrandingItem));
+      setSamsungRaffle(payload.samsungRaffle.length ? normalizeSamsungRaffle(payload.samsungRaffle) : normalizeSamsungRaffle(load(SAMSUNG_RAFFLE_KEY, seedSamsungRaffle)));
       setMsg(payload.updatedAt ? `Listo: cargué la data guardada el ${prettyDate(payload.updatedAt.slice(0, 10))}.` : "Listo: este panel todavía no tenía data en GitHub.");
     } catch (error) {
       setMsg(`No pude traer la data: ${error.message}`);
@@ -3458,7 +3553,8 @@ function TeamPanelStandalone({
         mediaAssets,
         popInventory,
         influencers,
-        brandingInventory
+        brandingInventory,
+        samsungRaffle
       });
       await githubWriteJson(teamPanelPath(panel.id), payload, token.trim(), `Update ${panel.label} team panel data`);
       setMsg("Listo: quedó guardado en GitHub y tu Master lo puede ver.");
@@ -3561,6 +3657,9 @@ function TeamPanelStandalone({
     id: "branding",
     label: "Branding"
   }, {
+    id: "samsung_raffle",
+    label: "Rifa Samsung"
+  }, {
     id: "influencers",
     label: "Influencers"
   }, {
@@ -3578,6 +3677,9 @@ function TeamPanelStandalone({
   }, {
     id: "branding",
     label: "Branding"
+  }, {
+    id: "samsung_raffle",
+    label: "Rifa Samsung"
   }]).filter(tab => access.has(tab.id));
   const currentActive = tabs.some(tab => tab.id === active) ? active : tabs[0]?.id || "influencers";
   const adminPanelGroups = [{
@@ -3623,6 +3725,13 @@ function TeamPanelStandalone({
       icon: IconTicket
     }].filter(item => access.has(item.id))
   }, {
+    label: "Rifa",
+    items: [{
+      id: "samsung_raffle",
+      label: "Rifa Samsung",
+      icon: IconStar
+    }].filter(item => access.has(item.id))
+  }, {
     label: "Social Media",
     items: [{
       id: "influencers",
@@ -3642,7 +3751,7 @@ function TeamPanelStandalone({
     }].filter(item => access.has(item.id))
   }].filter(group => group.items.length);
   const adminHeaderTab = currentActive === "pop" ? "pop_inventory" : currentActive;
-  const adminCount = currentActive === "influencers" ? influencers.length : currentActive === "social_report" ? socialReport.months.length : currentActive === "pop" ? popInventory.length : currentActive === "media_ooh" ? mediaAssets.length : currentActive === "branding" ? brandingInventory.length : acts.length;
+  const adminCount = currentActive === "influencers" ? influencers.length : currentActive === "social_report" ? socialReport.months.length : currentActive === "pop" ? popInventory.length : currentActive === "media_ooh" ? mediaAssets.length : currentActive === "branding" ? brandingInventory.length : currentActive === "samsung_raffle" ? samsungRaffle.length : acts.length;
   if (isAdminLike) return el("div", {
     style: S.app
   }, menuOpen && el("div", {
@@ -3674,7 +3783,7 @@ function TeamPanelStandalone({
     onMenu: () => setMenuOpen(v => !v)
   }), el("div", {
     style: S.content
-  }, !["mystery", "influencers", "social_report", "pop", "media_ooh", "branding"].includes(currentActive) && el(Filters, {
+  }, !["mystery", "influencers", "social_report", "pop", "media_ooh", "branding", "samsung_raffle"].includes(currentActive) && el(Filters, {
     zoneFilter,
     setZoneFilter,
     typeFilter,
@@ -3735,6 +3844,9 @@ function TeamPanelStandalone({
   }), currentActive === "branding" && el(BrandingInventoryV3, {
     items: brandingInventory,
     setItems: setBrandingInventory
+  }), currentActive === "samsung_raffle" && el(SamsungRaffleTracker, {
+    items: samsungRaffle,
+    setItems: setSamsungRaffle
   }))), editing && el(Editor, {
     act: editing === "new" ? null : editing,
     alloc,
@@ -3863,7 +3975,7 @@ function TeamPanelStandalone({
       color: currentActive === t.id ? "#fff" : "#111827",
       borderColor: currentActive === t.id ? "#111827" : "#E2E8F0"
     }
-  }, t.label))), isAdminLike && !["mystery", "influencers", "social_report", "pop", "media_ooh", "branding"].includes(currentActive) && el(Filters, {
+  }, t.label))), isAdminLike && !["mystery", "influencers", "social_report", "pop", "media_ooh", "branding", "samsung_raffle"].includes(currentActive) && el(Filters, {
     zoneFilter,
     setZoneFilter,
     typeFilter,
@@ -3924,6 +4036,9 @@ function TeamPanelStandalone({
   }), currentActive === "branding" && el(BrandingInventoryV3, {
     items: brandingInventory,
     setItems: setBrandingInventory
+  }), currentActive === "samsung_raffle" && el(SamsungRaffleTracker, {
+    items: samsungRaffle,
+    setItems: setSamsungRaffle
   }))), editing && el(Editor, {
     act: editing === "new" ? null : editing,
     alloc,
@@ -4541,6 +4656,13 @@ function Sidebar({
       icon: IconTicket
     }]
   }, {
+    label: "Rifa",
+    items: [{
+      id: "samsung_raffle",
+      label: "Rifa Samsung",
+      icon: IconStar
+    }]
+  }, {
     label: "Social Media",
     items: [{
       id: "influencers",
@@ -4690,6 +4812,7 @@ function Header({
     agency: "Admin agencia y evidencias",
     pop_inventory: "Material POP · Inventario",
     branding: "Branding · Inventario",
+    samsung_raffle: "Rifa Samsung",
     users: "Usuarios",
     influencers: "IG, TikTok e Influencers",
     social_report: "Reporte Social Media",
@@ -4699,6 +4822,7 @@ function Header({
   const subtitles = {
     pop_inventory: "Control de stock, reservados, salidas y valor estimado",
     branding: "Oficina, partners, salidas y pérdida vs inventario real",
+    samsung_raffle: `${count} ganadores · teléfonos, viajes, premio y estatus de entrega`,
     users: "Crea usuarios y define accesos por sección",
     influencers: `${count} creadores registrados · performance orgánico y paid`,
     social_report: "Reporte mensual por plataforma · Venezuela",
@@ -7068,6 +7192,240 @@ function BrandingInventoryV3({
     key: product,
     value: product
   }, product)))), view === "summary" ? renderSummary() : view === "office" ? renderOffice() : renderPartner(view)), renderMovementModal());
+}
+function SamsungRaffleTracker({
+  items,
+  setItems
+}) {
+  const el = React.createElement;
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [prizeFilter, setPrizeFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const normalized = normalizeSamsungRaffle(items);
+  const prizeOptions = [...new Set(normalized.map(item => item.prize).filter(Boolean))];
+  const updateItem = (id, patch) => setItems(previous => normalizeSamsungRaffle(previous).map(item => item.id === id ? {
+    ...item,
+    ...patch,
+    updatedAt: new Date().toISOString()
+  } : item));
+  const filtered = normalized.filter(item => (statusFilter === "all" || item.status === statusFilter) && (prizeFilter === "all" || item.prize === prizeFilter) && (!query.trim() || [item.phone, item.uid, item.prize, item.prizeGroup, item.address, item.notes].join(" ").toLowerCase().includes(query.trim().toLowerCase())));
+  const countByStatus = status => normalized.filter(item => item.status === status).length;
+  const totalTrips = normalized.reduce((sum, item) => sum + (Number(item.completedTrips) || 0), 0);
+  const delivered = countByStatus("delivered");
+  const addressReady = countByStatus("address") + delivered;
+  const pending = countByStatus("pending") + countByStatus("no_response");
+  const statusBadge = status => {
+    const meta = samsungStatusOf(status);
+    return el("span", {
+      style: {
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "5px 9px",
+        borderRadius: 999,
+        background: meta.bg,
+        color: meta.color,
+        fontSize: 11,
+        fontWeight: 950,
+        whiteSpace: "nowrap"
+      }
+    }, meta.label);
+  };
+  return el(React.Fragment, null, el("div", {
+    style: {
+      ...S.resultBanner,
+      background: "linear-gradient(135deg,#111827,#E30613)"
+    }
+  }, el("div", null, el("div", {
+    style: {
+      fontWeight: 950,
+      fontSize: 22,
+      letterSpacing: "-0.02em"
+    }
+  }, "Rifa Samsung · Junio 2026"), el("div", {
+    style: {
+      fontSize: 12.5,
+      opacity: .88,
+      marginTop: 4
+    }
+  }, "Top 40 usuarios por viajes completados. Control de contacto, dirección y entrega de premios.")), el("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap",
+      justifyContent: "flex-end"
+    }
+  }, SAMSUNG_RAFFLE_STATUSES.map(status => el("span", {
+    key: status.id,
+    style: {
+      padding: "6px 10px",
+      borderRadius: 999,
+      background: "rgba(255,255,255,.16)",
+      color: "#fff",
+      fontSize: 11,
+      fontWeight: 900
+    }
+  }, status.label)))), el("div", {
+    style: S.kpiGrid
+  }, el(Kpi, {
+    icon: IconStar,
+    label: "Ganadores",
+    value: fmt(normalized.length),
+    accent: "#E30613"
+  }), el(Kpi, {
+    icon: IconTrend,
+    label: "Trips totales",
+    value: fmt(totalTrips),
+    accent: "#111827"
+  }), el(Kpi, {
+    icon: IconPhone,
+    label: "Pendientes",
+    value: fmt(pending),
+    accent: "#DC2626"
+  }), el(Kpi, {
+    icon: IconMap,
+    label: "Con dirección",
+    value: fmt(addressReady),
+    accent: "#D97706"
+  }), el(Kpi, {
+    icon: IconCheck,
+    label: "Entregados",
+    value: fmt(delivered),
+    accent: "#16A34A"
+  })), el(Card, {
+    title: "Control de ganadores",
+    hint: "Actualiza el estatus y agrega dirección/notas. Todo queda guardado automáticamente en Railway."
+  }, el("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "minmax(180px,1fr) minmax(180px,1fr) minmax(220px,1.4fr)",
+      gap: 10,
+      marginBottom: 14
+    },
+    className: "responsive-grid"
+  }, el(Field, {
+    label: "Filtrar estatus"
+  }, el("select", {
+    style: S.input,
+    value: statusFilter,
+    onChange: e => setStatusFilter(e.target.value)
+  }, el("option", {
+    value: "all"
+  }, "Todos los estatus"), SAMSUNG_RAFFLE_STATUSES.map(status => el("option", {
+    key: status.id,
+    value: status.id
+  }, status.label)))), el(Field, {
+    label: "Filtrar premio"
+  }, el("select", {
+    style: S.input,
+    value: prizeFilter,
+    onChange: e => setPrizeFilter(e.target.value)
+  }, el("option", {
+    value: "all"
+  }, "Todos los premios"), prizeOptions.map(prize => el("option", {
+    key: prize,
+    value: prize
+  }, prize)))), el(Field, {
+    label: "Buscar teléfono / UID / premio"
+  }, el("input", {
+    style: S.input,
+    value: query,
+    onChange: e => setQuery(e.target.value),
+    placeholder: "+58412, UID, premio..."
+  }))), el("div", {
+    style: {
+      overflowX: "auto"
+    }
+  }, el("table", {
+    style: {
+      ...S.table,
+      minWidth: 1180
+    }
+  }, el("thead", null, el("tr", null, ["Rank", "Teléfono", "UID", "Trips", "Premio", "Grupo", "Estatus", "Dirección", "Notas"].map(header => el("th", {
+    key: header,
+    style: S.th
+  }, header)))), el("tbody", null, filtered.map(item => el("tr", {
+    key: item.id
+  }, el("td", {
+    style: {
+      ...S.td,
+      fontWeight: 950
+    }
+  }, "#", item.rank), el("td", {
+    style: S.td
+  }, el("a", {
+    href: `https://wa.me/${String(item.phone).replace(/\D/g, "")}`,
+    target: "_blank",
+    rel: "noreferrer",
+    style: {
+      color: "#0F172A",
+      fontWeight: 900,
+      textDecoration: "none"
+    }
+  }, item.phone)), el("td", {
+    style: S.td
+  }, item.uid), el("td", {
+    style: {
+      ...S.td,
+      fontWeight: 900
+    }
+  }, fmt(item.completedTrips)), el("td", {
+    style: S.td
+  }, el("b", null, item.prize)), el("td", {
+    style: S.td
+  }, item.prizeGroup), el("td", {
+    style: S.td
+  }, el("div", {
+    style: {
+      display: "grid",
+      gap: 6,
+      minWidth: 170
+    }
+  }, statusBadge(item.status), el("select", {
+    style: {
+      ...S.input,
+      height: 34,
+      padding: "6px 8px",
+      fontSize: 12
+    },
+    value: item.status,
+    onChange: e => updateItem(item.id, {
+      status: e.target.value
+    })
+  }, SAMSUNG_RAFFLE_STATUSES.map(status => el("option", {
+    key: status.id,
+    value: status.id
+  }, status.label))))), el("td", {
+    style: S.td
+  }, el("input", {
+    style: {
+      ...S.input,
+      minWidth: 240,
+      height: 36,
+      fontSize: 12
+    },
+    value: item.address || "",
+    onChange: e => updateItem(item.id, {
+      address: e.target.value
+    }),
+    placeholder: "Dirección / referencia"
+  })), el("td", {
+    style: S.td
+  }, el("input", {
+    style: {
+      ...S.input,
+      minWidth: 220,
+      height: 36,
+      fontSize: 12
+    },
+    value: item.notes || "",
+    onChange: e => updateItem(item.id, {
+      notes: e.target.value
+    }),
+    placeholder: "Notas internas"
+  }))))))), !filtered.length && el(Empty, {
+    msg: "No hay ganadores con esos filtros."
+  })));
 }
 function MediaOOH({
   items,
