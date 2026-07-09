@@ -804,6 +804,10 @@ const STORE_KEY = "yango_btl_h1",
   BRANDING_KEY = "yango_branding_inventory_h1",
   USERS_KEY = "yango_team_users_h1";
 const MASTER_PASS = "Yango2026!";
+const TEAM_PANEL_PASSWORDS = {
+  luis: "Luis2026!",
+  giselle: "Giselle2026!"
+};
 const TEAM_AUTO_SYNC_KEY = "yango_team_auto_sync_last_h1";
 const GITHUB_REPO = "yango-venezuela/btl";
 const GITHUB_BRANCH = "main";
@@ -862,12 +866,14 @@ const DEFAULT_TEAM_USERS = [{
   label: "Luis",
   role: "Operaciones",
   adminLike: true,
+  password: TEAM_PANEL_PASSWORDS.luis,
   access: ACCESS_SECTIONS.map(s => s.id)
 }, {
   id: "giselle",
   label: "Giselle",
   role: "Marketing",
   adminLike: false,
+  password: TEAM_PANEL_PASSWORDS.giselle,
   access: ["pop", "influencers", "branding"]
 }];
 const SHARED_STATE_KEYS = [STORE_KEY, QR_KEY, MYS_KEY, CFG_KEY, INF_KEY, SOC_KEY, BTL_BUDGET_KEY, POP_KEY, MEDIA_KEY, BRANDING_KEY, USERS_KEY];
@@ -1797,6 +1803,336 @@ const seedInfluencers = () => [{
   tiktokShares: 0,
   tiktokSaves: 0,
   notes: ""
+}, {
+  id: "inf_csv_019",
+  name: "Heleolivi",
+  handle: "@heleolivi",
+  tier: "micro",
+  platform: "Instagram",
+  igFollowers: 2641,
+  tiktokFollowers: 0,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel"],
+  budget: 80,
+  paid: true,
+  paymentDate: "2026-06-16",
+  recorded: true,
+  published: false,
+  publishDate: "2026-06-17",
+  link: "https://www.instagram.com/p/DZtdqEtom8p/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 1962,
+  igLikes: 0,
+  igComments: 8,
+  igShares: 2,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_020",
+  name: "Camellito",
+  handle: "@camellitotv",
+  tier: "influencer",
+  platform: "IG + TikTok",
+  igFollowers: 148000,
+  tiktokFollowers: 202500,
+  sameTiktokHandle: false,
+  tiktokHandle: "@elsupercamel",
+  deliverables: ["Reel", "TikTok"],
+  budget: 350,
+  paid: true,
+  paymentDate: "2026-06-15",
+  recorded: true,
+  published: true,
+  publishDate: "2026-06-16",
+  link: "https://www.instagram.com/reel/DZqa-umPH5-/",
+  tiktokLink: "https://www.tiktok.com/@elsupercamel/video/7652120255552048391",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 34800,
+  igLikes: 0,
+  igComments: 51,
+  igShares: 44,
+  igSaves: 0,
+  tiktokReach: 62400,
+  tiktokLikes: 6141,
+  tiktokComments: 32,
+  tiktokShares: 74,
+  tiktokSaves: 111,
+  notes: ""
+}, {
+  id: "inf_csv_021",
+  name: "isabienesta",
+  handle: "@isabienesta",
+  tier: "micro",
+  platform: "Instagram",
+  igFollowers: 2777,
+  tiktokFollowers: 2250,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel", "TikTok"],
+  budget: 80,
+  paid: true,
+  paymentDate: "2026-06-11",
+  recorded: true,
+  published: true,
+  publishDate: "2026-06-14",
+  link: "https://www.instagram.com/p/DZlTMeaJsi1/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 1827,
+  igLikes: 0,
+  igComments: 15,
+  igShares: 8,
+  igSaves: 0,
+  tiktokReach: 856,
+  tiktokLikes: 71,
+  tiktokComments: 1,
+  tiktokShares: 0,
+  tiktokSaves: 3,
+  notes: ""
+}, {
+  id: "inf_csv_022",
+  name: "tetecandy",
+  handle: "@tetecandy",
+  tier: "micro",
+  platform: "Instagram",
+  igFollowers: 4004,
+  tiktokFollowers: 0,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Stories"],
+  budget: 190,
+  paid: true,
+  paymentDate: "2026-06-11",
+  recorded: true,
+  published: true,
+  publishDate: "2026-06-13",
+  link: "https://www.instagram.com/reel/DZiVIJ3MIxM/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 3152,
+  igLikes: 0,
+  igComments: 19,
+  igShares: 4,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_023",
+  name: "Samrips",
+  handle: "@samripsmusic",
+  tier: "influencer",
+  platform: "IG + TikTok",
+  igFollowers: 22900,
+  tiktokFollowers: 23600,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel"],
+  budget: 100,
+  paid: true,
+  paymentDate: "2026-06-11",
+  recorded: true,
+  published: true,
+  publishDate: "2026-06-12",
+  link: "https://www.instagram.com/reel/DZgA5JYp_qL/",
+  tiktokLink: "https://www.tiktok.com/@samrips_/video/7650621886816193810",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 13100,
+  igLikes: 0,
+  igComments: 20,
+  igShares: 2,
+  igSaves: 0,
+  tiktokReach: 9440,
+  tiktokLikes: 157,
+  tiktokComments: 18,
+  tiktokShares: 9,
+  tiktokSaves: 7,
+  notes: ""
+}, {
+  id: "inf_csv_024",
+  name: "gisellearam",
+  handle: "@gisellearam",
+  tier: "micro",
+  platform: "Instagram",
+  igFollowers: 3266,
+  tiktokFollowers: 0,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Stories"],
+  budget: 50,
+  paid: true,
+  paymentDate: "",
+  recorded: true,
+  published: true,
+  publishDate: "2026-06-12",
+  link: "",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 2049,
+  igLikes: 133,
+  igComments: 12,
+  igShares: 6,
+  igSaves: 13,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_025",
+  name: "Marian Sánchez",
+  handle: "@mariansanchezx2",
+  tier: "influencer",
+  platform: "TikTok",
+  igFollowers: 9926,
+  tiktokFollowers: 852400,
+  sameTiktokHandle: false,
+  tiktokHandle: "@sisoymarian_",
+  deliverables: ["TikTok"],
+  budget: 350,
+  paid: true,
+  paymentDate: "2026-06-02",
+  recorded: true,
+  published: true,
+  publishDate: "2026-06-08",
+  link: "https://www.tiktok.com/@sisoymarian_/video/7649156259819670804",
+  tiktokLink: "https://www.tiktok.com/@sisoymarian_/video/7649156259819670804",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 0,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 0,
+  igSaves: 0,
+  tiktokReach: 71000,
+  tiktokLikes: 9663,
+  tiktokComments: 138,
+  tiktokShares: 371,
+  tiktokSaves: 234,
+  notes: "Perdió la cuenta de Instagram, entonces le tocó empezar de cero con una nueva. Por eso es que la cuenta de Instagram tiene muchos menos seguidores que la de TikTok"
+}, {
+  id: "inf_csv_026",
+  name: "Miklosgabriel.mk",
+  handle: "@miklosgabriel.mk",
+  tier: "influencer",
+  platform: "Instagram",
+  igFollowers: 22800,
+  tiktokFollowers: 0,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel"],
+  budget: 100,
+  paid: true,
+  paymentDate: "",
+  recorded: true,
+  published: true,
+  publishDate: "2026-06-07",
+  link: "https://www.instagram.com/reel/DZTHqTlpL7L/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 5297,
+  igLikes: 0,
+  igComments: 2,
+  igShares: 8,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_027",
+  name: "keyvillegas",
+  handle: "@keyvillegass",
+  tier: "micro",
+  platform: "Instagram",
+  igFollowers: 6205,
+  tiktokFollowers: 0,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel"],
+  budget: 150,
+  paid: true,
+  paymentDate: "",
+  recorded: true,
+  published: true,
+  publishDate: "2026-06-06",
+  link: "https://www.instagram.com/reel/DZQBlUhChym/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 4425,
+  igLikes: 0,
+  igComments: 25,
+  igShares: 18,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
+}, {
+  id: "inf_csv_028",
+  name: "kerlisdpc",
+  handle: "@kerlisdpc",
+  tier: "micro",
+  platform: "Instagram",
+  igFollowers: 11400,
+  tiktokFollowers: 0,
+  sameTiktokHandle: true,
+  tiktokHandle: "",
+  deliverables: ["Reel"],
+  budget: 120,
+  paid: false,
+  paymentDate: "",
+  recorded: false,
+  published: false,
+  publishDate: "2026-06-05",
+  link: "https://www.instagram.com/reel/DZNcsGlhCVJ/",
+  tiktokLink: "",
+  hasPromoCode: false,
+  promoCode: "",
+  redemptions: 0,
+  igReach: 4534,
+  igLikes: 0,
+  igComments: 0,
+  igShares: 3,
+  igSaves: 0,
+  tiktokReach: 0,
+  tiktokLikes: 0,
+  tiktokComments: 0,
+  tiktokShares: 0,
+  tiktokSaves: 0,
+  notes: ""
 }];
 const seedBtlBudgets = () => ({
   months: {},
@@ -2059,16 +2395,19 @@ function mergeInfluencerLists(base, override) {
   });
   return Array.from(map.values());
 }
+function mergeInfluencerSeeds(items) {
+  return mergeInfluencerLists(seedInfluencers(), items);
+}
 function loadInfluencersSafe() {
   const seeded = normalizeInfluencerList(seedInfluencers());
   const primary = normalizeInfluencerList(load(INF_KEY, () => []));
-  if (primary.length) return primary.length < seeded.length ? mergeInfluencerLists(primary, seeded) : mergeInfluencerLists(seeded, primary);
+  if (primary.length) return mergeInfluencerLists(seeded, primary);
   const backup = normalizeInfluencerList(load(INF_BACKUP_KEY, () => []));
-  if (backup.length) return backup.length < seeded.length ? mergeInfluencerLists(backup, seeded) : mergeInfluencerLists(seeded, backup);
+  if (backup.length) return mergeInfluencerLists(seeded, backup);
   const snapshots = load(INF_SNAPSHOTS_KEY, () => []);
   if (Array.isArray(snapshots)) {
     const best = snapshots.map(s => normalizeInfluencerList(s && s.items)).sort((a, b) => b.length - a.length)[0];
-    if (best && best.length) return best.length < seeded.length ? mergeInfluencerLists(best, seeded) : mergeInfluencerLists(seeded, best);
+    if (best && best.length) return mergeInfluencerLists(seeded, best);
   }
   return seeded;
 }
@@ -2095,12 +2434,14 @@ function userSlug(value) {
 function normalizeTeamUser(user = {}) {
   const label = String(user.label || user.name || "Usuario").trim();
   const id = userSlug(user.id || label);
+  const defaultUser = DEFAULT_TEAM_USERS.find(item => item.id === id);
   const access = Array.isArray(user.access) && user.access.length ? user.access.filter(id => ACCESS_SECTIONS.some(s => s.id === id)) : ["pop", "influencers", "branding"];
   return {
     id: id || uid("user"),
     label,
     role: String(user.role || "Equipo").trim(),
     adminLike: Boolean(user.adminLike),
+    password: String(user.password || TEAM_PANEL_PASSWORDS[id] || (defaultUser && defaultUser.password) || MASTER_PASS),
     access
   };
 }
@@ -2572,7 +2913,7 @@ function App() {
     if (payload.btlBudgets) setBtlBudgets(payload.btlBudgets);
     if (payload.mediaAssets && payload.mediaAssets.length) setMediaAssets(payload.mediaAssets);
     if (payload.popInventory && payload.popInventory.length) setPopInventory(payload.popInventory);
-    if (payload.influencers && payload.influencers.length) setInfluencers(normalizeInfluencerList(payload.influencers));
+    if (payload.influencers && payload.influencers.length) setInfluencers(mergeInfluencerSeeds(payload.influencers));
     if (payload.brandingInventory && payload.brandingInventory.length) setBrandingInventory(payload.brandingInventory.map(normalizeBrandingItem));
     if (payload.updatedAt) {
       try {
@@ -2588,7 +2929,13 @@ function App() {
     if (values[QR_KEY]) setQr(values[QR_KEY]);
     if (values[MYS_KEY]) setMystery(values[MYS_KEY]);
     if (values[CFG_KEY]) setCfg(values[CFG_KEY]);
-    if (values[INF_KEY]) setInfluencers(normalizeInfluencerList(values[INF_KEY]));
+    if (values[INF_KEY]) {
+      const mergedInfluencers = mergeInfluencerSeeds(values[INF_KEY]);
+      setInfluencers(mergedInfluencers);
+      if (mergedInfluencers.length > normalizeInfluencerList(values[INF_KEY]).length) {
+        setTimeout(() => saveSharedState(INF_KEY, mergedInfluencers), 1300);
+      }
+    }
     if (values[SOC_KEY]) setSocialReport(normalizeSocialReport(values[SOC_KEY]));
     if (values[BTL_BUDGET_KEY]) setBtlBudgets(values[BTL_BUDGET_KEY]);
     if (values[POP_KEY]) setPopInventory(values[POP_KEY]);
@@ -2876,7 +3223,7 @@ function TeamPanelStandalone({
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [popInventory, setPopInventory] = useState(() => load(`yango_team_${panel.id}_pop`, () => load(POP_KEY, seedPopInventory)));
-  const [influencers, setInfluencers] = useState(() => normalizeInfluencerList(load(`yango_team_${panel.id}_influencers`, () => loadInfluencersSafe())));
+  const [influencers, setInfluencers] = useState(() => mergeInfluencerSeeds(load(`yango_team_${panel.id}_influencers`, () => loadInfluencersSafe())));
   const [brandingInventory, setBrandingInventory] = useState(() => load(`yango_team_${panel.id}_branding`, () => load(BRANDING_KEY, seedBrandingInventory)).map(normalizeBrandingItem));
   useEffect(() => {
     let cancelled = false;
@@ -2893,7 +3240,13 @@ function TeamPanelStandalone({
         if (values[BTL_BUDGET_KEY]) setBtlBudgets(values[BTL_BUDGET_KEY]);
         if (values[MEDIA_KEY]) setMediaAssets(values[MEDIA_KEY]);
         if (values[POP_KEY]) setPopInventory(values[POP_KEY]);
-        if (values[INF_KEY]) setInfluencers(normalizeInfluencerList(values[INF_KEY]));
+        if (values[INF_KEY]) {
+          const mergedInfluencers = mergeInfluencerSeeds(values[INF_KEY]);
+          setInfluencers(mergedInfluencers);
+          if (mergedInfluencers.length > normalizeInfluencerList(values[INF_KEY]).length) {
+            setTimeout(() => saveSharedState(INF_KEY, mergedInfluencers), 1300);
+          }
+        }
         if (values[BRANDING_KEY]) setBrandingInventory(values[BRANDING_KEY].map(normalizeBrandingItem));
         setMsg("Railway conectado · data central cargada.");
         setTimeout(() => {
@@ -2971,7 +3324,8 @@ function TeamPanelStandalone({
   }, [brandingInventory]);
   const unlock = e => {
     e.preventDefault();
-    if (password !== MASTER_PASS) return setMsg("Clave incorrecta.");
+    const panelPassword = panel.password || TEAM_PANEL_PASSWORDS[panel.id] || MASTER_PASS;
+    if (password !== panelPassword) return setMsg("Clave incorrecta.");
     sessionStorage.setItem(unlockKey, "1");
     setUnlocked(true);
     setMsg("");
@@ -3079,7 +3433,7 @@ function TeamPanelStandalone({
       setBtlBudgets(payload.btlBudgets || seedBtlBudgets());
       setMediaAssets(payload.mediaAssets.length ? payload.mediaAssets : seedMediaAssets());
       setPopInventory(payload.popInventory.length ? payload.popInventory : load(POP_KEY, seedPopInventory));
-      setInfluencers(payload.influencers.length ? payload.influencers : loadInfluencersSafe());
+      setInfluencers(payload.influencers.length ? mergeInfluencerSeeds(payload.influencers) : loadInfluencersSafe());
       setBrandingInventory(payload.brandingInventory.length ? payload.brandingInventory : load(BRANDING_KEY, seedBrandingInventory).map(normalizeBrandingItem));
       setMsg(payload.updatedAt ? `Listo: cargué la data guardada el ${prettyDate(payload.updatedAt.slice(0, 10))}.` : "Listo: este panel todavía no tenía data en GitHub.");
     } catch (error) {
@@ -3148,7 +3502,7 @@ function TeamPanelStandalone({
       fontSize: 13,
       marginBottom: 18
     }
-  }, "Usa la misma clave del Master Panel."), el(Field, {
+  }, "Usa la clave asignada para este panel."), el(Field, {
     label: "Clave"
   }, el("input", {
     type: "password",
@@ -3176,7 +3530,7 @@ function TeamPanelStandalone({
     }
   }, "Entrar")));
   const filtered = acts.filter(a => (zoneFilter === "all" || a.zone === zoneFilter) && (typeFilter === "all" || a.type === typeFilter) && inRange(a.date, from, to));
-  const alloc = useMemo(() => allocate(acts, qr), [acts, qr]);
+  const alloc = allocate(acts, qr);
   const access = new Set(panel.access && panel.access.length ? panel.access : ACCESS_SECTIONS.map(s => s.id));
   const railwayMode = apiEnabled();
   const tabs = (isAdminLike ? [{
