@@ -7214,23 +7214,6 @@ function SamsungRaffleTracker({
   const delivered = countByStatus("delivered");
   const addressReady = countByStatus("address") + delivered;
   const pending = countByStatus("pending") + countByStatus("no_response");
-  const statusBadge = status => {
-    const meta = samsungStatusOf(status);
-    return el("span", {
-      style: {
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "5px 9px",
-        borderRadius: 999,
-        background: meta.bg,
-        color: meta.color,
-        fontSize: 11,
-        fontWeight: 950,
-        whiteSpace: "nowrap"
-      }
-    }, meta.label);
-  };
   return el(React.Fragment, null, el("div", {
     style: {
       ...S.resultBanner,
@@ -7375,18 +7358,18 @@ function SamsungRaffleTracker({
     style: S.td
   }, item.prizeGroup), el("td", {
     style: S.td
-  }, el("div", {
-    style: {
-      display: "grid",
-      gap: 6,
-      minWidth: 170
-    }
-  }, statusBadge(item.status), el("select", {
+  }, el("select", {
     style: {
       ...S.input,
-      height: 34,
-      padding: "6px 8px",
-      fontSize: 12
+      height: 38,
+      minWidth: 190,
+      padding: "6px 30px 6px 12px",
+      fontSize: 12,
+      fontWeight: 950,
+      borderRadius: 999,
+      border: `1px solid ${samsungStatusOf(item.status).color}55`,
+      background: samsungStatusOf(item.status).bg,
+      color: samsungStatusOf(item.status).color
     },
     value: item.status,
     onChange: e => updateItem(item.id, {
@@ -7395,7 +7378,7 @@ function SamsungRaffleTracker({
   }, SAMSUNG_RAFFLE_STATUSES.map(status => el("option", {
     key: status.id,
     value: status.id
-  }, status.label))))), el("td", {
+  }, status.label)))), el("td", {
     style: S.td
   }, el("input", {
     style: {
