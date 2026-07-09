@@ -2555,14 +2555,33 @@ function App() {
       window.__railwayHydrating = false;
     }, 1000);
   };
+  const pushCurrentSharedState = () => {
+    saveSharedState(STORE_KEY, acts);
+    saveSharedState(QR_KEY, qr);
+    saveSharedState(MYS_KEY, mystery);
+    saveSharedState(CFG_KEY, cfg);
+    saveSharedState(INF_KEY, normalizeInfluencerList(influencers));
+    saveSharedState(SOC_KEY, socialReport);
+    saveSharedState(BTL_BUDGET_KEY, btlBudgets);
+    saveSharedState(POP_KEY, popInventory);
+    saveSharedState(MEDIA_KEY, mediaAssets);
+    saveSharedState(BRANDING_KEY, brandingInventory);
+    saveSharedState(USERS_KEY, teamUsers);
+  };
   useEffect(() => {
     let cancelled = false;
     const syncRailwayState = async () => {
       try {
         const remote = await fetchSharedState(SHARED_STATE_KEYS);
         if (cancelled || !remote || !remote.values) return;
+        const isEmptyDatabase = !Object.keys(remote.values).length;
         applySharedValues(remote.values);
-        setTeamSyncStatus("Railway conectado · data central sincronizada.");
+        if (isEmptyDatabase) {
+          setTeamSyncStatus("Railway conectado · sembrando data inicial del Master...");
+          setTimeout(pushCurrentSharedState, 1300);
+        } else {
+          setTeamSyncStatus("Railway conectado · data central sincronizada.");
+        }
       } catch (error) {
         if (!cancelled && String(error.message || "").startsWith("API")) {
           setTeamSyncStatus("Modo GitHub Pages/local activo. Railway se activará al deploy.");
