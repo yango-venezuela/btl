@@ -1,5 +1,6 @@
 const express = require("express");
 const path = require("path");
+const fs = require("fs");
 const { Pool } = require("pg");
 
 const app = express();
@@ -25,6 +26,15 @@ async function ensureDatabase() {
   }
   await readyPromise;
   return true;
+}
+
+function sendDashboard(req, res) {
+  fs.readFile(path.join(__dirname, "index.html"), "utf8", (error, html) => {
+    if (error) return res.status(500).send("No pude cargar el dashboard.");
+    const helperTag = '<script src="/samsung-raffle-export.js" defer></script>';
+    const withHelper = html.includes(helperTag) ? html : html.replace("</body>", `${helperTag}</body>`);
+    res.type("html").send(withHelper);
+  });
 }
 
 app.use(express.json({ limit: "50mb" }));
@@ -75,8 +85,9 @@ app.put("/api/state/:key", async (req, res) => {
   }
 });
 
-app.use(express.static(__dirname));
-app.get("*", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/", sendDashboard);
+app.use(express.static(__dirname, { index: false }));
+app.get("*", sendDashboard);
 
 app.listen(port, () => {
   console.log(`Yango MKT dashboard listening on ${port}`);
