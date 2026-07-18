@@ -1,6 +1,7 @@
 (() => {
   const KEY = "yango_influencers_h1";
   const PANEL_ID = "influencer-payment-filter-panel";
+  const STYLE_ID = "influencer-payment-filter-style";
   const HIDDEN_ATTR = "data-yango-payment-filter-hidden";
   let cachedItems = [];
   let syncing = false;
@@ -74,7 +75,7 @@
 
   function matchedRows() {
     if (!cachedItems.length) return [];
-    const rows = [...document.querySelectorAll("tbody tr")].filter(isVisible);
+    const rows = [...document.querySelectorAll("tbody tr")].filter(row => isVisible(row) || row.getAttribute(HIDDEN_ATTR) === "true");
     return rows.map(row => {
       const text = normalize(row.textContent || "");
       const item = cachedItems.find(candidate => itemKeys(candidate).some(key => text.includes(key)));
@@ -119,57 +120,112 @@
     });
   }
 
-  function ensurePanel() {
-    let panel = document.getElementById(PANEL_ID);
-    if (panel) return panel;
-
-    panel = document.createElement("div");
-    panel.id = PANEL_ID;
-    panel.style.cssText = [
-      "display:none",
-      "position:fixed",
-      "right:22px",
-      "top:82px",
-      "z-index:2147483000",
-      "grid-template-columns:minmax(140px,.8fr) minmax(145px,.8fr) minmax(145px,.8fr) auto",
-      "gap:10px",
-      "align-items:end",
-      "padding:12px",
-      "border:1px solid #E2E8F0",
-      "border-radius:18px",
-      "background:rgba(255,255,255,.98)",
-      "box-shadow:0 16px 45px rgba(15,23,42,.13)",
-      "font-family:inherit"
-    ].join(";");
-
-    panel.innerHTML = `
-      <label style="display:grid;gap:5px;font-size:10px;font-weight:900;color:#64748B;text-transform:uppercase;letter-spacing:.04em;">Pagado
-        <select id="influencer-paid-filter" style="height:36px;border:1px solid #CBD5E1;border-radius:12px;padding:7px 10px;font-weight:800;color:#0F172A;background:#fff;">
-          <option value="all">Todos</option>
-          <option value="paid">Pagados</option>
-          <option value="unpaid">Pendientes</option>
-        </select>
-      </label>
-      <label style="display:grid;gap:5px;font-size:10px;font-weight:900;color:#64748B;text-transform:uppercase;letter-spacing:.04em;">Fecha pago desde
-        <input id="influencer-payment-from" type="date" style="height:36px;border:1px solid #CBD5E1;border-radius:12px;padding:7px 10px;font-weight:800;color:#0F172A;background:#fff;" />
-      </label>
-      <label style="display:grid;gap:5px;font-size:10px;font-weight:900;color:#64748B;text-transform:uppercase;letter-spacing:.04em;">Fecha pago hasta
-        <input id="influencer-payment-to" type="date" style="height:36px;border:1px solid #CBD5E1;border-radius:12px;padding:7px 10px;font-weight:800;color:#0F172A;background:#fff;" />
-      </label>
-      <button id="influencer-payment-clear" type="button" style="height:36px;border:1px solid #CBD5E1;border-radius:12px;padding:7px 12px;background:#F8FAFC;color:#0F172A;font-weight:900;cursor:pointer;">Limpiar</button>
+  function ensureStyles() {
+    if (document.getElementById(STYLE_ID)) return;
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      #${PANEL_ID} { display: none; }
+      #${PANEL_ID}.is-inline { display: contents; }
+      #${PANEL_ID}.is-fallback { display: flex; flex-wrap: wrap; gap: 24px; align-items: end; margin: 0 0 22px; }
+      .yango-pay-filter-control { display: grid; gap: 8px; min-width: 170px; color: #64748B; font-size: 16px; font-weight: 800; line-height: 1.15; }
+      .yango-pay-filter-control select,
+      .yango-pay-filter-control input { height: 58px; min-width: 170px; border: 1px solid #DFE7F1; border-radius: 12px; padding: 0 18px; background: #fff; color: #0F172A; font: inherit; font-size: 22px; font-weight: 900; box-shadow: none; }
+      .yango-pay-filter-clear { height: 58px; align-self: end; border: 1px solid #DFE7F1; border-radius: 12px; padding: 0 20px; background: #fff; color: #0F172A; font: inherit; font-size: 18px; font-weight: 900; cursor: pointer; }
+      .yango-pay-filter-clear:hover { background: #F8FAFC; }
+      @media (max-width: 980px) {
+        #${PANEL_ID}.is-fallback { gap: 14px; }
+        .yango-pay-filter-control { min-width: 150px; font-size: 13px; }
+        .yango-pay-filter-control select,
+        .yango-pay-filter-control input { height: 48px; min-width: 150px; font-size: 18px; }
+        .yango-pay-filter-clear { height: 48px; font-size: 16px; }
+      }
     `;
+    document.head.appendChild(style);
+  }
 
-    document.body.appendChild(panel);
-    ["influencer-paid-filter", "influencer-payment-from", "influencer-payment-to"].forEach(id => {
-      panel.querySelector(`#${id}`).addEventListener("change", applyFilter);
+  function findExistingFilterRow() {
+    const containers = [...document.querySelectorAll("div,section")].filter(isVisible).map(element => {
+      const text = normalize(element.textContent || "").replace(/\s+/g, " ");
+      const keywords = ["tipo", "plataforma", "entregable", "ordenar por", "publicado desde", "publicado hasta"];
+      const hits = keywords.filter(keyword => text.includes(keyword)).length;
+      const box = element.getBoundingClientRect();
+      return { element, text, hits, area: box.width * box.height, height: box.height };
+    }).filter(item => item.hits >= 4 && item.height < 260);
+
+    if (containers.length) {
+      containers.sort((a, b) => a.area - b.area || b.hits - a.hits);
+      return containers[0].element;
+    }
+
+    const publicadoHasta = [...document.querySelectorAll("label,div")].find(node => {
+      const text = normalize(node.textContent || "");
+      return isVisible(node) && text.includes("publicado hasta");
     });
-    panel.querySelector("#influencer-payment-clear").addEventListener("click", () => {
-      panel.querySelector("#influencer-paid-filter").value = "all";
-      panel.querySelector("#influencer-payment-from").value = "";
-      panel.querySelector("#influencer-payment-to").value = "";
-      resetRows();
-      applyFilter();
-    });
+    if (publicadoHasta) {
+      let node = publicadoHasta.parentElement;
+      for (let i = 0; i < 4 && node; i += 1, node = node.parentElement) {
+        const text = normalize(node.textContent || "");
+        if (text.includes("tipo") && text.includes("plataforma")) return node;
+      }
+      return publicadoHasta.parentElement;
+    }
+    return null;
+  }
+
+  function findFallbackAnchor() {
+    const title = [...document.querySelectorAll("h1,h2,h3")].find(node => isVisible(node) && normalize(node.textContent).includes("influencer"));
+    let node = title;
+    for (let i = 0; i < 5 && node; i += 1, node = node.parentElement) {
+      const text = normalize(node.textContent || "");
+      if (text.includes("tracking") && text.includes("promo code")) return node;
+    }
+    return title?.parentElement || document.body;
+  }
+
+  function ensurePanel() {
+    ensureStyles();
+    let panel = document.getElementById(PANEL_ID);
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = PANEL_ID;
+      panel.innerHTML = `
+        <label class="yango-pay-filter-control">Pagado
+          <select id="influencer-paid-filter">
+            <option value="all">Todos</option>
+            <option value="paid">Pagados</option>
+            <option value="unpaid">Pendientes</option>
+          </select>
+        </label>
+        <label class="yango-pay-filter-control">Fecha pago desde
+          <input id="influencer-payment-from" type="date" />
+        </label>
+        <label class="yango-pay-filter-control">Fecha pago hasta
+          <input id="influencer-payment-to" type="date" />
+        </label>
+        <button id="influencer-payment-clear" class="yango-pay-filter-clear" type="button">Limpiar</button>
+      `;
+      ["influencer-paid-filter", "influencer-payment-from", "influencer-payment-to"].forEach(id => {
+        panel.querySelector(`#${id}`).addEventListener("change", applyFilter);
+      });
+      panel.querySelector("#influencer-payment-clear").addEventListener("click", () => {
+        panel.querySelector("#influencer-paid-filter").value = "all";
+        panel.querySelector("#influencer-payment-from").value = "";
+        panel.querySelector("#influencer-payment-to").value = "";
+        resetRows();
+        applyFilter();
+      });
+    }
+
+    const filterRow = findExistingFilterRow();
+    if (filterRow) {
+      if (panel.parentElement !== filterRow) filterRow.appendChild(panel);
+      panel.className = "is-inline";
+    } else {
+      const anchor = findFallbackAnchor();
+      if (panel.parentElement !== anchor.parentElement) anchor.insertAdjacentElement("afterend", panel);
+      panel.className = "is-fallback";
+    }
     return panel;
   }
 
@@ -179,9 +235,9 @@
     try {
       await loadInfluencers();
       const matches = matchedRows();
-      const panel = ensurePanel();
       const active = looksLikeInfluencerScreen(matches);
-      panel.style.display = active ? "grid" : "none";
+      const panel = active ? ensurePanel() : document.getElementById(PANEL_ID);
+      if (panel) panel.style.display = active ? "" : "none";
       if (active) applyFilter();
       else resetRows();
     } finally {
