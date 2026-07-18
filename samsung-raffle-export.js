@@ -1,5 +1,6 @@
 (() => {
   const KEY = "yango_samsung_raffle_h1";
+  const BUTTON_ID = "samsung-raffle-export-btn";
   const STATUS_LABELS = {
     pending: "Pendiente contacto",
     contacted: "Contactado",
@@ -28,7 +29,7 @@
   };
 
   async function loadRaffleData() {
-    await sleep(850);
+    await sleep(500);
     try {
       const res = await fetch(`/api/state?keys=${encodeURIComponent(KEY)}`, { cache: "no-store" });
       if (res.ok) {
@@ -72,38 +73,61 @@
     button.textContent = original;
   }
 
-  function isRaffleVisible() {
-    return document.body && document.body.innerText && document.body.innerText.includes("Rifa Samsung");
+  function activeRaffleSection() {
+    const headers = [...document.querySelectorAll("h1, h2, h3, div")];
+    const visibleTitle = headers.find(node => {
+      const text = (node.textContent || "").trim();
+      const box = node.getBoundingClientRect();
+      return text === "Rifa Samsung · Junio 2026" && box.width > 0 && box.height > 0;
+    });
+    if (!visibleTitle) return null;
+    return visibleTitle.closest("div[style]") || visibleTitle.parentElement;
+  }
+
+  function targetContainer(section) {
+    if (!section) return null;
+    let node = section;
+    for (let i = 0; i < 4 && node && node.parentElement; i += 1) {
+      const text = node.textContent || "";
+      if (text.includes("Top 40 usuarios") && text.includes("Rifa Samsung · Junio 2026")) return node;
+      node = node.parentElement;
+    }
+    return section;
   }
 
   function syncButton() {
-    const existing = document.getElementById("samsung-raffle-export-btn");
-    if (!isRaffleVisible()) {
+    const existing = document.getElementById(BUTTON_ID);
+    const section = targetContainer(activeRaffleSection());
+    if (!section) {
       if (existing) existing.remove();
       return;
     }
-    if (existing) return;
+    if (existing && section.contains(existing)) return;
+    if (existing) existing.remove();
+
     const button = document.createElement("button");
-    button.id = "samsung-raffle-export-btn";
+    button.id = BUTTON_ID;
     button.type = "button";
-    button.textContent = "Descargar data Rifa Samsung";
+    button.textContent = "Descargar data";
     button.style.cssText = [
-      "position:fixed",
-      "right:24px",
-      "bottom:24px",
-      "z-index:9999",
       "border:0",
       "border-radius:999px",
-      "padding:12px 16px",
-      "background:#111827",
-      "color:#fff",
-      "font-weight:900",
-      "font-size:13px",
-      "box-shadow:0 14px 36px rgba(15,23,42,.22)",
-      "cursor:pointer"
+      "padding:10px 14px",
+      "background:#ffffff",
+      "color:#111827",
+      "font-weight:950",
+      "font-size:12px",
+      "box-shadow:0 10px 24px rgba(15,23,42,.16)",
+      "cursor:pointer",
+      "white-space:nowrap",
+      "margin-left:auto"
     ].join(";");
     button.addEventListener("click", () => handleDownload(button));
-    document.body.appendChild(button);
+
+    section.style.display = section.style.display || "flex";
+    section.style.alignItems = section.style.alignItems || "center";
+    section.style.gap = section.style.gap || "12px";
+    section.appendChild(button);
   }
 
   const observer = new MutationObserver(syncButton);
