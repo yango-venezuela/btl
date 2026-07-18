@@ -31,9 +31,13 @@ async function ensureDatabase() {
 function sendDashboard(req, res) {
   fs.readFile(path.join(__dirname, "index.html"), "utf8", (error, html) => {
     if (error) return res.status(500).send("No pude cargar el dashboard.");
-    const helperTag = '<script src="/samsung-raffle-export.js" defer></script>';
-    const withHelper = html.includes(helperTag) ? html : html.replace("</body>", `${helperTag}</body>`);
-    res.type("html").send(withHelper);
+    const helperTags = [
+      '<script src="/samsung-raffle-export.js" defer></script>',
+      '<script src="/influencer-payment-filter.js" defer></script>'
+    ];
+    const tags = helperTags.filter(tag => !html.includes(tag)).join("");
+    const withHelpers = tags ? html.replace("</body>", `${tags}</body>`) : html;
+    res.type("html").send(withHelpers);
   });
 }
 
