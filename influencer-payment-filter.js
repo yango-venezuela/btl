@@ -131,17 +131,24 @@
       #${PANEL_ID}.is-inline { display: contents; }
       #${PANEL_ID}.is-under-row { display: flex; flex-wrap: wrap; align-items: end; gap: 20px 24px; margin: 0 0 22px; }
       #${PANEL_ID} .yango-pay-filter-control {
-        display: grid;
-        gap: 7px;
-        min-width: 240px;
-        color: #526179;
-        font-family: inherit;
-        font-size: 18px;
-        font-weight: 700;
-        line-height: 1.15;
+        display: grid !important;
+        gap: 7px !important;
+        min-width: 240px !important;
+        align-self: end !important;
+      }
+      #${PANEL_ID} .yango-pay-filter-title {
+        margin: 0 !important;
+        padding: 0 !important;
+        color: #526179 !important;
+        font-family: inherit !important;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        line-height: 1.15 !important;
+        letter-spacing: 0 !important;
+        text-transform: none !important;
       }
       #${PANEL_ID} .yango-pay-filter-control input {
-        box-sizing: border-box;
+        box-sizing: border-box !important;
         width: 240px;
         height: 58px;
         border: 1px solid #DFE7F1;
@@ -157,33 +164,25 @@
       }
       @media (max-width: 980px) {
         #${PANEL_ID}.is-under-row { gap: 14px; }
-        #${PANEL_ID} .yango-pay-filter-control { min-width: 190px; font-size: 15px; }
+        #${PANEL_ID} .yango-pay-filter-control { min-width: 190px !important; }
+        #${PANEL_ID} .yango-pay-filter-title { font-size: 15px !important; }
         #${PANEL_ID} .yango-pay-filter-control input { width: 190px; height: 48px; font-size: 18px; }
       }
     `;
     document.head.appendChild(style);
   }
 
-  function copyPublishedDateStyle(root) {
+  function copyPublishedDateInputStyle(root) {
     const panel = document.getElementById(PANEL_ID);
     if (!panel || !root) return;
-    const labels = [...root.querySelectorAll("label,div")].filter(isVisible);
-    const refLabel = labels.find(node => normalize(node.textContent || "").startsWith("publicado desde"));
-    const refInput = refLabel?.querySelector("input[type='date']") || [...root.querySelectorAll("input[type='date']")].find(isVisible);
-    if (!refLabel || !refInput) return;
+    const refInput = [...root.querySelectorAll("input[type='date']")].find(isVisible);
+    if (!refInput) return;
 
-    const labelStyle = window.getComputedStyle(refLabel);
     const inputStyle = window.getComputedStyle(refInput);
     const inputBox = refInput.getBoundingClientRect();
 
-    panel.querySelectorAll(".yango-pay-filter-control").forEach(label => {
-      label.style.fontFamily = labelStyle.fontFamily;
-      label.style.fontSize = labelStyle.fontSize;
-      label.style.fontWeight = labelStyle.fontWeight;
-      label.style.color = labelStyle.color;
-      label.style.lineHeight = labelStyle.lineHeight;
-      label.style.gap = labelStyle.gap || "7px";
-      label.style.minWidth = `${Math.round(inputBox.width)}px`;
+    panel.querySelectorAll(".yango-pay-filter-control").forEach(control => {
+      control.style.minWidth = `${Math.round(inputBox.width)}px`;
     });
 
     panel.querySelectorAll("input").forEach(input => {
@@ -235,12 +234,14 @@
       panel = document.createElement("div");
       panel.id = PANEL_ID;
       panel.innerHTML = `
-        <label class="yango-pay-filter-control">Fecha pago desde
+        <div class="yango-pay-filter-control">
+          <span class="yango-pay-filter-title">Fecha pago desde</span>
           <input id="influencer-payment-from" type="date" />
-        </label>
-        <label class="yango-pay-filter-control">Fecha pago hasta
+        </div>
+        <div class="yango-pay-filter-control">
+          <span class="yango-pay-filter-title">Fecha pago hasta</span>
           <input id="influencer-payment-to" type="date" />
-        </label>
+        </div>
       `;
       ["influencer-payment-from", "influencer-payment-to"].forEach(id => {
         panel.querySelector(`#${id}`).addEventListener("change", applyFilter);
@@ -255,7 +256,7 @@
       panel.className = "is-under-row";
     }
     panel.style.display = "";
-    copyPublishedDateStyle(root);
+    copyPublishedDateInputStyle(root);
     return panel;
   }
 
