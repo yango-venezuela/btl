@@ -130,74 +130,8 @@
       #${PANEL_ID} { display: none; }
       #${PANEL_ID}.is-inline { display: contents; }
       #${PANEL_ID}.is-under-row { display: flex; flex-wrap: wrap; align-items: end; gap: 20px 24px; margin: 0 0 22px; }
-      #${PANEL_ID} .yango-pay-filter-control {
-        display: grid !important;
-        gap: 7px !important;
-        min-width: 240px !important;
-        align-self: end !important;
-      }
-      #${PANEL_ID} .yango-pay-filter-title {
-        margin: 0 !important;
-        padding: 0 !important;
-        color: #526179 !important;
-        font-family: inherit !important;
-        font-size: 18px !important;
-        font-weight: 600 !important;
-        line-height: 1.15 !important;
-        letter-spacing: 0 !important;
-        text-transform: none !important;
-      }
-      #${PANEL_ID} .yango-pay-filter-control input {
-        box-sizing: border-box !important;
-        width: 240px;
-        height: 58px;
-        border: 1px solid #DFE7F1;
-        border-radius: 12px;
-        padding: 0 18px;
-        background: #fff;
-        color: #0F172A;
-        font-family: inherit;
-        font-size: 22px;
-        font-weight: 800;
-        box-shadow: none;
-        outline: none;
-      }
-      @media (max-width: 980px) {
-        #${PANEL_ID}.is-under-row { gap: 14px; }
-        #${PANEL_ID} .yango-pay-filter-control { min-width: 190px !important; }
-        #${PANEL_ID} .yango-pay-filter-title { font-size: 15px !important; }
-        #${PANEL_ID} .yango-pay-filter-control input { width: 190px; height: 48px; font-size: 18px; }
-      }
     `;
     document.head.appendChild(style);
-  }
-
-  function copyPublishedDateInputStyle(root) {
-    const panel = document.getElementById(PANEL_ID);
-    if (!panel || !root) return;
-    const refInput = [...root.querySelectorAll("input[type='date']")].find(isVisible);
-    if (!refInput) return;
-
-    const inputStyle = window.getComputedStyle(refInput);
-    const inputBox = refInput.getBoundingClientRect();
-
-    panel.querySelectorAll(".yango-pay-filter-control").forEach(control => {
-      control.style.minWidth = `${Math.round(inputBox.width)}px`;
-    });
-
-    panel.querySelectorAll("input").forEach(input => {
-      input.style.width = `${Math.round(inputBox.width)}px`;
-      input.style.height = `${Math.round(inputBox.height)}px`;
-      input.style.border = inputStyle.border;
-      input.style.borderRadius = inputStyle.borderRadius;
-      input.style.padding = inputStyle.padding;
-      input.style.background = inputStyle.backgroundColor;
-      input.style.color = inputStyle.color;
-      input.style.fontFamily = inputStyle.fontFamily;
-      input.style.fontSize = inputStyle.fontSize;
-      input.style.fontWeight = inputStyle.fontWeight;
-      input.style.boxShadow = inputStyle.boxShadow;
-    });
   }
 
   function filterRow(root) {
@@ -227,25 +161,74 @@
     return table || root;
   }
 
+  function smallestControlForText(root, textNeedle) {
+    const needle = normalize(textNeedle);
+    const matches = [...root.querySelectorAll("label,div")].filter(node => {
+      if (!isVisible(node)) return false;
+      const text = normalize(node.textContent || "");
+      return text.includes(needle) && node.querySelector("input[type='date']");
+    }).map(node => {
+      const box = node.getBoundingClientRect();
+      return { node, area: box.width * box.height };
+    });
+    if (!matches.length) return null;
+    matches.sort((a, b) => a.area - b.area);
+    return matches[0].node;
+  }
+
+  function replaceTextNode(root, from, to) {
+    const target = normalize(from);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      if (normalize(node.nodeValue).includes(target)) {
+        node.nodeValue = node.nodeValue.replace(new RegExp(from, "i"), to);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function cloneDateControl(root, fromLabel, toLabel, inputId) {
+    const source = smallestControlForText(root, fromLabel);
+    if (!source) return null;
+    const clone = source.cloneNode(true);
+    clone.removeAttribute("id");
+    clone.querySelectorAll("[id]").forEach(node => node.removeAttribute("id"));
+    clone.querySelectorAll("[name]").forEach(node => node.removeAttribute("name"));
+    clone.querySelectorAll("[for]").forEach(node => node.removeAttribute("for"));
+    replaceTextNode(clone, fromLabel, toLabel);
+    const input = clone.querySelector("input[type='date']");
+    if (!input) return null;
+    input.id = inputId;
+    input.value = document.getElementById(inputId)?.value || "";
+    input.removeAttribute("name");
+    input.addEventListener("change", applyFilter);
+    return clone;
+  }
+
+  function buildPanel(root) {
+    const panel = document.createElement("div");
+    panel.id = PANEL_ID;
+    const from = cloneDateControl(root, "Publicado desde", "Fecha pago desde", "influencer-payment-from");
+    const to = cloneDateControl(root, "Publicado hasta", "Fecha pago hasta", "influencer-payment-to");
+    if (!from || !to) return null;
+    panel.appendChild(from);
+    panel.appendChild(to);
+    return panel;
+  }
+
   function ensurePanel(target, mode, root) {
     ensureStyles();
     let panel = document.getElementById(PANEL_ID);
-    if (!panel) {
-      panel = document.createElement("div");
-      panel.id = PANEL_ID;
-      panel.innerHTML = `
-        <div class="yango-pay-filter-control">
-          <span class="yango-pay-filter-title">Fecha pago desde</span>
-          <input id="influencer-payment-from" type="date" />
-        </div>
-        <div class="yango-pay-filter-control">
-          <span class="yango-pay-filter-title">Fecha pago hasta</span>
-          <input id="influencer-payment-to" type="date" />
-        </div>
-      `;
-      ["influencer-payment-from", "influencer-payment-to"].forEach(id => {
-        panel.querySelector(`#${id}`).addEventListener("change", applyFilter);
-      });
+    if (!panel || !panel.querySelector("#influencer-payment-from") || !panel.querySelector("#influencer-payment-to")) {
+      const oldFrom = document.getElementById("influencer-payment-from")?.value || "";
+      const oldTo = document.getElementById("influencer-payment-to")?.value || "";
+      if (panel) panel.remove();
+      panel = buildPanel(root);
+      if (!panel) return null;
+      panel.querySelector("#influencer-payment-from").value = oldFrom;
+      panel.querySelector("#influencer-payment-to").value = oldTo;
     }
 
     if (mode === "inline") {
@@ -256,7 +239,6 @@
       panel.className = "is-under-row";
     }
     panel.style.display = "";
-    copyPublishedDateInputStyle(root);
     return panel;
   }
 
