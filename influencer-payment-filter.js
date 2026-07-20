@@ -10,6 +10,7 @@
   const normalize = value => String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
 
@@ -18,6 +19,12 @@
     const box = element.getBoundingClientRect();
     const style = window.getComputedStyle(element);
     return box.width > 0 && box.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+  };
+
+  const isProbablySidebar = element => {
+    const box = element.getBoundingClientRect();
+    const navParent = element.closest("aside, nav, [role='navigation']");
+    return Boolean(navParent) || (box.left < 330 && box.width < 340);
   };
 
   const getPaymentDate = item => item.paymentDate || item.paidDate || item.payment_date || item.fechaPago || item.fecha_pago || item.fechaDePago || "";
@@ -73,23 +80,36 @@
     return cachedItems;
   }
 
-  function matchedRows() {
+  function influencerTitle() {
+    return [...document.querySelectorAll("h1,h2,h3")].find(node => {
+      if (!isVisible(node) || isProbablySidebar(node)) return false;
+      const text = normalize(node.textContent || "");
+      return text.includes("ig, tiktok e influencers") || text.includes("tracking de ig, tiktok e influencers");
+    }) || null;
+  }
+
+  function influencerRoot() {
+    const title = influencerTitle();
+    if (!title) return null;
+    let node = title;
+    for (let i = 0; i < 7 && node && node.parentElement; i += 1) {
+      const text = normalize(node.textContent || "");
+      if (text.includes("tipo") && text.includes("plataforma") && text.includes("entregable") && text.includes("ordenar por")) {
+        return node;
+      }
+      node = node.parentElement;
+    }
+    return title.parentElement;
+  }
+
+  function matchedRows(root = document) {
     if (!cachedItems.length) return [];
-    const rows = [...document.querySelectorAll("tbody tr")].filter(row => isVisible(row) || row.getAttribute(HIDDEN_ATTR) === "true");
+    const rows = [...root.querySelectorAll("tbody tr")].filter(row => isVisible(row) || row.getAttribute(HIDDEN_ATTR) === "true");
     return rows.map(row => {
       const text = normalize(row.textContent || "");
       const item = cachedItems.find(candidate => itemKeys(candidate).some(key => text.includes(key)));
       return item ? { row, item } : null;
     }).filter(Boolean);
-  }
-
-  function looksLikeInfluencerScreen(matches) {
-    if (matches.length >= 1) return true;
-    const visibleText = normalize([...document.querySelectorAll("h1,h2,h3,button,label,span")]
-      .filter(isVisible)
-      .map(node => node.textContent || "")
-      .join(" "));
-    return visibleText.includes("influencer") || visibleText.includes("nuevo influencer") || visibleText.includes("microinfluencer");
   }
 
   function values() {
@@ -108,7 +128,9 @@
   }
 
   function applyFilter() {
-    const matches = matchedRows();
+    const root = influencerRoot();
+    if (!root) return resetRows();
+    const matches = matchedRows(root);
     const { paid, from, to } = values();
     matches.forEach(({ row, item }) => {
       const paidOk = paid === "all" || (paid === "paid" ? getPaid(item) : !getPaid(item));
@@ -127,63 +149,75 @@
     style.textContent = `
       #${PANEL_ID} { display: none; }
       #${PANEL_ID}.is-inline { display: contents; }
-      #${PANEL_ID}.is-fallback { display: flex; flex-wrap: wrap; gap: 24px; align-items: end; margin: 0 0 22px; }
-      .yango-pay-filter-control { display: grid; gap: 8px; min-width: 170px; color: #64748B; font-size: 16px; font-weight: 800; line-height: 1.15; }
-      .yango-pay-filter-control select,
-      .yango-pay-filter-control input { height: 58px; min-width: 170px; border: 1px solid #DFE7F1; border-radius: 12px; padding: 0 18px; background: #fff; color: #0F172A; font: inherit; font-size: 22px; font-weight: 900; box-shadow: none; }
-      .yango-pay-filter-clear { height: 58px; align-self: end; border: 1px solid #DFE7F1; border-radius: 12px; padding: 0 20px; background: #fff; color: #0F172A; font: inherit; font-size: 18px; font-weight: 900; cursor: pointer; }
-      .yango-pay-filter-clear:hover { background: #F8FAFC; }
+      #${PANEL_ID} .yango-pay-filter-control {
+        display: grid;
+        gap: 7px;
+        min-width: 150px;
+        color: #64748B;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 800;
+        line-height: 1.15;
+      }
+      #${PANEL_ID} .yango-pay-filter-control select,
+      #${PANEL_ID} .yango-pay-filter-control input {
+        box-sizing: border-box;
+        width: 100%;
+        height: 46px;
+        border: 1px solid #DFE7F1;
+        border-radius: 12px;
+        padding: 0 13px;
+        background: #fff;
+        color: #0F172A;
+        font: inherit;
+        font-size: 17px;
+        font-weight: 900;
+        box-shadow: none;
+        outline: none;
+      }
+      #${PANEL_ID} .yango-pay-filter-control input { min-width: 168px; }
+      #${PANEL_ID} .yango-pay-filter-clear {
+        box-sizing: border-box;
+        height: 46px;
+        align-self: end;
+        border: 1px solid #DFE7F1;
+        border-radius: 12px;
+        padding: 0 16px;
+        background: #fff;
+        color: #0F172A;
+        font: inherit;
+        font-size: 15px;
+        font-weight: 900;
+        cursor: pointer;
+      }
+      #${PANEL_ID} .yango-pay-filter-clear:hover { background: #F8FAFC; }
       @media (max-width: 980px) {
-        #${PANEL_ID}.is-fallback { gap: 14px; }
-        .yango-pay-filter-control { min-width: 150px; font-size: 13px; }
-        .yango-pay-filter-control select,
-        .yango-pay-filter-control input { height: 48px; min-width: 150px; font-size: 18px; }
-        .yango-pay-filter-clear { height: 48px; font-size: 16px; }
+        #${PANEL_ID} .yango-pay-filter-control { min-width: 135px; font-size: 12px; }
+        #${PANEL_ID} .yango-pay-filter-control select,
+        #${PANEL_ID} .yango-pay-filter-control input { height: 42px; font-size: 15px; }
+        #${PANEL_ID} .yango-pay-filter-control input { min-width: 145px; }
+        #${PANEL_ID} .yango-pay-filter-clear { height: 42px; font-size: 14px; }
       }
     `;
     document.head.appendChild(style);
   }
 
-  function findExistingFilterRow() {
-    const containers = [...document.querySelectorAll("div,section")].filter(isVisible).map(element => {
-      const text = normalize(element.textContent || "").replace(/\s+/g, " ");
+  function filterRow(root) {
+    if (!root) return null;
+    const candidates = [...root.querySelectorAll("div,section")].filter(isVisible).map(element => {
+      const text = normalize(element.textContent || "");
       const keywords = ["tipo", "plataforma", "entregable", "ordenar por", "publicado desde", "publicado hasta"];
       const hits = keywords.filter(keyword => text.includes(keyword)).length;
       const box = element.getBoundingClientRect();
-      return { element, text, hits, area: box.width * box.height, height: box.height };
-    }).filter(item => item.hits >= 4 && item.height < 260);
+      return { element, hits, area: box.width * box.height, height: box.height, width: box.width, top: box.top };
+    }).filter(item => item.hits >= 4 && item.height > 40 && item.height < 190 && item.width > 500);
 
-    if (containers.length) {
-      containers.sort((a, b) => a.area - b.area || b.hits - a.hits);
-      return containers[0].element;
-    }
-
-    const publicadoHasta = [...document.querySelectorAll("label,div")].find(node => {
-      const text = normalize(node.textContent || "");
-      return isVisible(node) && text.includes("publicado hasta");
-    });
-    if (publicadoHasta) {
-      let node = publicadoHasta.parentElement;
-      for (let i = 0; i < 4 && node; i += 1, node = node.parentElement) {
-        const text = normalize(node.textContent || "");
-        if (text.includes("tipo") && text.includes("plataforma")) return node;
-      }
-      return publicadoHasta.parentElement;
-    }
-    return null;
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => a.area - b.area || a.top - b.top);
+    return candidates[0].element;
   }
 
-  function findFallbackAnchor() {
-    const title = [...document.querySelectorAll("h1,h2,h3")].find(node => isVisible(node) && normalize(node.textContent).includes("influencer"));
-    let node = title;
-    for (let i = 0; i < 5 && node; i += 1, node = node.parentElement) {
-      const text = normalize(node.textContent || "");
-      if (text.includes("tracking") && text.includes("promo code")) return node;
-    }
-    return title?.parentElement || document.body;
-  }
-
-  function ensurePanel() {
+  function ensurePanel(row) {
     ensureStyles();
     let panel = document.getElementById(PANEL_ID);
     if (!panel) {
@@ -216,16 +250,9 @@
         applyFilter();
       });
     }
-
-    const filterRow = findExistingFilterRow();
-    if (filterRow) {
-      if (panel.parentElement !== filterRow) filterRow.appendChild(panel);
-      panel.className = "is-inline";
-    } else {
-      const anchor = findFallbackAnchor();
-      if (panel.parentElement !== anchor.parentElement) anchor.insertAdjacentElement("afterend", panel);
-      panel.className = "is-fallback";
-    }
+    if (panel.parentElement !== row) row.appendChild(panel);
+    panel.className = "is-inline";
+    panel.style.display = "";
     return panel;
   }
 
@@ -234,12 +261,16 @@
     syncing = true;
     try {
       await loadInfluencers();
-      const matches = matchedRows();
-      const active = looksLikeInfluencerScreen(matches);
-      const panel = active ? ensurePanel() : document.getElementById(PANEL_ID);
-      if (panel) panel.style.display = active ? "" : "none";
-      if (active) applyFilter();
-      else resetRows();
+      const root = influencerRoot();
+      const row = filterRow(root);
+      const panel = document.getElementById(PANEL_ID);
+      if (!root || !row) {
+        if (panel) panel.style.display = "none";
+        resetRows();
+        return;
+      }
+      ensurePanel(row);
+      applyFilter();
     } finally {
       syncing = false;
     }
