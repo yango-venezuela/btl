@@ -37,9 +37,15 @@
     }
     return "";
   };
-  const getName = item => item.name || item.nombre || item.influencer || item.username || item.user || "";
+  const getName = item => item?.name || item?.nombre || item?.influencer || item?.username || item?.user || "";
 
-  const toDateKey = value => {
+  const inferYear = (from, to) => {
+    const picked = from || to || "";
+    const match = String(picked).match(/^(20\d{2}|19\d{2})/);
+    return match ? match[1] : String(new Date().getFullYear());
+  };
+
+  const toDateKey = (value, fallbackYear) => {
     if (value === undefined || value === null || value === "") return "";
     if (value instanceof Date && !Number.isNaN(value.getTime())) {
       return `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}`;
@@ -60,6 +66,9 @@
     const local = raw.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/);
     if (local) return `${local[3]}-${pad2(local[2])}-${pad2(local[1])}`;
 
+    const yearless = raw.match(/(?:^|[^\d])(\d{1,2})[-/.](\d{1,2})(?![-/.]\d)/);
+    if (yearless) return `${fallbackYear || new Date().getFullYear()}-${pad2(yearless[2])}-${pad2(yearless[1])}`;
+
     const parsed = new Date(raw);
     if (!Number.isNaN(parsed.getTime())) {
       return `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(parsed.getDate())}`;
@@ -69,12 +78,12 @@
 
   const inDateRange = (date, from, to) => {
     if (!from && !to) return true;
-    const value = toDateKey(date);
+    const value = toDateKey(date, inferYear(from, to));
     if (!value) return false;
     return (!from || value >= from) && (!to || value <= to);
   };
 
-  function datesFromElement(element) {
+  function datesFromElement(element, fallbackYear) {
     if (!element) return [];
     const dates = [];
     element.querySelectorAll("input[type='date']").forEach(input => {
@@ -83,43 +92,44 @@
     const text = element.textContent || "";
     const patterns = [
       /(20\d{2}|19\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/g,
-      /(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/g
+      /(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/g,
+      /(?:^|[^\d])(\d{1,2})[-/.](\d{1,2})(?![-/.]\d)/g
     ];
     patterns.forEach(pattern => {
       let match;
       while ((match = pattern.exec(text))) dates.push(match[0]);
     });
-    return [...new Set(dates)].filter(value => toDateKey(value));
+    return [...new Set(dates)].filter(value => toDateKey(value, fallbackYear));
   }
 
-  function rowPaymentDate(row, item) {
+  function rowPaymentDate(row, item, fallbackYear) {
     const itemDate = getPaymentDate(item);
-    if (toDateKey(itemDate)) return itemDate;
+    if (toDateKey(itemDate, fallbackYear)) return itemDate;
 
     const table = row.closest("table");
     if (table && row.cells && row.cells.length) {
       const headers = [...table.querySelectorAll("thead th")].map(th => normalize(th.textContent || ""));
       const paymentIndex = headers.findIndex(text => text.includes("pago") || text.includes("pagado"));
       if (paymentIndex >= 0 && row.cells[paymentIndex]) {
-        const cellDates = datesFromElement(row.cells[paymentIndex]);
+        const cellDates = datesFromElement(row.cells[paymentIndex], fallbackYear);
         if (cellDates.length) return cellDates[0];
       }
     }
 
     const paymentNodes = [...row.querySelectorAll("td, label, div, span")].filter(node => {
       const text = normalize(node.textContent || "");
-      return (text.includes("pago") || text.includes("pagado")) && datesFromElement(node).length;
+      return (text.includes("pago") || text.includes("pagado")) && datesFromElement(node, fallbackYear).length;
     });
-    if (paymentNodes.length) return datesFromElement(paymentNodes[0])[0];
+    if (paymentNodes.length) return datesFromElement(paymentNodes[0], fallbackYear)[0];
 
-    const rowDates = datesFromElement(row);
+    const rowDates = datesFromElement(row, fallbackYear);
     if (rowDates.length === 1) return rowDates[0];
     if (rowDates.length > 1) return rowDates[rowDates.length - 1];
     return "";
   }
 
   const itemKeys = item => {
-    const preferred = [getName(item), item.igUsername, item.instagram, item.tiktokUsername, item.tiktok, item.handle, item.link];
+    const preferred = [getName(item), item?.igUsername, item?.instagram, item?.tiktokUsername, item?.tiktok, item?.handle, item?.link];
     return preferred
       .concat(Object.values(item || {}).filter(value => typeof value === "string" || typeof value === "number"))
       .map(normalize)
@@ -171,13 +181,13 @@
     return best;
   }
 
-  function matchedRows(root = document) {
+  function matchedRows(root = document, fallbackYear) {
     const rows = [...root.querySelectorAll("tbody tr")].filter(row => isVisible(row) || row.getAttribute(HIDDEN_ATTR) === "true");
     return rows.map(row => {
       const text = normalize(row.textContent || "");
       const item = cachedItems.find(candidate => itemKeys(candidate).some(key => text.includes(key))) || null;
       return { row, item };
-    }).filter(({ row, item }) => item || datesFromElement(row).length || normalize(row.textContent || "").includes("pago"));
+    }).filter(({ row, item }) => item || datesFromElement(row, fallbackYear).length || normalize(row.textContent || "").includes("pago"));
   }
 
   function values() {
@@ -197,10 +207,11 @@
   function applyFilter() {
     const root = influencerRoot();
     if (!root) return resetRows();
-    const matches = matchedRows(root);
     const { from, to } = values();
+    const fallbackYear = inferYear(from, to);
+    const matches = matchedRows(root, fallbackYear);
     matches.forEach(({ row, item }) => {
-      const visible = inDateRange(rowPaymentDate(row, item), from, to);
+      const visible = inDateRange(rowPaymentDate(row, item, fallbackYear), from, to);
       row.style.display = visible ? "" : "none";
       if (visible) row.removeAttribute(HIDDEN_ATTR);
       else row.setAttribute(HIDDEN_ATTR, "true");
