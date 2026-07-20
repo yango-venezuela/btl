@@ -13,18 +13,13 @@
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
+  const compact = value => normalize(value).replace(/\s/g, "");
 
   const isVisible = element => {
     if (!element) return false;
     const box = element.getBoundingClientRect();
     const style = window.getComputedStyle(element);
     return box.width > 0 && box.height > 0 && style.display !== "none" && style.visibility !== "hidden";
-  };
-
-  const isProbablySidebar = element => {
-    const box = element.getBoundingClientRect();
-    const navParent = element.closest("aside, nav, [role='navigation']");
-    return Boolean(navParent) || (box.left < 330 && box.width < 340);
   };
 
   const getPaymentDate = item => item.paymentDate || item.paidDate || item.payment_date || item.fechaPago || item.fecha_pago || item.fechaDePago || "";
@@ -82,24 +77,25 @@
 
   function influencerTitle() {
     return [...document.querySelectorAll("h1,h2,h3")].find(node => {
-      if (!isVisible(node) || isProbablySidebar(node)) return false;
+      if (!isVisible(node)) return false;
       const text = normalize(node.textContent || "");
-      return text.includes("ig, tiktok e influencers") || text.includes("tracking de ig, tiktok e influencers");
+      const tight = compact(node.textContent || "");
+      return tight.includes("ig,tiktokeinfluencers") || text.includes("tracking de ig") || (text.includes("influencers") && (text.includes("tiktok") || text.includes("ig")));
     }) || null;
   }
 
   function influencerRoot() {
     const title = influencerTitle();
     if (!title) return null;
+    let best = title.parentElement || title;
     let node = title;
-    for (let i = 0; i < 7 && node && node.parentElement; i += 1) {
+    for (let i = 0; i < 9 && node && node.parentElement; i += 1) {
       const text = normalize(node.textContent || "");
-      if (text.includes("tipo") && text.includes("plataforma") && text.includes("entregable") && text.includes("ordenar por")) {
-        return node;
-      }
+      if (text.includes("tipo") && text.includes("plataforma") && text.includes("entregable") && text.includes("ordenar por")) best = node;
+      if (text.includes("influencers") && text.includes("publicado desde") && text.includes("publicado hasta")) best = node;
       node = node.parentElement;
     }
-    return title.parentElement;
+    return best;
   }
 
   function matchedRows(root = document) {
@@ -149,6 +145,7 @@
     style.textContent = `
       #${PANEL_ID} { display: none; }
       #${PANEL_ID}.is-inline { display: contents; }
+      #${PANEL_ID}.is-under-row { display: flex; flex-wrap: wrap; align-items: end; gap: 20px 24px; margin: -6px 0 22px; }
       #${PANEL_ID} .yango-pay-filter-control {
         display: grid;
         gap: 7px;
@@ -192,6 +189,7 @@
       }
       #${PANEL_ID} .yango-pay-filter-clear:hover { background: #F8FAFC; }
       @media (max-width: 980px) {
+        #${PANEL_ID}.is-under-row { gap: 14px; }
         #${PANEL_ID} .yango-pay-filter-control { min-width: 135px; font-size: 12px; }
         #${PANEL_ID} .yango-pay-filter-control select,
         #${PANEL_ID} .yango-pay-filter-control input { height: 42px; font-size: 15px; }
@@ -210,14 +208,26 @@
       const hits = keywords.filter(keyword => text.includes(keyword)).length;
       const box = element.getBoundingClientRect();
       return { element, hits, area: box.width * box.height, height: box.height, width: box.width, top: box.top };
-    }).filter(item => item.hits >= 4 && item.height > 40 && item.height < 190 && item.width > 500);
+    }).filter(item => item.hits >= 4 && item.height > 35 && item.height < 340 && item.width > 420);
 
     if (!candidates.length) return null;
-    candidates.sort((a, b) => a.area - b.area || a.top - b.top);
+    candidates.sort((a, b) => b.hits - a.hits || a.area - b.area || a.top - b.top);
     return candidates[0].element;
   }
 
-  function ensurePanel(row) {
+  function fallbackAnchor(root) {
+    if (!root) return null;
+    const influencersCardTitle = [...root.querySelectorAll("h1,h2,h3")].find(node => isVisible(node) && normalize(node.textContent || "") === "influencers");
+    if (influencersCardTitle) {
+      let node = influencersCardTitle;
+      for (let i = 0; i < 4 && node && node.parentElement; i += 1) node = node.parentElement;
+      return node || influencersCardTitle;
+    }
+    const table = root.querySelector("table");
+    return table || root;
+  }
+
+  function ensurePanel(target, mode) {
     ensureStyles();
     let panel = document.getElementById(PANEL_ID);
     if (!panel) {
@@ -250,8 +260,14 @@
         applyFilter();
       });
     }
-    if (panel.parentElement !== row) row.appendChild(panel);
-    panel.className = "is-inline";
+
+    if (mode === "inline") {
+      if (panel.parentElement !== target) target.appendChild(panel);
+      panel.className = "is-inline";
+    } else {
+      if (panel.previousElementSibling !== target) target.insertAdjacentElement("beforebegin", panel);
+      panel.className = "is-under-row";
+    }
     panel.style.display = "";
     return panel;
   }
@@ -262,14 +278,22 @@
     try {
       await loadInfluencers();
       const root = influencerRoot();
-      const row = filterRow(root);
       const panel = document.getElementById(PANEL_ID);
-      if (!root || !row) {
+      if (!root) {
         if (panel) panel.style.display = "none";
         resetRows();
         return;
       }
-      ensurePanel(row);
+      const row = filterRow(root);
+      if (row) ensurePanel(row, "inline");
+      else {
+        const anchor = fallbackAnchor(root);
+        if (!anchor) {
+          if (panel) panel.style.display = "none";
+          return;
+        }
+        ensurePanel(anchor, "under");
+      }
       applyFilter();
     } finally {
       syncing = false;
