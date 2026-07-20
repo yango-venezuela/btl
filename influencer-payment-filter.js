@@ -14,6 +14,7 @@
     .trim()
     .toLowerCase();
   const compact = value => normalize(value).replace(/\s/g, "");
+  const pad2 = value => String(value).padStart(2, "0");
 
   const isVisible = element => {
     if (!element) return false;
@@ -22,13 +23,53 @@
     return box.width > 0 && box.height > 0 && style.display !== "none" && style.visibility !== "hidden";
   };
 
-  const getPaymentDate = item => item.paymentDate || item.paidDate || item.payment_date || item.fechaPago || item.fecha_pago || item.fechaDePago || "";
+  const getNested = (obj, path) => path.split(".").reduce((value, key) => value && value[key], obj);
+  const getPaymentDate = item => {
+    const keys = [
+      "paymentDate", "paidDate", "payment_date", "paid_date", "payDate", "datePaid", "paidAt", "paymentAt",
+      "fechaPago", "fecha_pago", "fechaDePago", "fecha_pagado", "fechaPagado", "fechaPagoInfluencer",
+      "pagoFecha", "pago_fecha", "date_payment", "payment.date", "payment.fecha", "pago.fecha"
+    ];
+    for (const key of keys) {
+      const value = key.includes(".") ? getNested(item, key) : item[key];
+      if (value !== undefined && value !== null && String(value).trim() !== "") return value;
+    }
+    return "";
+  };
   const getName = item => item.name || item.nombre || item.influencer || item.username || item.user || "";
+
+  const toDateKey = value => {
+    if (value === undefined || value === null || value === "") return "";
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}`;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      if (value > 20000 && value < 80000) {
+        const date = new Date(Date.UTC(1899, 11, 30 + value));
+        return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+      }
+      return "";
+    }
+    const raw = String(value).trim();
+    if (!raw) return "";
+
+    const iso = raw.match(/(20\d{2}|19\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (iso) return `${iso[1]}-${pad2(iso[2])}-${pad2(iso[3])}`;
+
+    const local = raw.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/);
+    if (local) return `${local[3]}-${pad2(local[2])}-${pad2(local[1])}`;
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(parsed.getDate())}`;
+    }
+    return "";
+  };
 
   const inDateRange = (date, from, to) => {
     if (!from && !to) return true;
-    if (!date) return false;
-    const value = String(date).slice(0, 10);
+    const value = toDateKey(date);
+    if (!value) return false;
     return (!from || value >= from) && (!to || value <= to);
   };
 
