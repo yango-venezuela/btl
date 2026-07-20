@@ -83,6 +83,17 @@
     return (!from || value >= from) && (!to || value <= to);
   };
 
+  const parseNumber = value => {
+    const cleaned = String(value || "").replace(/[^\d,.-]/g, "").trim();
+    if (!cleaned) return 0;
+    if (cleaned.includes(",") && cleaned.includes(".")) return Number(cleaned.replace(/\./g, "").replace(",", ".")) || 0;
+    if (cleaned.includes(",")) return Number(cleaned.replace(/\./g, "").replace(",", ".")) || 0;
+    return Number(cleaned.replace(/,/g, "")) || 0;
+  };
+  const fmt = value => new Intl.NumberFormat("es-VE", { maximumFractionDigits: 0 }).format(Math.round(value || 0));
+  const fmtMoney = value => `$${fmt(value)}`;
+  const fmtPercent = value => `${new Intl.NumberFormat("es-VE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value || 0)}%`;
+
   function datesFromElement(element, fallbackYear) {
     if (!element) return [];
     const dates = [];
@@ -204,6 +215,91 @@
     });
   }
 
+  function extractMoney(row, index) {
+    const cells = row.cells ? [...row.cells] : [];
+    const source = cells[index] || row;
+    const matches = [...(source.textContent || "").matchAll(/\$\s*([\d.,]+)/g)].map(match => parseNumber(match[1]));
+    return matches[0] || 0;
+  }
+
+  function extractReach(row, label) {
+    const re = new RegExp(`${label}\\s*:\\s*([\\d.,]+)\\s*reach`, "i");
+    const match = (row.textContent || "").match(re);
+    return match ? parseNumber(match[1]) : 0;
+  }
+
+  function extractErs(row) {
+    return [...(row.textContent || "").matchAll(/ER\s*([\d.,]+)\s*%/gi)].map(match => parseNumber(match[1])).filter(Number.isFinite);
+  }
+
+  function sumItemNumber(item, patterns) {
+    if (!item) return 0;
+    const stack = [item];
+    let total = 0;
+    while (stack.length) {
+      const obj = stack.pop();
+      if (!obj || typeof obj !== "object") continue;
+      Object.entries(obj).forEach(([key, value]) => {
+        const k = normalize(key);
+        if (value && typeof value === "object") stack.push(value);
+        else if (patterns.every(pattern => k.includes(pattern))) total += parseNumber(value);
+      });
+    }
+    return total;
+  }
+
+  function rowType(row, item) {
+    const source = normalize([item?.type, item?.tipo, item?.category, item?.categoria, row.textContent].filter(Boolean).join(" "));
+    if (source.includes("microinfluencer")) return "micro";
+    if (source.includes("influencer")) return "influencer";
+    return "";
+  }
+
+  function setCardValue(root, label, value, beforeY) {
+    const normalizedLabel = normalize(label);
+    const labels = [...root.querySelectorAll("div,span,p")].filter(node => {
+      if (!isVisible(node) || node.closest("table") || node.closest("tbody")) return false;
+      const text = normalize(node.textContent || "");
+      const box = node.getBoundingClientRect();
+      return text === normalizedLabel && (!beforeY || box.top < beforeY);
+    });
+    const labelNode = labels[0];
+    if (!labelNode) return;
+    const siblings = labelNode.parentElement ? [...labelNode.parentElement.children] : [];
+    const labelIndex = siblings.indexOf(labelNode);
+    const valueNode = labelIndex > 0 ? siblings[labelIndex - 1] : null;
+    if (valueNode) valueNode.textContent = value;
+  }
+
+  function updateSummary(root, allMatches, filteredMatches) {
+    const rowTop = filterRow(root)?.getBoundingClientRect().top || null;
+    const rows = filteredMatches.map(match => match.row);
+    const totalRows = rows.length;
+    const typeCounts = filteredMatches.reduce((acc, { row, item }) => {
+      const type = rowType(row, item);
+      if (type === "micro") acc.micro += 1;
+      else if (type === "influencer") acc.influencer += 1;
+      return acc;
+    }, { influencer: 0, micro: 0 });
+    const published = rows.filter(row => normalize(row.textContent || "").includes("publico") || normalize(row.textContent || "").includes("publicó") || normalize(row.textContent || "").includes("publicado")).length;
+    const reachIg = rows.reduce((sum, row) => sum + extractReach(row, "IG"), 0);
+    const reachTiktok = rows.reduce((sum, row) => sum + extractReach(row, "TikTok"), 0);
+    const budgets = rows.map(row => extractMoney(row, 3)).filter(value => value > 0);
+    const cpms = rows.map(row => extractMoney(row, 4)).filter(value => value > 0);
+    const ers = rows.flatMap(extractErs);
+    const promo = filteredMatches.reduce((sum, { item }) => sum + sumItemNumber(item, ["promo"]), 0) || filteredMatches.reduce((sum, { item }) => sum + sumItemNumber(item, ["redencion"]), 0);
+
+    setCardValue(root, "Influencers", fmt(typeCounts.influencer), rowTop);
+    setCardValue(root, "Micros", fmt(typeCounts.micro), rowTop);
+    setCardValue(root, "Publicados", `${fmt(published)}/${fmt(totalRows)}`, rowTop);
+    setCardValue(root, "Reach IG", fmt(reachIg), rowTop);
+    setCardValue(root, "Reach TikTok", fmt(reachTiktok), rowTop);
+    setCardValue(root, "Engagement rate", fmtPercent(ers.length ? ers.reduce((a, b) => a + b, 0) / ers.length : 0), rowTop);
+    setCardValue(root, "Redenciones Promo Code", fmt(promo), rowTop);
+    setCardValue(root, "Presupuesto", fmtMoney(budgets.reduce((a, b) => a + b, 0)), rowTop);
+    setCardValue(root, "CPM promedio", fmtMoney(cpms.length ? cpms.reduce((a, b) => a + b, 0) / cpms.length : 0), rowTop);
+  }
+
   function applyFilter() {
     const root = influencerRoot();
     if (!root) return resetRows();
@@ -216,6 +312,8 @@
       if (visible) row.removeAttribute(HIDDEN_ATTR);
       else row.setAttribute(HIDDEN_ATTR, "true");
     });
+    const filtered = matches.filter(({ row }) => isVisible(row) && row.style.display !== "none");
+    updateSummary(root, matches, filtered);
   }
 
   function ensureStyles() {
