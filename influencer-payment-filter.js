@@ -24,19 +24,6 @@
 
   const getPaymentDate = item => item.paymentDate || item.paidDate || item.payment_date || item.fechaPago || item.fecha_pago || item.fechaDePago || "";
   const getName = item => item.name || item.nombre || item.influencer || item.username || item.user || "";
-  const getPaid = item => {
-    const explicit = item.paid ?? item.isPaid ?? item.pagado ?? item.paymentDone;
-    if (typeof explicit === "boolean") return explicit;
-    if (typeof explicit === "string") {
-      const value = normalize(explicit);
-      if (["si", "sí", "yes", "true", "pagado", "paid"].includes(value)) return true;
-      if (["no", "false", "pendiente", "unpaid"].includes(value)) return false;
-    }
-    const status = normalize(item.paymentStatus || item.estadoPago || item.statusPago || "");
-    if (status.includes("pagado") || status === "paid") return true;
-    if (status.includes("pendiente") || status.includes("no pag")) return false;
-    return Boolean(getPaymentDate(item));
-  };
 
   const inDateRange = (date, from, to) => {
     if (!from && !to) return true;
@@ -110,7 +97,6 @@
 
   function values() {
     return {
-      paid: document.getElementById("influencer-paid-filter")?.value || "all",
       from: document.getElementById("influencer-payment-from")?.value || "",
       to: document.getElementById("influencer-payment-to")?.value || ""
     };
@@ -127,11 +113,9 @@
     const root = influencerRoot();
     if (!root) return resetRows();
     const matches = matchedRows(root);
-    const { paid, from, to } = values();
+    const { from, to } = values();
     matches.forEach(({ row, item }) => {
-      const paidOk = paid === "all" || (paid === "paid" ? getPaid(item) : !getPaid(item));
-      const dateOk = inDateRange(getPaymentDate(item), from, to);
-      const visible = paidOk && dateOk;
+      const visible = inDateRange(getPaymentDate(item), from, to);
       row.style.display = visible ? "" : "none";
       if (visible) row.removeAttribute(HIDDEN_ATTR);
       else row.setAttribute(HIDDEN_ATTR, "true");
@@ -145,59 +129,76 @@
     style.textContent = `
       #${PANEL_ID} { display: none; }
       #${PANEL_ID}.is-inline { display: contents; }
-      #${PANEL_ID}.is-under-row { display: flex; flex-wrap: wrap; align-items: end; gap: 20px 24px; margin: -6px 0 22px; }
+      #${PANEL_ID}.is-under-row { display: flex; flex-wrap: wrap; align-items: end; gap: 20px 24px; margin: 0 0 22px; }
       #${PANEL_ID} .yango-pay-filter-control {
         display: grid;
         gap: 7px;
-        min-width: 150px;
-        color: #64748B;
-        font: inherit;
-        font-size: 14px;
-        font-weight: 800;
+        min-width: 240px;
+        color: #526179;
+        font-family: inherit;
+        font-size: 18px;
+        font-weight: 700;
         line-height: 1.15;
       }
-      #${PANEL_ID} .yango-pay-filter-control select,
       #${PANEL_ID} .yango-pay-filter-control input {
         box-sizing: border-box;
-        width: 100%;
-        height: 46px;
+        width: 240px;
+        height: 58px;
         border: 1px solid #DFE7F1;
         border-radius: 12px;
-        padding: 0 13px;
+        padding: 0 18px;
         background: #fff;
         color: #0F172A;
-        font: inherit;
-        font-size: 17px;
-        font-weight: 900;
+        font-family: inherit;
+        font-size: 22px;
+        font-weight: 800;
         box-shadow: none;
         outline: none;
       }
-      #${PANEL_ID} .yango-pay-filter-control input { min-width: 168px; }
-      #${PANEL_ID} .yango-pay-filter-clear {
-        box-sizing: border-box;
-        height: 46px;
-        align-self: end;
-        border: 1px solid #DFE7F1;
-        border-radius: 12px;
-        padding: 0 16px;
-        background: #fff;
-        color: #0F172A;
-        font: inherit;
-        font-size: 15px;
-        font-weight: 900;
-        cursor: pointer;
-      }
-      #${PANEL_ID} .yango-pay-filter-clear:hover { background: #F8FAFC; }
       @media (max-width: 980px) {
         #${PANEL_ID}.is-under-row { gap: 14px; }
-        #${PANEL_ID} .yango-pay-filter-control { min-width: 135px; font-size: 12px; }
-        #${PANEL_ID} .yango-pay-filter-control select,
-        #${PANEL_ID} .yango-pay-filter-control input { height: 42px; font-size: 15px; }
-        #${PANEL_ID} .yango-pay-filter-control input { min-width: 145px; }
-        #${PANEL_ID} .yango-pay-filter-clear { height: 42px; font-size: 14px; }
+        #${PANEL_ID} .yango-pay-filter-control { min-width: 190px; font-size: 15px; }
+        #${PANEL_ID} .yango-pay-filter-control input { width: 190px; height: 48px; font-size: 18px; }
       }
     `;
     document.head.appendChild(style);
+  }
+
+  function copyPublishedDateStyle(root) {
+    const panel = document.getElementById(PANEL_ID);
+    if (!panel || !root) return;
+    const labels = [...root.querySelectorAll("label,div")].filter(isVisible);
+    const refLabel = labels.find(node => normalize(node.textContent || "").startsWith("publicado desde"));
+    const refInput = refLabel?.querySelector("input[type='date']") || [...root.querySelectorAll("input[type='date']")].find(isVisible);
+    if (!refLabel || !refInput) return;
+
+    const labelStyle = window.getComputedStyle(refLabel);
+    const inputStyle = window.getComputedStyle(refInput);
+    const inputBox = refInput.getBoundingClientRect();
+
+    panel.querySelectorAll(".yango-pay-filter-control").forEach(label => {
+      label.style.fontFamily = labelStyle.fontFamily;
+      label.style.fontSize = labelStyle.fontSize;
+      label.style.fontWeight = labelStyle.fontWeight;
+      label.style.color = labelStyle.color;
+      label.style.lineHeight = labelStyle.lineHeight;
+      label.style.gap = labelStyle.gap || "7px";
+      label.style.minWidth = `${Math.round(inputBox.width)}px`;
+    });
+
+    panel.querySelectorAll("input").forEach(input => {
+      input.style.width = `${Math.round(inputBox.width)}px`;
+      input.style.height = `${Math.round(inputBox.height)}px`;
+      input.style.border = inputStyle.border;
+      input.style.borderRadius = inputStyle.borderRadius;
+      input.style.padding = inputStyle.padding;
+      input.style.background = inputStyle.backgroundColor;
+      input.style.color = inputStyle.color;
+      input.style.fontFamily = inputStyle.fontFamily;
+      input.style.fontSize = inputStyle.fontSize;
+      input.style.fontWeight = inputStyle.fontWeight;
+      input.style.boxShadow = inputStyle.boxShadow;
+    });
   }
 
   function filterRow(root) {
@@ -227,37 +228,22 @@
     return table || root;
   }
 
-  function ensurePanel(target, mode) {
+  function ensurePanel(target, mode, root) {
     ensureStyles();
     let panel = document.getElementById(PANEL_ID);
     if (!panel) {
       panel = document.createElement("div");
       panel.id = PANEL_ID;
       panel.innerHTML = `
-        <label class="yango-pay-filter-control">Pagado
-          <select id="influencer-paid-filter">
-            <option value="all">Todos</option>
-            <option value="paid">Pagados</option>
-            <option value="unpaid">Pendientes</option>
-          </select>
-        </label>
         <label class="yango-pay-filter-control">Fecha pago desde
           <input id="influencer-payment-from" type="date" />
         </label>
         <label class="yango-pay-filter-control">Fecha pago hasta
           <input id="influencer-payment-to" type="date" />
         </label>
-        <button id="influencer-payment-clear" class="yango-pay-filter-clear" type="button">Limpiar</button>
       `;
-      ["influencer-paid-filter", "influencer-payment-from", "influencer-payment-to"].forEach(id => {
+      ["influencer-payment-from", "influencer-payment-to"].forEach(id => {
         panel.querySelector(`#${id}`).addEventListener("change", applyFilter);
-      });
-      panel.querySelector("#influencer-payment-clear").addEventListener("click", () => {
-        panel.querySelector("#influencer-paid-filter").value = "all";
-        panel.querySelector("#influencer-payment-from").value = "";
-        panel.querySelector("#influencer-payment-to").value = "";
-        resetRows();
-        applyFilter();
       });
     }
 
@@ -269,6 +255,7 @@
       panel.className = "is-under-row";
     }
     panel.style.display = "";
+    copyPublishedDateStyle(root);
     return panel;
   }
 
@@ -285,14 +272,14 @@
         return;
       }
       const row = filterRow(root);
-      if (row) ensurePanel(row, "inline");
+      if (row) ensurePanel(row, "inline", root);
       else {
         const anchor = fallbackAnchor(root);
         if (!anchor) {
           if (panel) panel.style.display = "none";
           return;
         }
-        ensurePanel(anchor, "under");
+        ensurePanel(anchor, "under", root);
       }
       applyFilter();
     } finally {
