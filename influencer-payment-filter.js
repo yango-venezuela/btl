@@ -25,6 +25,7 @@
 
   const getNested = (obj, path) => path.split(".").reduce((value, key) => value && value[key], obj);
   const getPaymentDate = item => {
+    if (!item) return "";
     const keys = [
       "paymentDate", "paidDate", "payment_date", "paid_date", "payDate", "datePaid", "paidAt", "paymentAt",
       "fechaPago", "fecha_pago", "fechaDePago", "fecha_pagado", "fechaPagado", "fechaPagoInfluencer",
@@ -72,6 +73,50 @@
     if (!value) return false;
     return (!from || value >= from) && (!to || value <= to);
   };
+
+  function datesFromElement(element) {
+    if (!element) return [];
+    const dates = [];
+    element.querySelectorAll("input[type='date']").forEach(input => {
+      if (input.value) dates.push(input.value);
+    });
+    const text = element.textContent || "";
+    const patterns = [
+      /(20\d{2}|19\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/g,
+      /(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/g
+    ];
+    patterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(text))) dates.push(match[0]);
+    });
+    return [...new Set(dates)].filter(value => toDateKey(value));
+  }
+
+  function rowPaymentDate(row, item) {
+    const itemDate = getPaymentDate(item);
+    if (toDateKey(itemDate)) return itemDate;
+
+    const table = row.closest("table");
+    if (table && row.cells && row.cells.length) {
+      const headers = [...table.querySelectorAll("thead th")].map(th => normalize(th.textContent || ""));
+      const paymentIndex = headers.findIndex(text => text.includes("pago") || text.includes("pagado"));
+      if (paymentIndex >= 0 && row.cells[paymentIndex]) {
+        const cellDates = datesFromElement(row.cells[paymentIndex]);
+        if (cellDates.length) return cellDates[0];
+      }
+    }
+
+    const paymentNodes = [...row.querySelectorAll("td, label, div, span")].filter(node => {
+      const text = normalize(node.textContent || "");
+      return (text.includes("pago") || text.includes("pagado")) && datesFromElement(node).length;
+    });
+    if (paymentNodes.length) return datesFromElement(paymentNodes[0])[0];
+
+    const rowDates = datesFromElement(row);
+    if (rowDates.length === 1) return rowDates[0];
+    if (rowDates.length > 1) return rowDates[rowDates.length - 1];
+    return "";
+  }
 
   const itemKeys = item => {
     const preferred = [getName(item), item.igUsername, item.instagram, item.tiktokUsername, item.tiktok, item.handle, item.link];
@@ -127,13 +172,12 @@
   }
 
   function matchedRows(root = document) {
-    if (!cachedItems.length) return [];
     const rows = [...root.querySelectorAll("tbody tr")].filter(row => isVisible(row) || row.getAttribute(HIDDEN_ATTR) === "true");
     return rows.map(row => {
       const text = normalize(row.textContent || "");
-      const item = cachedItems.find(candidate => itemKeys(candidate).some(key => text.includes(key)));
-      return item ? { row, item } : null;
-    }).filter(Boolean);
+      const item = cachedItems.find(candidate => itemKeys(candidate).some(key => text.includes(key))) || null;
+      return { row, item };
+    }).filter(({ row, item }) => item || datesFromElement(row).length || normalize(row.textContent || "").includes("pago"));
   }
 
   function values() {
@@ -156,7 +200,7 @@
     const matches = matchedRows(root);
     const { from, to } = values();
     matches.forEach(({ row, item }) => {
-      const visible = inDateRange(getPaymentDate(item), from, to);
+      const visible = inDateRange(rowPaymentDate(row, item), from, to);
       row.style.display = visible ? "" : "none";
       if (visible) row.removeAttribute(HIDDEN_ATTR);
       else row.setAttribute(HIDDEN_ATTR, "true");
