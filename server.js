@@ -14,7 +14,7 @@ const pool = databaseUrl ? new Pool({
 let readyPromise = null;
 let brandingInventoryUpdatePromise = null;
 
-const BRANDING_INVENTORY_UPDATE_ID = "branding_inventory_2026_07_21_v1";
+const BRANDING_INVENTORY_UPDATE_ID = "branding_inventory_2026_07_21_v2";
 const BRANDING_PARTNERS = ["BipBip", "DragoPro", "MotoGo"];
 const BRANDING_STOCK_UPDATES = [
   { product: "Longsleeves", variant: "S", officeStock: 3, supplierPending: 0, partners: { BipBip: 0, DragoPro: 25, MotoGo: 12 } },
@@ -137,6 +137,7 @@ async function applyBrandingInventoryUpdate() {
         if (existing.rowCount) return;
 
         const result = await pool.query("select key, value from app_state");
+        const updatedKeys = [];
         for (const row of result.rows) {
           if (String(row.key).startsWith("migration:")) continue;
           const patched = patchBrandingStateValue(row.value);
@@ -146,17 +147,21 @@ async function applyBrandingInventoryUpdate() {
             row.key,
             JSON.stringify(patched.value)
           ]);
-          await pool.query(`
-            insert into app_state (key, value, updated_at)
-            values ($1, $2::jsonb, now())
-            on conflict (key)
-            do update set value = excluded.value, updated_at = now()
-          `, [migrationKey, JSON.stringify({ appliedAt: new Date().toISOString(), stateKey: row.key })]);
-          console.log(`Applied ${BRANDING_INVENTORY_UPDATE_ID} to ${row.key}`);
+          updatedKeys.push(row.key);
+        }
+
+        if (!updatedKeys.length) {
+          console.log(`${BRANDING_INVENTORY_UPDATE_ID} skipped: branding inventory state was not found yet.`);
           return;
         }
 
-        console.log(`${BRANDING_INVENTORY_UPDATE_ID} skipped: branding inventory state was not found yet.`);
+        await pool.query(`
+          insert into app_state (key, value, updated_at)
+          values ($1, $2::jsonb, now())
+          on conflict (key)
+          do update set value = excluded.value, updated_at = now()
+        `, [migrationKey, JSON.stringify({ appliedAt: new Date().toISOString(), stateKeys: updatedKeys })]);
+        console.log(`Applied ${BRANDING_INVENTORY_UPDATE_ID} to ${updatedKeys.join(", ")}`);
       } catch (error) {
         console.warn(`Could not apply ${BRANDING_INVENTORY_UPDATE_ID}:`, error.message);
       }
