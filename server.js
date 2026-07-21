@@ -14,21 +14,34 @@ const pool = databaseUrl ? new Pool({
 let readyPromise = null;
 let brandingInventoryUpdatePromise = null;
 
-const BRANDING_INVENTORY_UPDATE_ID = "branding_inventory_2026_07_21_v2";
 const BRANDING_PARTNERS = ["BipBip", "DragoPro", "MotoGo"];
-const BRANDING_STOCK_UPDATES = [
-  { product: "Longsleeves", variant: "S", officeStock: 3, supplierPending: 0, partners: { BipBip: 0, DragoPro: 25, MotoGo: 12 } },
-  { product: "Longsleeves", variant: "M", officeStock: 2, supplierPending: 1, partners: { BipBip: 0, DragoPro: 66, MotoGo: 21 } },
-  { product: "Longsleeves", variant: "L", officeStock: 0, supplierPending: 0, partners: { BipBip: 0, DragoPro: 99, MotoGo: 33 } },
-  { product: "Longsleeves", variant: "XL", officeStock: 0, supplierPending: 0, partners: { BipBip: 0, DragoPro: 35, MotoGo: 5 } },
-  { product: "Chalecos", variant: "S", officeStock: 0, supplierPending: 20, partners: { BipBip: 0, DragoPro: 10, MotoGo: 0 } },
-  { product: "Chalecos", variant: "M", officeStock: 172, supplierPending: 18, partners: { BipBip: 0, DragoPro: 70, MotoGo: 0 } },
-  { product: "Chalecos", variant: "L", officeStock: 0, supplierPending: 140, partners: { BipBip: 0, DragoPro: 40, MotoGo: 0 } },
-  { product: "Chalecos", variant: "XL", officeStock: 0, supplierPending: 20, partners: { BipBip: 0, DragoPro: 10, MotoGo: 0 } },
-  { product: "Cascos", variant: "S", officeStock: 153, supplierPending: 0, unitCost: 18, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
-  { product: "Cascos", variant: "M", officeStock: 450, supplierPending: 0, unitCost: 18, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
-  { product: "Cascos", variant: "L", officeStock: 450, supplierPending: 0, unitCost: 18, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
-  { product: "Cascos", variant: "XL", officeStock: 153, supplierPending: 0, unitCost: 18, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } }
+const BRANDING_INVENTORY_UPDATES = [
+  {
+    id: "branding_inventory_2026_07_21_v2",
+    items: [
+      { product: "Longsleeves", variant: "S", officeStock: 3, supplierPending: 0, partners: { BipBip: 0, DragoPro: 25, MotoGo: 12 } },
+      { product: "Longsleeves", variant: "M", officeStock: 2, supplierPending: 1, partners: { BipBip: 0, DragoPro: 66, MotoGo: 21 } },
+      { product: "Longsleeves", variant: "L", officeStock: 0, supplierPending: 0, partners: { BipBip: 0, DragoPro: 99, MotoGo: 33 } },
+      { product: "Longsleeves", variant: "XL", officeStock: 0, supplierPending: 0, partners: { BipBip: 0, DragoPro: 35, MotoGo: 5 } },
+      { product: "Chalecos", variant: "S", officeStock: 0, supplierPending: 20, partners: { BipBip: 0, DragoPro: 10, MotoGo: 0 } },
+      { product: "Chalecos", variant: "M", officeStock: 172, supplierPending: 18, partners: { BipBip: 0, DragoPro: 70, MotoGo: 0 } },
+      { product: "Chalecos", variant: "L", officeStock: 0, supplierPending: 140, partners: { BipBip: 0, DragoPro: 40, MotoGo: 0 } },
+      { product: "Chalecos", variant: "XL", officeStock: 0, supplierPending: 20, partners: { BipBip: 0, DragoPro: 10, MotoGo: 0 } },
+      { product: "Cascos", variant: "S", officeStock: 153, supplierPending: 0, unitCost: 18, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
+      { product: "Cascos", variant: "M", officeStock: 450, supplierPending: 0, unitCost: 18, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
+      { product: "Cascos", variant: "L", officeStock: 450, supplierPending: 0, unitCost: 18, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
+      { product: "Cascos", variant: "XL", officeStock: 153, supplierPending: 0, unitCost: 18, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } }
+    ]
+  },
+  {
+    id: "branding_stickers_2026_07_21_v1",
+    items: [
+      { product: "Stickers", variant: "Pequeñas Rojas", officeStock: 4100, supplierPending: 0, unitCost: 0.25, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
+      { product: "Stickers", variant: "Grandes Rojas", officeStock: 4000, supplierPending: 0, unitCost: 0.25, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
+      { product: "Stickers", variant: "Medianas Rojas", officeStock: 1200, supplierPending: 0, unitCost: 0.25, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
+      { product: "Stickers", variant: "Transfer Blancas", officeStock: 400, supplierPending: 0, unitCost: 0.25, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } }
+    ]
+  }
 ];
 
 function normalizeText(value) {
@@ -100,15 +113,15 @@ function upsertBrandingItem(items, update) {
   }
 }
 
-function patchBrandingInventoryArray(value) {
+function patchBrandingInventoryArray(value, updates) {
   const next = value.map(item => item && typeof item === "object" ? { ...item } : item);
-  BRANDING_STOCK_UPDATES.forEach(update => upsertBrandingItem(next, update));
+  updates.forEach(update => upsertBrandingItem(next, update));
   return next;
 }
 
-function patchBrandingStateValue(value) {
+function patchBrandingStateValue(value, updates) {
   if (isBrandingInventoryArray(value)) {
-    return { changed: true, value: patchBrandingInventoryArray(value) };
+    return { changed: true, value: patchBrandingInventoryArray(value, updates) };
   }
 
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -119,7 +132,7 @@ function patchBrandingStateValue(value) {
   const next = { ...value };
   Object.keys(next).forEach(key => {
     if (isBrandingInventoryArray(next[key])) {
-      next[key] = patchBrandingInventoryArray(next[key]);
+      next[key] = patchBrandingInventoryArray(next[key], updates);
       changed = true;
     }
   });
@@ -127,43 +140,49 @@ function patchBrandingStateValue(value) {
   return { changed, value: next };
 }
 
+async function applyOneBrandingInventoryUpdate(migration) {
+  const migrationKey = `migration:${migration.id}`;
+  const existing = await pool.query("select value from app_state where key = $1", [migrationKey]);
+  if (existing.rowCount) return;
+
+  const result = await pool.query("select key, value from app_state");
+  const updatedKeys = [];
+  for (const row of result.rows) {
+    if (String(row.key).startsWith("migration:")) continue;
+    const patched = patchBrandingStateValue(row.value, migration.items);
+    if (!patched.changed) continue;
+
+    await pool.query("update app_state set value = $2::jsonb, updated_at = now() where key = $1", [
+      row.key,
+      JSON.stringify(patched.value)
+    ]);
+    updatedKeys.push(row.key);
+  }
+
+  if (!updatedKeys.length) {
+    console.log(`${migration.id} skipped: branding inventory state was not found yet.`);
+    return;
+  }
+
+  await pool.query(`
+    insert into app_state (key, value, updated_at)
+    values ($1, $2::jsonb, now())
+    on conflict (key)
+    do update set value = excluded.value, updated_at = now()
+  `, [migrationKey, JSON.stringify({ appliedAt: new Date().toISOString(), stateKeys: updatedKeys })]);
+  console.log(`Applied ${migration.id} to ${updatedKeys.join(", ")}`);
+}
+
 async function applyBrandingInventoryUpdate() {
   if (!pool) return;
   if (!brandingInventoryUpdatePromise) {
     brandingInventoryUpdatePromise = (async () => {
-      const migrationKey = `migration:${BRANDING_INVENTORY_UPDATE_ID}`;
       try {
-        const existing = await pool.query("select value from app_state where key = $1", [migrationKey]);
-        if (existing.rowCount) return;
-
-        const result = await pool.query("select key, value from app_state");
-        const updatedKeys = [];
-        for (const row of result.rows) {
-          if (String(row.key).startsWith("migration:")) continue;
-          const patched = patchBrandingStateValue(row.value);
-          if (!patched.changed) continue;
-
-          await pool.query("update app_state set value = $2::jsonb, updated_at = now() where key = $1", [
-            row.key,
-            JSON.stringify(patched.value)
-          ]);
-          updatedKeys.push(row.key);
+        for (const migration of BRANDING_INVENTORY_UPDATES) {
+          await applyOneBrandingInventoryUpdate(migration);
         }
-
-        if (!updatedKeys.length) {
-          console.log(`${BRANDING_INVENTORY_UPDATE_ID} skipped: branding inventory state was not found yet.`);
-          return;
-        }
-
-        await pool.query(`
-          insert into app_state (key, value, updated_at)
-          values ($1, $2::jsonb, now())
-          on conflict (key)
-          do update set value = excluded.value, updated_at = now()
-        `, [migrationKey, JSON.stringify({ appliedAt: new Date().toISOString(), stateKeys: updatedKeys })]);
-        console.log(`Applied ${BRANDING_INVENTORY_UPDATE_ID} to ${updatedKeys.join(", ")}`);
       } catch (error) {
-        console.warn(`Could not apply ${BRANDING_INVENTORY_UPDATE_ID}:`, error.message);
+        console.warn("Could not apply branding inventory updates:", error.message);
       }
     })();
   }
