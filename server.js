@@ -274,7 +274,8 @@ function sendDashboard(req, res) {
     if (error) return res.status(500).send("No pude cargar el dashboard.");
     const helperTags = [
       '<script src="/samsung-raffle-export.js" defer></script>',
-      '<script src="/influencer-payment-filter.js" defer></script>'
+      '<script src="/influencer-payment-filter.js" defer></script>',
+      '<script src="/branding-inventory-cleanup.js" defer></script>'
     ];
     const tags = helperTags.filter(tag => !html.includes(tag)).join("");
     const withHelpers = tags ? html.replace("</body>", `${tags}</body>`) : html;
