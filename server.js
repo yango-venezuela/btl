@@ -41,6 +41,16 @@ const BRANDING_INVENTORY_UPDATES = [
       { product: "Stickers", variant: "Medianas Rojas", officeStock: 1200, supplierPending: 0, unitCost: 0.25, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
       { product: "Stickers", variant: "Transfer Blancas", officeStock: 400, supplierPending: 0, unitCost: 0.25, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } }
     ]
+  },
+  {
+    id: "branding_cascos_bipbip_transfer_2026_07_21_v1",
+    mode: "transfer",
+    items: [
+      { product: "Cascos", variant: "S", boxes: 3, quantity: 27, from: "Oficina", to: "BipBip" },
+      { product: "Cascos", variant: "M", boxes: 7, quantity: 63, from: "Oficina", to: "BipBip" },
+      { product: "Cascos", variant: "L", boxes: 8, quantity: 72, from: "Oficina", to: "BipBip" },
+      { product: "Cascos", variant: "XL", boxes: 4, quantity: 36, from: "Oficina", to: "BipBip" }
+    ]
   }
 ];
 
@@ -113,15 +123,69 @@ function upsertBrandingItem(items, update) {
   }
 }
 
-function patchBrandingInventoryArray(value, updates) {
+function transferBrandingItem(items, transfer, migrationId) {
+  const productKey = normalizeText(transfer.product);
+  const variantKey = normalizeText(transfer.variant);
+  const index = items.findIndex(item => normalizeText(item && item.product) === productKey && normalizeText(item && item.variant) === variantKey);
+  const current = index >= 0 ? items[index] : {
+    id: makeBrandingId(transfer.product, transfer.variant),
+    product: transfer.product,
+    variant: transfer.variant,
+    officeStock: 0,
+    partners: {},
+    movements: []
+  };
+  const quantity = Number(transfer.quantity) || 0;
+  const toPartner = transfer.to || "BipBip";
+  const currentPartners = current.partners && typeof current.partners === "object" ? current.partners : {};
+  const currentToPartner = currentPartners[toPartner] && typeof currentPartners[toPartner] === "object" ? currentPartners[toPartner] : {};
+  const nextPartners = { ...currentPartners };
+  nextPartners[toPartner] = {
+    ...currentToPartner,
+    stock: (Number(currentToPartner.stock) || 0) + quantity,
+    realStock: (Number(currentToPartner.realStock) || 0) + quantity
+  };
+
+  const movement = {
+    id: `${migrationId}-${normalizeText(transfer.product)}-${normalizeText(transfer.variant)}`,
+    date: "2026-07-21",
+    type: "transfer",
+    from: transfer.from || "Oficina",
+    to: toPartner,
+    quantity,
+    notes: `${transfer.boxes || ""} cajas x 9 cascos`.trim()
+  };
+  const movements = Array.isArray(current.movements) ? current.movements.filter(item => item && item.id !== movement.id) : [];
+
+  const nextItem = {
+    ...current,
+    product: transfer.product,
+    variant: transfer.variant,
+    officeStock: Math.max(0, (Number(current.officeStock) || 0) - quantity),
+    partners: nextPartners,
+    movements: [...movements, movement]
+  };
+
+  if (index >= 0) {
+    items[index] = nextItem;
+  } else {
+    items.push(nextItem);
+  }
+}
+
+function patchBrandingInventoryArray(value, migration) {
   const next = value.map(item => item && typeof item === "object" ? { ...item } : item);
-  updates.forEach(update => upsertBrandingItem(next, update));
+  if (migration.mode === "transfer") {
+    migration.items.forEach(update => transferBrandingItem(next, update, migration.id));
+  } else {
+    migration.items.forEach(update => upsertBrandingItem(next, update));
+  }
   return next;
 }
 
-function patchBrandingStateValue(value, updates) {
+function patchBrandingStateValue(value, migration) {
   if (isBrandingInventoryArray(value)) {
-    return { changed: true, value: patchBrandingInventoryArray(value, updates) };
+    return { changed: true, value: patchBrandingInventoryArray(value, migration) };
   }
 
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -132,7 +196,7 @@ function patchBrandingStateValue(value, updates) {
   const next = { ...value };
   Object.keys(next).forEach(key => {
     if (isBrandingInventoryArray(next[key])) {
-      next[key] = patchBrandingInventoryArray(next[key], updates);
+      next[key] = patchBrandingInventoryArray(next[key], migration);
       changed = true;
     }
   });
@@ -149,7 +213,7 @@ async function applyOneBrandingInventoryUpdate(migration) {
   const updatedKeys = [];
   for (const row of result.rows) {
     if (String(row.key).startsWith("migration:")) continue;
-    const patched = patchBrandingStateValue(row.value, migration.items);
+    const patched = patchBrandingStateValue(row.value, migration);
     if (!patched.changed) continue;
 
     await pool.query("update app_state set value = $2::jsonb, updated_at = now() where key = $1", [
