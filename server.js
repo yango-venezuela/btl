@@ -11,6 +11,9 @@ const pool = databaseUrl ? new Pool({
   ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false }
 }) : null;
 
+const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
+const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
+
 let readyPromise = null;
 let brandingInventoryUpdatePromise = null;
 
@@ -269,15 +272,34 @@ async function ensureDatabase() {
   return true;
 }
 
+async function fetchSummaryCsvText(gid) {
+  const urls = [
+    `https://docs.google.com/spreadsheets/d/${SUMMARY_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`,
+    `https://docs.google.com/spreadsheets/d/${SUMMARY_SHEET_ID}/export?format=csv&gid=${gid}`
+  ];
+  let lastError = null;
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, { headers: { "user-agent": "Yango-MKT-Dashboard" } });
+      const text = await response.text();
+      if (!response.ok || /^\s*</.test(text)) throw new Error(`Google Sheets returned ${response.status}`);
+      return text;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("No pude leer Google Sheets.");
+}
+
 function sendDashboard(req, res) {
   fs.readFile(path.join(__dirname, "index.html"), "utf8", (error, html) => {
     if (error) return res.status(500).send("No pude cargar el dashboard.");
     const helperTags = [
-      '<script src="/samsung-raffle-export.js" defer></script>',
-      '<script src="/influencer-payment-filter.js" defer></script>',
-      '<script src="/branding-inventory-cleanup.js" defer></script>',
-      '<script src="/yango-summary-dashboard.js" defer></script>',
-      '<script src="/yango-summary-standalone-fix.js" defer></script>'
+      '<script src="/samsung-raffle-export.js?v=20260721d" defer></script>',
+      '<script src="/influencer-payment-filter.js?v=20260721d" defer></script>',
+      '<script src="/branding-inventory-cleanup.js?v=20260721d" defer></script>',
+      '<script src="/yango-summary-dashboard.js?v=20260721d" defer></script>',
+      '<script src="/yango-summary-standalone-fix.js?v=20260721d" defer></script>'
     ];
     const tags = helperTags.filter(tag => !html.includes(tag)).join("");
     const withHelpers = tags ? html.replace("</body>", `${tags}</body>`) : html;
@@ -293,6 +315,18 @@ app.get("/api/health", async (_req, res) => {
     res.json({ ok: true, database: hasDb ? "connected" : "not_configured" });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get("/api/yango-summary-csv", async (req, res) => {
+  try {
+    const gid = String(req.query.gid || "");
+    if (!SUMMARY_GIDS.has(gid)) return res.status(400).send("Invalid sheet gid");
+    const text = await fetchSummaryCsvText(gid);
+    res.set("Cache-Control", "no-store");
+    res.type("text/csv").send(text);
+  } catch (error) {
+    res.status(502).send(error.message);
   }
 });
 
