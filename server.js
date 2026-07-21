@@ -276,7 +276,8 @@ function sendDashboard(req, res) {
       '<script src="/samsung-raffle-export.js" defer></script>',
       '<script src="/influencer-payment-filter.js" defer></script>',
       '<script src="/branding-inventory-cleanup.js" defer></script>',
-      '<script src="/yango-summary-dashboard.js" defer></script>'
+      '<script src="/yango-summary-dashboard.js" defer></script>',
+      '<script src="/yango-summary-standalone-fix.js" defer></script>'
     ];
     const tags = helperTags.filter(tag => !html.includes(tag)).join("");
     const withHelpers = tags ? html.replace("</body>", `${tags}</body>`) : html;
