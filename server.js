@@ -294,15 +294,26 @@ async function fetchSummaryCsvText(gid) {
 function sendDashboard(req, res) {
   fs.readFile(path.join(__dirname, "index.html"), "utf8", (error, html) => {
     if (error) return res.status(500).send("No pude cargar el dashboard.");
-    const helperTags = [
-      '<script src="/samsung-raffle-export.js?v=20260721d" defer></script>',
-      '<script src="/influencer-payment-filter.js?v=20260721d" defer></script>',
-      '<script src="/branding-inventory-cleanup.js?v=20260721d" defer></script>',
-      '<script src="/yango-summary-dashboard.js?v=20260721d" defer></script>',
-      '<script src="/yango-summary-standalone-fix.js?v=20260721d" defer></script>'
+    const helperNames = [
+      "samsung-raffle-export",
+      "influencer-payment-filter",
+      "branding-inventory-cleanup",
+      "yango-summary-dashboard",
+      "yango-summary-standalone-fix"
     ];
-    const tags = helperTags.filter(tag => !html.includes(tag)).join("");
-    const withHelpers = tags ? html.replace("</body>", `${tags}</body>`) : html;
+    const helperPattern = new RegExp(`<script\\s+[^>]*src=["']\\/(?:${helperNames.join("|")})\\.js(?:\\?[^"']*)?["'][^>]*><\\/script>`, "gi");
+    const withoutOldHelpers = html.replace(helperPattern, "");
+    const isTeamPanel = Boolean(req.query && req.query.panel);
+    const helperTags = [
+      '<script src="/samsung-raffle-export.js?v=20260731a" defer></script>',
+      '<script src="/influencer-payment-filter.js?v=20260731a" defer></script>',
+      '<script src="/branding-inventory-cleanup.js?v=20260731a" defer></script>',
+      ...(!isTeamPanel ? [
+        '<script src="/yango-summary-dashboard.js?v=20260731a" defer></script>',
+        '<script src="/yango-summary-standalone-fix.js?v=20260731a" defer></script>'
+      ] : [])
+    ];
+    const withHelpers = withoutOldHelpers.replace("</body>", `${helperTags.join("")}</body>`);
     res.type("html").send(withHelpers);
   });
 }
