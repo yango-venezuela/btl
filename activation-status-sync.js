@@ -189,3 +189,12 @@
     }, 300);
   }, true);
 })();
+
+(() => {
+  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalled) return;
+  window.__yangoBtlMapPolishLoaderInstalled = true;
+  const script = document.createElement("script");
+  script.src = "/btl-map-polish.js?v=20260803f";
+  script.defer = true;
+  document.head.appendChild(script);
+})();
