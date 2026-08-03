@@ -17,6 +17,7 @@
 
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
   const keyBlocked = key => /migration|backup|auto_sync|token|password/i.test(String(key || ""));
+  const keyAllowed = key => /^(yango_team_|yango_agency|yango_agencia)|agency|agencia|proof|photo|foto|flyer|promotor/i.test(String(key || ""));
 
   const fieldsText = item => normalize(Object.keys(item || {}).concat(Object.values(item || {}).filter(v => typeof v === "string" || typeof v === "number")).join(" "));
 
@@ -26,6 +27,13 @@
     const hasFields = Boolean(item.date || item.calendarDate || item.location || item.zone || item.type || item.activationType || item.status || item.validation || item.executionStatus);
     const hasText = /activacion|btl|flyer|centro|petare|sabana|altamira|chacao|chacaito|hoyada|vega|junquito|antonio|universidad|oeste|este|sur|norte|se dio|no se dio|validar/.test(text);
     return hasFields && (hasText || Boolean(item.id && (item.name || item.title)));
+  };
+
+  const looksLikeAgency = item => {
+    if (!isObject(item)) return false;
+    const text = fieldsText(item);
+    return /agencia|agency|promotora|promotoras|flyers entregados|flyers|fotos|foto|photos|proof|prueba|evidencia|activacion|activation|entregado|asistencia/.test(text)
+      && Boolean(item.id || item.activationId || item.actId || item.date || item.photos || item.fotos || item.flyers || item.flyersDelivered || item.promoters || item.promotoras || item.name || item.title);
   };
 
   const looksLikeInfluencer = item => {
@@ -65,6 +73,7 @@
   const arraySome = (value, fn) => Array.isArray(value) && value.some(fn);
 
   const inferType = value => {
+    if (arraySome(value, looksLikeAgency)) return "agency";
     if (arraySome(value, looksLikeActivation)) return "acts";
     if (arraySome(value, looksLikeInfluencer)) return "influencers";
     if (arraySome(value, looksLikeBranding)) return "branding";
@@ -72,7 +81,8 @@
     if (arraySome(value, looksLikeMedia)) return "media";
     if (arraySome(value, looksLikeMystery)) return "mystery";
 
-    const text = normalize(JSON.stringify(value || {}).slice(0, 12000));
+    const text = normalize(JSON.stringify(value || {}).slice(0, 20000));
+    if (/agencia|agency|promotoras|promoters|flyers entregados|photos|fotos|proof|evidencia/.test(text)) return "agency";
     if (/clicks|installs|registration|registros|first order|primer viaje|promo code|canjes|qr/.test(text)) return "qr";
     if (/budget|presupuesto|planned|planificado|quarter|trimestre|month|mes/.test(text)) return "budgets";
     if (/instagram|tiktok|facebook|followers|reach|organic|orders|aov|gmv/.test(text)) return "social";
@@ -82,6 +92,7 @@
 
   const typeFromKey = key => {
     const lower = String(key || "").toLowerCase();
+    if (/agency|agencia|proof|photo|foto|promotor|flyer/.test(lower)) return "agency";
     if (/acts|activation|activacion/.test(lower)) return "acts";
     if (/influ/.test(lower)) return "influencers";
     if (/branding/.test(lower)) return "branding";
@@ -98,10 +109,54 @@
   const canonicalRank = key => {
     const lower = String(key || "").toLowerCase();
     if (keyBlocked(lower)) return -100;
-    if (/^yango_team_/.test(lower)) return -50;
+    if (/^yango_team_/.test(lower) || /^yango_agency_/.test(lower) || /^yango_agencia_/.test(lower)) return -50;
     if (/seed|sample|demo|template/.test(lower)) return -20;
     if (/^yango_/.test(lower)) return 20;
     return 0;
+  };
+
+  const stableId = item => {
+    if (!isObject(item)) return "";
+    return String(item.id || item.activationId || item.actId || item.uuid || item.key || [item.name || item.title || "", item.date || item.calendarDate || "", item.location || item.zone || ""].join("|")).trim();
+  };
+
+  const mergeArraysById = (remoteValue, localValue) => {
+    if (!Array.isArray(remoteValue) || !Array.isArray(localValue)) return localValue;
+    const merged = [...remoteValue];
+    const indexById = new Map();
+    merged.forEach((item, index) => {
+      const id = stableId(item);
+      if (id) indexById.set(id, index);
+    });
+    localValue.forEach(item => {
+      const id = stableId(item);
+      if (id && indexById.has(id)) {
+        const index = indexById.get(id);
+        merged[index] = isObject(merged[index]) && isObject(item) ? { ...merged[index], ...item } : item;
+      } else {
+        merged.push(item);
+      }
+    });
+    return merged;
+  };
+
+  const mergeObjectsDeep = (remoteValue, localValue) => {
+    if (Array.isArray(remoteValue) || Array.isArray(localValue)) return mergeArraysById(remoteValue, localValue);
+    if (!isObject(remoteValue) || !isObject(localValue)) return localValue;
+    const next = { ...remoteValue };
+    Object.keys(localValue).forEach(key => {
+      if (Array.isArray(localValue[key])) next[key] = mergeArraysById(remoteValue[key], localValue[key]);
+      else if (isObject(localValue[key])) next[key] = mergeObjectsDeep(remoteValue[key], localValue[key]);
+      else next[key] = localValue[key];
+    });
+    return next;
+  };
+
+  const mergeSharedValue = (type, remoteValue, localValue) => {
+    if (["agency", "acts", "pop", "branding", "media", "mystery", "influencers"].includes(type)) {
+      return mergeObjectsDeep(remoteValue, localValue);
+    }
+    return localValue;
   };
 
   const putState = async (key, value) => {
@@ -127,11 +182,11 @@
     .sort((a, b) => b.rank - a.rank || a.key.localeCompare(b.key))
     .map(row => row.key);
 
-  const localTeamEntries = () => {
+  const localEntries = () => {
     const entries = [];
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
-      if (!key || !/^yango_team_/i.test(key) || keyBlocked(key)) continue;
+      if (!key || !keyAllowed(key) || keyBlocked(key)) continue;
       const value = parseJson(localStorage.getItem(key));
       if (value == null) continue;
       const type = typeFromKey(key) !== "unknown" ? typeFromKey(key) : inferType(value);
@@ -142,17 +197,24 @@
   };
 
   const saveEntryToSharedState = async (entry, remoteValues) => {
-    const canonical = findCanonicalKeys(remoteValues, entry.type);
+    let canonical = findCanonicalKeys(remoteValues, entry.type);
+    if (!canonical.length && entry.type === "agency") {
+      canonical = ["yango_agency_submissions_h1"];
+    }
     if (!canonical.length) return [];
-    await Promise.all(canonical.map(key => putState(key, entry.value)));
+    await Promise.all(canonical.map(key => {
+      const mergedValue = mergeSharedValue(entry.type, remoteValues[key], entry.value);
+      remoteValues[key] = mergedValue;
+      return putState(key, mergedValue);
+    }));
     return canonical;
   };
 
   let pendingTimer = null;
   let running = false;
-  const flushTeamState = async reason => {
+  const flushSharedState = async reason => {
     if (running || !window.fetch || window.location.protocol === "file:") return;
-    const entries = localTeamEntries();
+    const entries = localEntries();
     if (!entries.length) return;
     running = true;
     try {
@@ -160,13 +222,10 @@
       const synced = [];
       for (const entry of entries) {
         const keys = await saveEntryToSharedState(entry, remoteValues);
-        keys.forEach(key => {
-          remoteValues[key] = entry.value;
-          synced.push(`${entry.key}->${key}`);
-        });
+        keys.forEach(key => synced.push(`${entry.key}->${key}`));
       }
       if (synced.length) {
-        window.dispatchEvent(new CustomEvent("yango:team-shared-state-synced", { detail: { reason, synced } }));
+        window.dispatchEvent(new CustomEvent("yango:shared-state-synced", { detail: { reason, synced } }));
       }
     } catch (error) {
       console.warn("No pude forzar sync general del panel:", error);
@@ -177,15 +236,16 @@
 
   const scheduleFlush = reason => {
     clearTimeout(pendingTimer);
-    pendingTimer = setTimeout(() => flushTeamState(reason), 700);
-    setTimeout(() => flushTeamState(`${reason}:late`), 2200);
+    pendingTimer = setTimeout(() => flushSharedState(reason), 700);
+    setTimeout(() => flushSharedState(`${reason}:late`), 2200);
+    setTimeout(() => flushSharedState(`${reason}:final`), 5200);
   };
 
   const actionableButton = target => {
     const button = target && target.closest && target.closest("button");
     if (!button) return false;
     const text = normalize(button.textContent || "");
-    return /se dio|no se dio|guardar|aprob|validar|pagado|grabo|grabó|publico|publicó|entregado|contactado|respondio|respondió|salida|enviar|actualizar|subir|agregar|editar/.test(text);
+    return /se dio|no se dio|guardar|aprob|validar|pagado|grabo|grabó|publico|publicó|entregado|contactado|respondio|respondió|salida|enviar|actualizar|subir|agregar|editar|cargar|foto|fotos|flyer|promotora/.test(text);
   };
 
   document.addEventListener("click", event => {
@@ -197,8 +257,8 @@
   const originalSetItem = localStorage.setItem.bind(localStorage);
   localStorage.setItem = function patchedSetItem(key, value) {
     originalSetItem(key, value);
-    if (/^yango_team_/i.test(String(key || ""))) scheduleFlush(`localStorage:${key}`);
+    if (keyAllowed(key)) scheduleFlush(`localStorage:${key}`);
   };
 
-  setTimeout(() => flushTeamState("initial"), 2500);
+  setTimeout(() => flushSharedState("initial"), 2500);
 })();
