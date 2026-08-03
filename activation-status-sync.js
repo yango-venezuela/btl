@@ -191,10 +191,14 @@
 })();
 
 (() => {
-  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalled) return;
-  window.__yangoBtlMapPolishLoaderInstalled = true;
-  const script = document.createElement("script");
-  script.src = "/btl-map-polish.js?v=20260803f";
-  script.defer = true;
-  document.head.appendChild(script);
+  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV2) return;
+  window.__yangoBtlMapPolishLoaderInstalledV2 = true;
+  const load = () => {
+    const script = document.createElement("script");
+    script.src = `/btl-map-polish.js?v=20260803h-${Date.now()}`;
+    script.defer = true;
+    document.head.appendChild(script);
+  };
+  setTimeout(load, 100);
+  setTimeout(load, 1800);
 })();
