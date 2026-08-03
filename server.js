@@ -13,6 +13,8 @@ const pool = databaseUrl ? new Pool({
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
+const MYSTERY_SHOPPER_SHEET_ID = "12-AWRARvNJytUoGNWj0IGtSMaO1clqtqyzqT6jntwNY";
+const MYSTERY_SHOPPER_SHEET_NAME = "Form Responses 1";
 
 let readyPromise = null;
 let brandingInventoryUpdatePromise = null;
@@ -272,10 +274,11 @@ async function ensureDatabase() {
   return true;
 }
 
-async function fetchSummaryCsvText(gid) {
+async function fetchCsvText(sheetId, params) {
+  const query = new URLSearchParams(params);
   const urls = [
-    `https://docs.google.com/spreadsheets/d/${SUMMARY_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`,
-    `https://docs.google.com/spreadsheets/d/${SUMMARY_SHEET_ID}/export?format=csv&gid=${gid}`
+    `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?${query.toString()}`,
+    `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&${query.toString()}`
   ];
   let lastError = null;
   for (const url of urls) {
@@ -291,6 +294,62 @@ async function fetchSummaryCsvText(gid) {
   throw lastError || new Error("No pude leer Google Sheets.");
 }
 
+async function fetchSummaryCsvText(gid) {
+  return fetchCsvText(SUMMARY_SHEET_ID, { tqx: "out:csv", gid });
+}
+
+async function fetchMysteryShopperCsvText() {
+  return fetchCsvText(MYSTERY_SHOPPER_SHEET_ID, { tqx: "out:csv", sheet: MYSTERY_SHOPPER_SHEET_NAME });
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let value = "";
+  let quoted = false;
+  for (let index = 0; index < String(text || "").length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+    if (quoted) {
+      if (char === '"' && next === '"') {
+        value += '"';
+        index += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        value += char;
+      }
+    } else if (char === '"') {
+      quoted = true;
+    } else if (char === ',') {
+      row.push(value);
+      value = "";
+    } else if (char === '\n') {
+      row.push(value);
+      rows.push(row);
+      row = [];
+      value = "";
+    } else if (char !== '\r') {
+      value += char;
+    }
+  }
+  if (value || row.length) {
+    row.push(value);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function csvToObjects(text) {
+  const rows = parseCsv(text).filter(row => row.some(cell => String(cell || "").trim() !== ""));
+  if (!rows.length) return [];
+  const headers = rows[0].map(header => String(header || "").trim());
+  return rows.slice(1).map(row => headers.reduce((obj, header, index) => {
+    obj[header || `Column ${index + 1}`] = row[index] || "";
+    return obj;
+  }, {}));
+}
+
 function sendDashboard(req, res) {
   fs.readFile(path.join(__dirname, "index.html"), "utf8", (error, html) => {
     if (error) return res.status(500).send("No pude cargar el dashboard.");
@@ -299,6 +358,7 @@ function sendDashboard(req, res) {
       "influencer-payment-filter",
       "branding-inventory-cleanup",
       "activation-status-sync",
+      "mystery-shopper-sheet-sync",
       "yango-summary-dashboard",
       "yango-summary-standalone-fix"
     ];
@@ -306,13 +366,14 @@ function sendDashboard(req, res) {
     const withoutOldHelpers = html.replace(helperPattern, "");
     const isTeamPanel = Boolean(req.query && req.query.panel);
     const helperTags = [
-      '<script src="/samsung-raffle-export.js?v=20260803d" defer></script>',
-      '<script src="/influencer-payment-filter.js?v=20260803d" defer></script>',
-      '<script src="/branding-inventory-cleanup.js?v=20260803d" defer></script>',
-      '<script src="/activation-status-sync.js?v=20260803d" defer></script>',
+      '<script src="/samsung-raffle-export.js?v=20260803e" defer></script>',
+      '<script src="/influencer-payment-filter.js?v=20260803e" defer></script>',
+      '<script src="/branding-inventory-cleanup.js?v=20260803e" defer></script>',
+      '<script src="/activation-status-sync.js?v=20260803e" defer></script>',
+      '<script src="/mystery-shopper-sheet-sync.js?v=20260803e" defer></script>',
       ...(!isTeamPanel ? [
-        '<script src="/yango-summary-dashboard.js?v=20260803d" defer></script>',
-        '<script src="/yango-summary-standalone-fix.js?v=20260803d" defer></script>'
+        '<script src="/yango-summary-dashboard.js?v=20260803e" defer></script>',
+        '<script src="/yango-summary-standalone-fix.js?v=20260803e" defer></script>'
       ] : [])
     ];
     const withHelpers = withoutOldHelpers.replace("</body>", `${helperTags.join("")}</body>`);
@@ -340,6 +401,17 @@ app.get("/api/yango-summary-csv", async (req, res) => {
     res.type("text/csv").send(text);
   } catch (error) {
     res.status(502).send(error.message);
+  }
+});
+
+app.get("/api/mystery-shopper-responses", async (_req, res) => {
+  try {
+    const text = await fetchMysteryShopperCsvText();
+    const rows = csvToObjects(text);
+    res.set("Cache-Control", "no-store");
+    res.json({ ok: true, source: "google_sheets", sheetId: MYSTERY_SHOPPER_SHEET_ID, sheetName: MYSTERY_SHOPPER_SHEET_NAME, rows });
+  } catch (error) {
+    res.status(502).json({ ok: false, error: error.message });
   }
 });
 
