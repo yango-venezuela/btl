@@ -298,6 +298,7 @@ function sendDashboard(req, res) {
       "samsung-raffle-export",
       "influencer-payment-filter",
       "branding-inventory-cleanup",
+      "activation-status-sync",
       "yango-summary-dashboard",
       "yango-summary-standalone-fix"
     ];
@@ -305,12 +306,13 @@ function sendDashboard(req, res) {
     const withoutOldHelpers = html.replace(helperPattern, "");
     const isTeamPanel = Boolean(req.query && req.query.panel);
     const helperTags = [
-      '<script src="/samsung-raffle-export.js?v=20260731a" defer></script>',
-      '<script src="/influencer-payment-filter.js?v=20260731a" defer></script>',
-      '<script src="/branding-inventory-cleanup.js?v=20260731a" defer></script>',
+      '<script src="/samsung-raffle-export.js?v=20260803a" defer></script>',
+      '<script src="/influencer-payment-filter.js?v=20260803a" defer></script>',
+      '<script src="/branding-inventory-cleanup.js?v=20260803a" defer></script>',
+      '<script src="/activation-status-sync.js?v=20260803a" defer></script>',
       ...(!isTeamPanel ? [
-        '<script src="/yango-summary-dashboard.js?v=20260731a" defer></script>',
-        '<script src="/yango-summary-standalone-fix.js?v=20260731a" defer></script>'
+        '<script src="/yango-summary-dashboard.js?v=20260803a" defer></script>',
+        '<script src="/yango-summary-standalone-fix.js?v=20260803a" defer></script>'
       ] : [])
     ];
     const withHelpers = withoutOldHelpers.replace("</body>", `${helperTags.join("")}</body>`);
