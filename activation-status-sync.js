@@ -17,7 +17,28 @@
 
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
   const keyBlocked = key => /migration|backup|auto_sync|token|password/i.test(String(key || ""));
-  const keyAllowed = key => /^(yango_team_|yango_agency|yango_agencia)|agency|agencia|proof|photo|foto|flyer|promotor/i.test(String(key || ""));
+  const MASTER_KEY_PATTERNS = [
+    /yango_btl/i,
+    /yango_qr/i,
+    /yango_mystery/i,
+    /yango_config/i,
+    /yango_influ/i,
+    /yango_social/i,
+    /yango_btl_budget/i,
+    /yango_pop/i,
+    /yango_media_ooh/i,
+    /yango_branding/i,
+    /yango_users/i,
+    /yango_agency/i,
+    /yango_agencia/i,
+    /yango_samsung/i,
+    /yango_raffle/i
+  ];
+  const keyAllowed = key => {
+    const text = String(key || "");
+    return /^(yango_team_|yango_agency|yango_agencia)|agency|agencia|proof|photo|foto|flyer|promotor/i.test(text)
+      || MASTER_KEY_PATTERNS.some(pattern => pattern.test(text));
+  };
 
   const fieldsText = item => normalize(Object.keys(item || {}).concat(Object.values(item || {}).filter(v => typeof v === "string" || typeof v === "number")).join(" "));
 
@@ -86,6 +107,7 @@
     if (/clicks|installs|registration|registros|first order|primer viaje|promo code|canjes|qr/.test(text)) return "qr";
     if (/budget|presupuesto|planned|planificado|quarter|trimestre|month|mes/.test(text)) return "budgets";
     if (/instagram|tiktok|facebook|followers|reach|organic|orders|aov|gmv/.test(text)) return "social";
+    if (/phone|telefono|premio|samsung|rifa|contactado|direccion|entregado/.test(text)) return "raffle";
     if (/users|usuarios|access|permisos|luis|giselle|gise/.test(text) && isObject(value)) return "users";
     return "unknown";
   };
@@ -93,7 +115,7 @@
   const typeFromKey = key => {
     const lower = String(key || "").toLowerCase();
     if (/agency|agencia|proof|photo|foto|promotor|flyer/.test(lower)) return "agency";
-    if (/acts|activation|activacion/.test(lower)) return "acts";
+    if (/acts|activation|activacion|btl(?!_budget)/.test(lower)) return "acts";
     if (/influ/.test(lower)) return "influencers";
     if (/branding/.test(lower)) return "branding";
     if (/pop/.test(lower)) return "pop";
@@ -102,6 +124,7 @@
     if (/qr|result/.test(lower)) return "qr";
     if (/budget/.test(lower)) return "budgets";
     if (/social/.test(lower)) return "social";
+    if (/samsung|raffle|rifa/.test(lower)) return "raffle";
     if (/user/.test(lower)) return "users";
     return "unknown";
   };
@@ -153,7 +176,7 @@
   };
 
   const mergeSharedValue = (type, remoteValue, localValue) => {
-    if (["agency", "acts", "pop", "branding", "media", "mystery", "influencers"].includes(type)) {
+    if (["agency", "acts", "pop", "branding", "media", "mystery", "influencers", "raffle"].includes(type)) {
       return mergeObjectsDeep(remoteValue, localValue);
     }
     return localValue;
@@ -191,16 +214,19 @@
       if (value == null) continue;
       const type = typeFromKey(key) !== "unknown" ? typeFromKey(key) : inferType(value);
       if (type === "unknown") continue;
-      entries.push({ key, value, type });
+      entries.push({ key, value, type, rank: canonicalRank(key) });
     }
-    return entries;
+    return entries.sort((a, b) => b.rank - a.rank || a.key.localeCompare(b.key));
   };
 
   const saveEntryToSharedState = async (entry, remoteValues) => {
     let canonical = findCanonicalKeys(remoteValues, entry.type);
-    if (!canonical.length && entry.type === "agency") {
-      canonical = ["yango_agency_submissions_h1"];
-    }
+    if (!canonical.length && entry.type === "agency") canonical = ["yango_agency_submissions_h1"];
+    if (!canonical.length && entry.type === "media") canonical = ["yango_media_ooh_h1"];
+    if (!canonical.length && entry.type === "pop") canonical = ["yango_pop_inventory_h1"];
+    if (!canonical.length && entry.type === "branding") canonical = ["yango_branding_inventory_h1"];
+    if (!canonical.length && entry.type === "influencers") canonical = ["yango_influencers_h1"];
+    if (!canonical.length && entry.type === "raffle") canonical = ["yango_samsung_raffle_h1"];
     if (!canonical.length) return [];
     await Promise.all(canonical.map(key => {
       const mergedValue = mergeSharedValue(entry.type, remoteValues[key], entry.value);
@@ -245,7 +271,7 @@
     const button = target && target.closest && target.closest("button");
     if (!button) return false;
     const text = normalize(button.textContent || "");
-    return /se dio|no se dio|guardar|aprob|validar|pagado|grabo|grabó|publico|publicó|entregado|contactado|respondio|respondió|salida|enviar|actualizar|subir|agregar|editar|cargar|foto|fotos|flyer|promotora/.test(text);
+    return /se dio|no se dio|guardar|aprob|validar|pagado|grabo|grabó|publico|publicó|entregado|contactado|respondio|respondió|salida|enviar|actualizar|subir|agregar|editar|cargar|foto|fotos|flyer|promotora|media|ooh|ubicacion|ubicación/.test(text);
   };
 
   document.addEventListener("click", event => {
@@ -261,4 +287,5 @@
   };
 
   setTimeout(() => flushSharedState("initial"), 2500);
+  setInterval(() => flushSharedState("interval"), 30000);
 })();
