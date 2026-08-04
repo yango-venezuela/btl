@@ -34,6 +34,13 @@
     return sharedKeyPattern.test(value) || sharedKeywordPattern.test(value);
   };
 
+  const isRescueCandidateKey = key => {
+    const value = String(key || "");
+    if (!value || keyBlocked(value)) return false;
+    if (/debug|devtools|chakra|theme|sidebar|tooltip|toast|mapbox|leaflet/i.test(value)) return false;
+    return true;
+  };
+
   const typeFromKey = key => {
     const lower = String(key || "").toLowerCase();
     if (/agency|agencia|proof|photo|foto|promotor|flyer/.test(lower)) return "agency";
@@ -48,6 +55,19 @@
     if (/social|instagram|tiktok/.test(lower)) return "social";
     if (/samsung|raffle|rifa/.test(lower)) return "raffle";
     if (/user|usuario/.test(lower)) return "users";
+    return "unknown";
+  };
+
+  const typeFromValue = value => {
+    const sample = stableStringify(value).slice(0, 8000).toLowerCase();
+    if (/activaci|activation|calendario|calendar|sabana|petare|flyers|fecha calendario/.test(sample)) return "acts";
+    if (/adjust|installs|clicks|registration|success_first_order|primer/.test(sample)) return "qr";
+    if (/promotora|promotoras|foto|fotos|flyers entreg/.test(sample)) return "agency";
+    if (/instagram|tiktok|influencer|microinfluencer|reach/.test(sample)) return "influencers";
+    if (/ooh|banderola|parada bus|valla|reach estimado/.test(sample)) return "media";
+    if (/longsleeves|chalecos|cascos|stickers|bipbip|dragopro|motogo/.test(sample)) return "branding";
+    if (/mystery|shopper|visitada|operativa/.test(sample)) return "mystery";
+    if (/samsung|rifa|premio|contactado|respondio/.test(sample)) return "raffle";
     return "unknown";
   };
 
@@ -153,13 +173,28 @@
     return entries.filter(entry => entry.type !== "unknown");
   };
 
+  const collectRescueEntries = () => {
+    const entries = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!isRescueCandidateKey(key)) continue;
+      const raw = localStorage.getItem(key);
+      const parsed = parseJson(raw);
+      if (parsed == null) continue;
+      if (!Array.isArray(parsed) && !isObject(parsed)) continue;
+      const type = typeFromKey(key) !== "unknown" ? typeFromKey(key) : typeFromValue(parsed);
+      entries.push({ key, value: parsed, type, size: String(raw || "").length });
+    }
+    return entries.sort((a, b) => b.size - a.size);
+  };
+
   const hydrateLocalFromRemote = async () => {
     if (!window.fetch || window.location.protocol === "file:") return;
     try {
       const remoteValues = await fetchRemoteValues();
       let changed = false;
       Object.entries(remoteValues).forEach(([key, value]) => {
-        if (!isSharedDashboardKey(key)) return;
+        if (!isSharedDashboardKey(key) && !/^yango_rescue_/.test(key)) return;
         const remoteText = stableStringify(value);
         const currentText = localStorage.getItem(key);
         if (currentText !== remoteText) {
@@ -226,6 +261,60 @@
     }
   };
 
+  const runManualRescueSync = async button => {
+    if (!window.fetch || window.location.protocol === "file:") return;
+    const oldText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Sincronizando...";
+    try {
+      const remoteValues = await fetchRemoteValues();
+      const entries = collectRescueEntries();
+      const synced = [];
+      for (const entry of entries) {
+        await putState(entry.key, entry.value);
+        synced.push(entry.key);
+        const target = entry.type !== "unknown" ? fallbackKeyForType(entry.type) : "";
+        if (target) {
+          const merged = mergeSharedValue(entry.type, remoteValues[target], entry.value);
+          remoteValues[target] = merged;
+          await putState(target, merged);
+          synced.push(target);
+        }
+      }
+      button.textContent = `Listo: ${new Set(synced).size} datos`;
+      window.dispatchEvent(new CustomEvent("yango:manual-shared-sync", { detail: { synced } }));
+      setTimeout(() => {
+        button.textContent = oldText;
+        button.disabled = false;
+      }, 3500);
+    } catch (error) {
+      console.warn("No pude hacer sync manual:", error);
+      button.textContent = "Error sync";
+      setTimeout(() => {
+        button.textContent = oldText;
+        button.disabled = false;
+      }, 3500);
+    }
+  };
+
+  const installManualSyncButton = () => {
+    if (document.getElementById("yango-manual-shared-sync")) return;
+    const style = document.createElement("style");
+    style.textContent = `
+      #yango-manual-shared-sync{position:fixed;right:18px;bottom:18px;z-index:99999;border:0;border-radius:999px;background:#111827;color:#fff;font:800 12px/1 system-ui,sans-serif;padding:12px 14px;box-shadow:0 12px 30px rgba(15,23,42,.22);cursor:pointer;}
+      #yango-manual-shared-sync:hover{background:#ef1715;}
+      #yango-manual-shared-sync:disabled{opacity:.7;cursor:wait;}
+    `;
+    document.head.appendChild(style);
+    const button = document.createElement("button");
+    button.id = "yango-manual-shared-sync";
+    button.type = "button";
+    button.textContent = "Sincronizar datos";
+    button.title = "Sube a Railway los datos guardados en esta computadora";
+    button.addEventListener("click", () => runManualRescueSync(button));
+    document.body.appendChild(button);
+  };
+
   localStorage.setItem = function patchedSetItem(key, value) {
     originalSetItem(key, value);
     queueEntry(key, value, "localStorage.setItem");
@@ -253,6 +342,7 @@
   });
 
   setTimeout(hydrateLocalFromRemote, 100);
+  setTimeout(installManualSyncButton, 700);
   setTimeout(() => {
     hydrateLocalFromRemote();
     collectLocalEntries().forEach(entry => queueEntry(entry.key, stableStringify(entry.value), "startup-scan"));
