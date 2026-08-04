@@ -15,6 +15,7 @@ const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
 const MYSTERY_SHOPPER_SHEET_ID = "12-AWRARvNJytUoGNWj0IGtSMaO1clqtqyzqT6jntwNY";
 const MYSTERY_SHOPPER_SHEET_NAME = "Form Responses 1";
+const HELPER_VERSION = "20260804b";
 
 let readyPromise = null;
 let brandingInventoryUpdatePromise = null;
@@ -366,17 +367,20 @@ function sendDashboard(req, res) {
     const withoutOldHelpers = html.replace(helperPattern, "");
     const isTeamPanel = Boolean(req.query && req.query.panel);
     const helperTags = [
-      '<script src="/samsung-raffle-export.js?v=20260803e" defer></script>',
-      '<script src="/influencer-payment-filter.js?v=20260803e" defer></script>',
-      '<script src="/branding-inventory-cleanup.js?v=20260803e" defer></script>',
-      '<script src="/activation-status-sync.js?v=20260803e" defer></script>',
-      '<script src="/mystery-shopper-sheet-sync.js?v=20260803e" defer></script>',
+      `<script src="/samsung-raffle-export.js?v=${HELPER_VERSION}" defer></script>`,
+      `<script src="/influencer-payment-filter.js?v=${HELPER_VERSION}" defer></script>`,
+      `<script src="/branding-inventory-cleanup.js?v=${HELPER_VERSION}" defer></script>`,
+      `<script src="/activation-status-sync.js?v=${HELPER_VERSION}" defer></script>`,
+      `<script src="/mystery-shopper-sheet-sync.js?v=${HELPER_VERSION}" defer></script>`,
       ...(!isTeamPanel ? [
-        '<script src="/yango-summary-dashboard.js?v=20260803e" defer></script>',
-        '<script src="/yango-summary-standalone-fix.js?v=20260803e" defer></script>'
+        `<script src="/yango-summary-dashboard.js?v=${HELPER_VERSION}" defer></script>`,
+        `<script src="/yango-summary-standalone-fix.js?v=${HELPER_VERSION}" defer></script>`
       ] : [])
     ];
     const withHelpers = withoutOldHelpers.replace("</body>", `${helperTags.join("")}</body>`);
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
     res.type("html").send(withHelpers);
   });
 }
