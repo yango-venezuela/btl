@@ -1,10 +1,13 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoManualRescueBundleSyncV1) return;
-  window.__yangoManualRescueBundleSyncV1 = true;
+  if (typeof window === "undefined" || window.__yangoAutoRescueBundleSyncV2) return;
+  window.__yangoAutoRescueBundleSyncV2 = true;
 
   const BUNDLE_KEY = "yango_manual_rescue_bundle_h1";
   const APPLIED_PREFIX = "yango_manual_rescue_bundle_applied_";
   const originalSetItem = localStorage.setItem.bind(localStorage);
+  let uploadTimer = null;
+  let uploading = false;
+  let lastSignature = "";
 
   const parseJson = value => {
     try { return JSON.parse(value); } catch (_error) { return null; }
@@ -16,6 +19,7 @@
 
   const blocked = key => /migration|backup|respaldo|auto_sync|token|password|pass|secret|hydrated|applied/i.test(String(key || ""));
   const noisy = key => /debug|devtools|chakra|theme|sidebar|tooltip|toast|mapbox|leaflet|loglevel|amplitude|analytics|sentry|intercom/i.test(String(key || ""));
+  const relevant = key => /yango|mkt|btl|agency|agencia|activ|calendar|calendario|adjust|result|resultado|influ|branding|pop|material|media|ooh|mystery|shopper|samsung|rifa|raffle|social|instagram|tiktok|user|usuario|budget|presupuesto/i.test(String(key || ""));
 
   const fetchState = async keys => {
     const url = keys && keys.length ? `/api/state?keys=${encodeURIComponent(keys.join(","))}` : "/api/state";
@@ -34,6 +38,10 @@
     if (!response.ok) throw new Error(`API ${response.status}`);
   };
 
+  const removeManualButton = () => {
+    document.getElementById("yango-manual-shared-sync")?.remove();
+  };
+
   const collectBundleEntries = () => {
     const entries = [];
     for (let index = 0; index < localStorage.length; index += 1) {
@@ -45,10 +53,14 @@
       if (typeof value !== "object") continue;
       const size = String(raw || "").length;
       if (size > 4_000_000) continue;
+      const sample = String(raw || "").slice(0, 2500);
+      if (!relevant(key) && !/activaci|calendar|calendario|petare|sabana|centro|flyer|promotora|influencer|ooh|branding|cascos|rifa|samsung/i.test(sample)) continue;
       entries.push({ key, value, size });
     }
-    return entries.sort((a, b) => b.size - a.size).slice(0, 80).map(({ key, value, size }) => ({ key, value, size }));
+    return entries.sort((a, b) => b.size - a.size).slice(0, 100).map(({ key, value, size }) => ({ key, value, size }));
   };
+
+  const bundleSignature = entries => entries.map(entry => `${entry.key}:${entry.size}`).join("|");
 
   const applyBundle = bundle => {
     if (!bundle || !Array.isArray(bundle.entries)) return false;
@@ -76,69 +88,68 @@
       sessionStorage.setItem(marker, "1");
       if (changed) setTimeout(() => window.location.reload(), 450);
     } catch (error) {
-      console.warn("No pude aplicar paquete de rescate:", error);
+      console.warn("No pude aplicar paquete automático:", error);
     }
   };
 
-  const uploadBundle = async button => {
-    if (!window.fetch || window.location.protocol === "file:") return;
-    const oldText = button ? button.textContent : "";
-    if (button) {
-      button.disabled = true;
-      button.textContent = "Subiendo paquete...";
-    }
+  const uploadBundle = async reason => {
+    if (!window.fetch || window.location.protocol === "file:" || uploading) return;
+    uploading = true;
     try {
       const entries = collectBundleEntries();
+      const signature = bundleSignature(entries);
+      if (!entries.length || signature === lastSignature) return;
+      lastSignature = signature;
       const bundle = {
         updatedAt: new Date().toISOString(),
         origin: window.location.href,
+        reason,
         entries
       };
       await putState(BUNDLE_KEY, bundle);
-      if (button) button.textContent = `Paquete listo: ${entries.length}`;
-      window.dispatchEvent(new CustomEvent("yango:manual-rescue-bundle-uploaded", { detail: { entries: entries.length } }));
-      setTimeout(() => {
-        if (!button) return;
-        button.textContent = oldText || "Sincronizar datos";
-        button.disabled = false;
-      }, 4000);
+      window.dispatchEvent(new CustomEvent("yango:auto-rescue-bundle-uploaded", { detail: { entries: entries.length, reason } }));
     } catch (error) {
-      console.warn("No pude subir paquete de rescate:", error);
-      if (button) {
-        button.textContent = "Error paquete";
-        setTimeout(() => {
-          button.textContent = oldText || "Sincronizar datos";
-          button.disabled = false;
-        }, 4000);
-      }
+      console.warn("No pude subir paquete automático:", error);
+    } finally {
+      uploading = false;
     }
   };
 
-  const ensureButton = () => {
-    let button = document.getElementById("yango-manual-shared-sync");
-    if (!button) {
-      const style = document.createElement("style");
-      style.textContent = `
-        #yango-manual-shared-sync{position:fixed;right:18px;bottom:18px;z-index:99999;border:0;border-radius:999px;background:#111827;color:#fff;font:800 12px/1 system-ui,sans-serif;padding:12px 14px;box-shadow:0 12px 30px rgba(15,23,42,.22);cursor:pointer;}
-        #yango-manual-shared-sync:hover{background:#ef1715;}
-        #yango-manual-shared-sync:disabled{opacity:.7;cursor:wait;}
-      `;
-      document.head.appendChild(style);
-      button = document.createElement("button");
-      button.id = "yango-manual-shared-sync";
-      button.type = "button";
-      button.textContent = "Sincronizar datos";
-      button.title = "Sube a Railway los datos guardados en esta computadora";
-      document.body.appendChild(button);
-    }
-    if (!button.dataset.rescueBundleSync) {
-      button.dataset.rescueBundleSync = "1";
-      button.addEventListener("click", () => setTimeout(() => uploadBundle(button), 250), true);
-    }
+  const scheduleUpload = reason => {
+    clearTimeout(uploadTimer);
+    uploadTimer = setTimeout(() => uploadBundle(reason), 1200);
   };
 
+  localStorage.setItem = function yangoAutoBundleSetItem(key, value) {
+    originalSetItem(key, value);
+    if (!blocked(key) && !noisy(key)) scheduleUpload(`localStorage:${key}`);
+  };
+
+  document.addEventListener("click", event => {
+    const button = event.target && event.target.closest && event.target.closest("button");
+    if (!button) return;
+    const text = String(button.textContent || "").toLowerCase();
+    if (/guardar|cargar|subir|importar|agregar|editar|actualizar|se dio|no se dio|aprobar|validar|foto|fotos|resultado|calendario|activaci|influencer|ooh|branding|material|rifa/.test(text)) {
+      scheduleUpload("button-action");
+    }
+  }, true);
+
+  window.addEventListener("beforeunload", () => {
+    const entries = collectBundleEntries();
+    const signature = bundleSignature(entries);
+    if (!entries.length || signature === lastSignature) return;
+    const payload = JSON.stringify({ value: { updatedAt: new Date().toISOString(), origin: window.location.href, reason: "beforeunload", entries } });
+    try {
+      navigator.sendBeacon(`/api/state/${encodeURIComponent(BUNDLE_KEY)}`, new Blob([payload], { type: "application/json" }));
+    } catch (_error) {}
+  });
+
+  setTimeout(removeManualButton, 200);
+  setTimeout(removeManualButton, 1000);
+  setInterval(removeManualButton, 2500);
   setTimeout(hydrateBundle, 100);
   setTimeout(hydrateBundle, 1600);
-  setTimeout(ensureButton, 900);
+  setTimeout(() => uploadBundle("startup"), 2500);
   setInterval(hydrateBundle, 30000);
+  setInterval(() => uploadBundle("interval"), 45000);
 })();
