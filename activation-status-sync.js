@@ -1,8 +1,11 @@
 (() => {
   if (typeof window === "undefined") return;
-  const SYNC_FLAG = "__yangoSafeSharedStateSyncInstalled";
+  const SYNC_FLAG = "__yangoSafeSharedStateSyncInstalledV2";
   if (window[SYNC_FLAG]) return;
   window[SYNC_FLAG] = true;
+
+  const HYDRATE_VERSION = "20260804a";
+  const HYDRATE_MARKER = `yango_shared_state_hydrated_${HYDRATE_VERSION}`;
 
   const normalize = value => String(value || "")
     .normalize("NFD")
@@ -15,32 +18,42 @@
     try { return JSON.parse(value); } catch (_error) { return null; }
   };
 
-  const isObject = value => value && typeof value === "object" && !Array.isArray(value);
-  const keyBlocked = key => /migration|backup|auto_sync|token|password/i.test(String(key || ""));
+  const stableStringify = value => {
+    try { return JSON.stringify(value); } catch (_error) { return String(value); }
+  };
 
-  const isTeamOrAgencyKey = key => /^(yango_team_|yango_agency|yango_agencia)/i.test(String(key || ""))
-    || /agency|agencia|proof|photo|foto|flyer|promotor/i.test(String(key || ""));
+  const isObject = value => value && typeof value === "object" && !Array.isArray(value);
+  const keyBlocked = key => /migration|backup|respaldo|auto_sync|token|password|pass|secret|hydrated/i.test(String(key || ""));
+
+  const sharedKeyPattern = /^(yango_|mkt_|btl_)/i;
+  const sharedKeywordPattern = /agency|agencia|proof|photo|foto|flyer|promotor|acts|activation|activacion|calendar|calendario|adjust|qr|result|resultado|budget|presupuesto|influ|branding|pop|material|media|ooh|mystery|shopper|samsung|raffle|rifa|social|tiktok|instagram|users|usuarios/i;
+
+  const isSharedDashboardKey = key => {
+    const value = String(key || "");
+    if (!value || keyBlocked(value)) return false;
+    return sharedKeyPattern.test(value) || sharedKeywordPattern.test(value);
+  };
 
   const typeFromKey = key => {
     const lower = String(key || "").toLowerCase();
     if (/agency|agencia|proof|photo|foto|promotor|flyer/.test(lower)) return "agency";
-    if (/acts|activation|activacion|btl(?!_budget)/.test(lower)) return "acts";
+    if (/acts|activation|activacion|calendar|calendario|btl(?!_budget)/.test(lower)) return "acts";
+    if (/adjust|qr|result|resultado/.test(lower)) return "qr";
     if (/influ/.test(lower)) return "influencers";
     if (/branding/.test(lower)) return "branding";
-    if (/pop/.test(lower)) return "pop";
+    if (/pop|material/.test(lower)) return "pop";
     if (/media|ooh/.test(lower)) return "media";
     if (/mystery|shopper/.test(lower)) return "mystery";
-    if (/qr|result/.test(lower)) return "qr";
-    if (/budget/.test(lower)) return "budgets";
-    if (/social/.test(lower)) return "social";
+    if (/budget|presupuesto/.test(lower)) return "budgets";
+    if (/social|instagram|tiktok/.test(lower)) return "social";
     if (/samsung|raffle|rifa/.test(lower)) return "raffle";
-    if (/user/.test(lower)) return "users";
+    if (/user|usuario/.test(lower)) return "users";
     return "unknown";
   };
 
   const stableId = item => {
     if (!isObject(item)) return "";
-    return String(item.id || item.activationId || item.actId || item.uuid || item.key || [item.name || item.title || "", item.date || item.calendarDate || "", item.location || item.zone || ""].join("|")).trim();
+    return String(item.id || item.activationId || item.actId || item.uuid || item.key || item.phone || item.telefono || item.name || item.nombre || [item.title || "", item.date || item.fecha || item.calendarDate || "", item.location || item.zone || item.zona || ""].join("|")).trim();
   };
 
   const mergeArraysById = (remoteValue, localValue) => {
@@ -75,25 +88,32 @@
     return next;
   };
 
-  const mergeTypes = new Set(["agency", "acts", "pop", "branding", "media", "mystery", "influencers", "raffle"]);
+  const mergeTypes = new Set(["agency", "acts", "qr", "pop", "branding", "media", "mystery", "influencers", "raffle", "budgets", "social", "users"]);
   const mergeSharedValue = (type, remoteValue, localValue) => mergeTypes.has(type) ? mergeObjectsDeep(remoteValue, localValue) : localValue;
 
   const fallbackKeyForType = type => ({
     agency: "yango_agency_submissions_h1",
+    acts: "yango_activations_h1",
+    qr: "yango_btl_results_h1",
     media: "yango_media_ooh_h1",
     pop: "yango_pop_inventory_h1",
     branding: "yango_branding_inventory_h1",
     influencers: "yango_influencers_h1",
-    raffle: "yango_samsung_raffle_h1"
+    mystery: "yango_mystery_shopper_h1",
+    raffle: "yango_samsung_raffle_h1",
+    budgets: "yango_budgets_h1",
+    social: "yango_social_media_h1",
+    users: "yango_users_h1"
   })[type] || "";
 
   const canonicalRank = key => {
     const lower = String(key || "").toLowerCase();
     if (keyBlocked(lower)) return -100;
-    if (/^yango_team_/.test(lower) || /^yango_agency_/.test(lower) || /^yango_agencia_/.test(lower)) return -50;
+    if (/^yango_team_/.test(lower) || /^yango_agency_/.test(lower) || /^yango_agencia_/.test(lower)) return -30;
     if (/seed|sample|demo|template/.test(lower)) return -20;
-    if (/^yango_/.test(lower)) return 20;
-    return 0;
+    if (/^yango_/.test(lower)) return 30;
+    if (/^mkt_|^btl_/.test(lower)) return 20;
+    return 5;
   };
 
   const fetchRemoteValues = async () => {
@@ -119,13 +139,51 @@
     .sort((a, b) => b.rank - a.rank || a.key.localeCompare(b.key))
     .map(row => row.key);
 
+  const originalSetItem = localStorage.setItem.bind(localStorage);
+
+  const collectLocalEntries = () => {
+    const entries = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!isSharedDashboardKey(key)) continue;
+      const parsed = parseJson(localStorage.getItem(key));
+      if (parsed == null) continue;
+      entries.push({ key, value: parsed, type: typeFromKey(key), reason: "local-scan" });
+    }
+    return entries.filter(entry => entry.type !== "unknown");
+  };
+
+  const hydrateLocalFromRemote = async () => {
+    if (!window.fetch || window.location.protocol === "file:") return;
+    try {
+      const remoteValues = await fetchRemoteValues();
+      let changed = false;
+      Object.entries(remoteValues).forEach(([key, value]) => {
+        if (!isSharedDashboardKey(key)) return;
+        const remoteText = stableStringify(value);
+        const currentText = localStorage.getItem(key);
+        if (currentText !== remoteText) {
+          originalSetItem(key, remoteText);
+          changed = true;
+        }
+      });
+      window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { keys: Object.keys(remoteValues).filter(isSharedDashboardKey) } }));
+      if (changed && !sessionStorage.getItem(HYDRATE_MARKER)) {
+        sessionStorage.setItem(HYDRATE_MARKER, "1");
+        setTimeout(() => window.location.reload(), 350);
+      }
+    } catch (error) {
+      console.warn("No pude hidratar datos compartidos:", error);
+    }
+  };
+
   const pending = new Map();
   let timer = null;
   let running = false;
 
   const queueEntry = (key, value, reason) => {
-    if (!key || keyBlocked(key) || !isTeamOrAgencyKey(key)) return;
-    const parsed = parseJson(value);
+    if (!isSharedDashboardKey(key)) return;
+    const parsed = typeof value === "string" ? parseJson(value) : value;
     if (parsed == null) return;
     const type = typeFromKey(key);
     if (type === "unknown") return;
@@ -149,6 +207,8 @@
           const fallback = fallbackKeyForType(entry.type);
           if (fallback) targetKeys = [fallback];
         }
+        if (!targetKeys.includes(entry.key) && canonicalRank(entry.key) >= 20) targetKeys.unshift(entry.key);
+        targetKeys = [...new Set(targetKeys)];
         for (const key of targetKeys) {
           const merged = mergeSharedValue(entry.type, remoteValues[key], entry.value);
           remoteValues[key] = merged;
@@ -166,7 +226,6 @@
     }
   };
 
-  const originalSetItem = localStorage.setItem.bind(localStorage);
   localStorage.setItem = function patchedSetItem(key, value) {
     originalSetItem(key, value);
     queueEntry(key, value, "localStorage.setItem");
@@ -176,18 +235,32 @@
     const button = target && target.closest && target.closest("button");
     if (!button) return false;
     const text = normalize(button.textContent || "");
-    return /se dio|no se dio|guardar|aprob|validar|pagado|grabo|grabó|publico|publicó|entregado|contactado|respondio|respondió|salida|enviar|actualizar|subir|agregar|editar|cargar|foto|fotos|flyer|promotora|media|ooh|ubicacion|ubicación/.test(text);
+    return /se dio|no se dio|guardar|aprob|validar|pagado|grabo|grabó|publico|publicó|entregado|contactado|respondio|respondió|salida|enviar|actualizar|subir|agregar|editar|cargar|importar|foto|fotos|flyer|promotora|media|ooh|ubicacion|ubicación|resultado|adjust|calendario|activacion|activación/.test(text);
   };
+
+  const scanLocalSoon = reason => setTimeout(() => {
+    collectLocalEntries().forEach(entry => queueEntry(entry.key, stableStringify(entry.value), reason));
+  }, 350);
 
   document.addEventListener("click", event => {
     if (!actionableButton(event.target)) return;
-    setTimeout(() => {
-      for (let index = 0; index < localStorage.length; index += 1) {
-        const key = localStorage.key(index);
-        if (key && isTeamOrAgencyKey(key)) queueEntry(key, localStorage.getItem(key), "button-scan");
-      }
-    }, 300);
+    scanLocalSoon("button-scan");
   }, true);
+
+  window.addEventListener("beforeunload", () => {
+    collectLocalEntries().forEach(entry => queueEntry(entry.key, stableStringify(entry.value), "beforeunload"));
+    flushPending();
+  });
+
+  setTimeout(hydrateLocalFromRemote, 100);
+  setTimeout(() => {
+    hydrateLocalFromRemote();
+    collectLocalEntries().forEach(entry => queueEntry(entry.key, stableStringify(entry.value), "startup-scan"));
+  }, 1800);
+  setInterval(() => {
+    hydrateLocalFromRemote();
+    collectLocalEntries().forEach(entry => queueEntry(entry.key, stableStringify(entry.value), "interval-scan"));
+  }, 30000);
 })();
 
 (() => {
