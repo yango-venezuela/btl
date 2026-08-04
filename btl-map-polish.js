@@ -186,3 +186,17 @@
   }, true);
   new MutationObserver(() => schedule()).observe(document.documentElement, { childList:true, subtree:true });
 })();
+
+(() => {
+  if (typeof window === "undefined" || window.__yangoManualRescueBundleLoaderV1) return;
+  window.__yangoManualRescueBundleLoaderV1 = true;
+  const load = () => {
+    if (document.querySelector('script[src^="/manual-rescue-bundle-sync.js"]')) return;
+    const script = document.createElement("script");
+    script.src = `/manual-rescue-bundle-sync.js?v=20260804c-${Date.now()}`;
+    script.defer = true;
+    document.head.appendChild(script);
+  };
+  setTimeout(load, 150);
+  setTimeout(load, 1800);
+})();
