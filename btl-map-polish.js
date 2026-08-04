@@ -1,6 +1,6 @@
 (() => {
   if (typeof window === "undefined") return;
-  const FLAG = "__yangoBtlMapFallbackPinsV2";
+  const FLAG = "__yangoBtlMapFallbackPinsV3";
   if (window[FLAG]) return;
   window[FLAG] = true;
 
@@ -22,6 +22,7 @@
   const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '').trim();
   const nice = value => String(value || '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\s+/g, ' ').trim();
   const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
+  const parse = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
 
   const injectCss = () => {
     if (document.getElementById('yango-btl-map-fallback-css')) return;
@@ -41,10 +42,10 @@
     document.head.appendChild(style);
   };
 
-  const itemText = item => [item.location,item.locationName,item.zone,item.zona,item.area,item.activation,item.activacion,item.name,item.title,item.nombre,item.address,item.direccion,item.place,item.ubicacion].filter(Boolean).join(' ');
-  const itemDate = item => String(item.date || item.fecha || item.calendarDate || item.activationDate || item.startDate || item.visitedDate || '');
-  const itemType = item => String(item.type || item.tipo || item.activationType || item.tipoActivacion || item.mechanic || item.mechanics || 'Flyers');
-  const itemLocation = item => String(item.location || item.locationName || item.zone || item.zona || item.area || item.activation || item.activacion || item.name || item.title || 'Activación BTL');
+  const itemText = item => [item.location,item.locationName,item.zone,item.zona,item.area,item.activation,item.activacion,item.name,item.title,item.nombre,item.address,item.direccion,item.place,item.ubicacion,item.realLocation,item.real_location,item.locationArea,item.sector,item.neighborhood,item.barrio].filter(Boolean).join(' ');
+  const itemDate = item => String(item.date || item.fecha || item.calendarDate || item.activationDate || item.startDate || item.visitedDate || item.day || item.dia || '');
+  const itemType = item => String(item.type || item.tipo || item.activationType || item.tipoActivacion || item.mechanic || item.mechanics || item.material || item.category || 'Flyers');
+  const itemLocation = item => String(item.location || item.locationName || item.zone || item.zona || item.area || item.realLocation || item.activation || item.activacion || item.name || item.title || item.ubicacion || 'Activación BTL');
 
   const coordsFor = item => {
     const lat = Number(item.lat ?? item.latitude ?? item.Latitude ?? item.latitud);
@@ -55,35 +56,57 @@
     return key ? LOCATION_COORDS[key] : null;
   };
 
-  const looksLikeActivation = item => {
+  const looksLikeActivation = (item, sourceKey = '') => {
     if (!isObject(item)) return false;
-    const text = normalize(itemText(item));
+    const text = normalize(`${sourceKey} ${itemText(item)} ${itemType(item)} ${itemDate(item)}`);
     if (!coordsFor(item)) return false;
     if (/influencer|samsung|rifa|branding|stickers|cascos|chalecos|longsleeves|mediaooh/.test(text)) return false;
-    return /activ|btl|flyer|cafe|helado|universidad|evento|sabana|petare|centro|altamira|chacaito|junquito|hoyada|montalban|vega|catia|teques|mercedes/.test(text);
+    return /activ|btl|calendar|calendario|flyer|cafe|helado|universidad|evento|sabana|petare|centro|altamira|chacaito|junquito|hoyada|montalban|vega|catia|teques|mercedes|july|julio|junio|2026/.test(text);
   };
 
-  const collect = (value, out=[]) => {
-    if (Array.isArray(value)) value.forEach(v => looksLikeActivation(v) ? out.push(v) : collect(v,out));
+  const collect = (value, out=[], sourceKey='') => {
+    if (Array.isArray(value)) value.forEach(v => looksLikeActivation(v, sourceKey) ? out.push(v) : collect(v,out,sourceKey));
     else if (isObject(value)) {
-      if (looksLikeActivation(value)) out.push(value);
-      Object.values(value).forEach(v => (Array.isArray(v)||isObject(v)) && collect(v,out));
+      if (looksLikeActivation(value, sourceKey)) out.push(value);
+      Object.entries(value).forEach(([k,v]) => (Array.isArray(v)||isObject(v)) && collect(v,out,`${sourceKey} ${k}`));
     }
     return out;
   };
 
-  const load = async () => {
-    const response = await fetch('/api/state', { cache:'no-store' });
-    if (!response.ok) return [];
-    const payload = await response.json();
-    const raw = [];
-    Object.entries(payload.values || {}).forEach(([key,value]) => {
-      if (/backup|migration|token|password|influencer|branding|samsung|raffle|rifa/i.test(key)) return;
-      collect(value, raw);
+  const collectFromLocalStorage = raw => {
+    try {
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index) || '';
+        if (/backup|migration|token|password|influencer|branding|samsung|raffle|rifa/i.test(key)) continue;
+        const value = parse(localStorage.getItem(key));
+        if (value) collect(value, raw, key);
+      }
+    } catch (_error) {}
+  };
+
+  const collectFromWindow = raw => {
+    ['activations','filteredActivations','btlActivations','calendarActivations','activationData','calendarData','state','appState','dashboardState'].forEach(key => {
+      try { if (window[key]) collect(window[key], raw, key); } catch (_error) {}
     });
+  };
+
+  const load = async () => {
+    const raw = [];
+    try {
+      const response = await fetch('/api/state', { cache:'no-store' });
+      if (response.ok) {
+        const payload = await response.json();
+        Object.entries(payload.values || {}).forEach(([key,value]) => {
+          if (/backup|migration|token|password|influencer|branding|samsung|raffle|rifa/i.test(key)) return;
+          collect(value, raw, key);
+        });
+      }
+    } catch (_error) {}
+    collectFromLocalStorage(raw);
+    collectFromWindow(raw);
     const seen = new Set();
     return raw.filter(item => {
-      const id = String(item.id || item.activationId || [itemDate(item), itemLocation(item), itemType(item)].join('|'));
+      const id = String(item.id || item.activationId || item.actId || [itemDate(item), itemLocation(item), itemType(item)].join('|'));
       if (seen.has(id)) return false;
       seen.add(id);
       return true;
@@ -96,10 +119,7 @@
     return [Math.max(3, Math.min(97, x)), Math.max(4, Math.min(96, y))];
   };
 
-  const findMapContainer = () => {
-    const containers = Array.from(document.querySelectorAll('.leaflet-container'));
-    return containers.sort((a,b)=>(b.clientWidth*b.clientHeight)-(a.clientWidth*a.clientHeight))[0] || null;
-  };
+  const findMapContainer = () => Array.from(document.querySelectorAll('.leaflet-container')).sort((a,b)=>(b.clientWidth*b.clientHeight)-(a.clientWidth*a.clientHeight))[0] || null;
 
   const render = async () => {
     injectCss();
@@ -124,11 +144,9 @@
       pin.style.left = `${x}%`;
       pin.style.top = `${y}%`;
       pin.style.background = TYPE_COLORS[normalize(itemType(item))] || '#ef4444';
-      const label = `${nice(itemLocation(item))}\n${nice(itemType(item))} · ${itemDate(item) || 'Sin fecha'}`;
-      pin.title = label;
+      pin.title = `${nice(itemLocation(item))}\n${nice(itemType(item))} · ${itemDate(item) || 'Sin fecha'}`;
       pin.addEventListener('mouseenter', () => {
-        const old = layer.querySelector('.yango-btl-popup');
-        if (old) old.remove();
+        layer.querySelector('.yango-btl-popup')?.remove();
         const popup = document.createElement('div');
         popup.className = 'yango-btl-popup';
         popup.style.left = `${x}%`;
@@ -161,9 +179,10 @@
   [300, 1200, 2600, 5000].forEach(t => setTimeout(render, t));
   window.addEventListener('focus', schedule);
   window.addEventListener('resize', schedule);
+  window.addEventListener('storage', schedule);
   document.addEventListener('click', event => {
     const text = String(event.target?.textContent || '').toLowerCase();
-    if (/mapa|activaciones|calendario|cargar|resultados/.test(text)) schedule();
+    if (/mapa|activaciones|calendario|cargar|resultados|actualizar/.test(text)) schedule();
   }, true);
   new MutationObserver(() => schedule()).observe(document.documentElement, { childList:true, subtree:true });
 })();
