@@ -2,7 +2,9 @@
   if (typeof window === "undefined" || window.__yangoAutoRescueBundleSyncV2) return;
   window.__yangoAutoRescueBundleSyncV2 = true;
 
-  const BUNDLE_KEY = "yango_manual_rescue_bundle_h1";
+  const BUNDLE_PREFIX = "yango_manual_rescue_bundle_";
+  const LEGACY_BUNDLE_KEY = "yango_manual_rescue_bundle_h1";
+  const DEVICE_KEY = "yango_device_id_h1";
   const APPLIED_PREFIX = "yango_manual_rescue_bundle_applied_";
   const originalSetItem = localStorage.setItem.bind(localStorage);
   let uploadTimer = null;
@@ -17,7 +19,7 @@
     try { return JSON.stringify(value); } catch (_error) { return String(value); }
   };
 
-  const blocked = key => /migration|backup|respaldo|auto_sync|token|password|pass|secret|hydrated|applied/i.test(String(key || ""));
+  const blocked = key => /migration|backup|respaldo|auto_sync|token|password|pass|secret|hydrated|applied|manual_rescue_bundle|device_id/i.test(String(key || ""));
   const noisy = key => /debug|devtools|chakra|theme|sidebar|tooltip|toast|mapbox|leaflet|loglevel|amplitude|analytics|sentry|intercom/i.test(String(key || ""));
   const relevant = key => /yango|mkt|btl|agency|agencia|activ|calendar|calendario|adjust|result|resultado|influ|branding|pop|material|media|ooh|mystery|shopper|samsung|rifa|raffle|social|instagram|tiktok|user|usuario|budget|presupuesto/i.test(String(key || ""));
 
@@ -37,6 +39,21 @@
     });
     if (!response.ok) throw new Error(`API ${response.status}`);
   };
+
+  const getDeviceId = () => {
+    try {
+      let id = localStorage.getItem(DEVICE_KEY);
+      if (!id) {
+        id = `device_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+        originalSetItem(DEVICE_KEY, id);
+      }
+      return id;
+    } catch (_error) {
+      return `device_${Math.random().toString(36).slice(2, 10)}`;
+    }
+  };
+
+  const ownBundleKey = () => `${BUNDLE_PREFIX}${getDeviceId()}`;
 
   const removeManualButton = () => {
     document.getElementById("yango-manual-shared-sync")?.remove();
@@ -62,12 +79,59 @@
 
   const bundleSignature = entries => entries.map(entry => `${entry.key}:${entry.size}`).join("|");
 
+  const valueId = value => {
+    if (!value || typeof value !== "object") return "";
+    return String(value.id || value.key || value.uuid || value.name || value.nombre || value.title || value.titulo || value.phone || value.telefono || value.date || value.fecha || "");
+  };
+
+  const mergeArrays = (current, incoming) => {
+    const byId = new Map();
+    const output = [];
+    const add = item => {
+      const id = valueId(item);
+      if (!id) { output.push(item); return; }
+      if (!byId.has(id)) { byId.set(id, output.length); output.push(item); return; }
+      const index = byId.get(id);
+      output[index] = safeMergeValue(output[index], item);
+    };
+    current.forEach(add);
+    incoming.forEach(add);
+    return output;
+  };
+
+  function safeMergeValue(current, incoming) {
+    if (current == null) return incoming;
+    if (incoming == null) return current;
+    if (Array.isArray(current) && Array.isArray(incoming)) return mergeArrays(current, incoming);
+    if (current && incoming && typeof current === "object" && typeof incoming === "object" && !Array.isArray(current) && !Array.isArray(incoming)) {
+      const next = { ...current };
+      Object.keys(incoming).forEach(key => { next[key] = safeMergeValue(current[key], incoming[key]); });
+      return next;
+    }
+    return incoming;
+  }
+
+  const mergeEntries = (baseEntries, incomingEntries) => {
+    const byKey = new Map();
+    const add = entry => {
+      if (!entry || !entry.key || blocked(entry.key) || noisy(entry.key)) return;
+      const current = byKey.get(entry.key);
+      const value = current ? safeMergeValue(current.value, entry.value) : entry.value;
+      byKey.set(entry.key, { key: entry.key, value, size: String(stableStringify(value)).length });
+    };
+    (baseEntries || []).forEach(add);
+    (incomingEntries || []).forEach(add);
+    return Array.from(byKey.values()).sort((a, b) => b.size - a.size).slice(0, 150);
+  };
+
   const applyBundle = bundle => {
     if (!bundle || !Array.isArray(bundle.entries)) return false;
     let changed = false;
     bundle.entries.forEach(entry => {
       if (!entry || !entry.key || blocked(entry.key) || noisy(entry.key)) return;
-      const next = stableStringify(entry.value);
+      const currentValue = parseJson(localStorage.getItem(entry.key));
+      const merged = safeMergeValue(currentValue, entry.value);
+      const next = stableStringify(merged);
       if (localStorage.getItem(entry.key) !== next) {
         originalSetItem(entry.key, next);
         changed = true;
@@ -79,12 +143,15 @@
   const hydrateBundle = async () => {
     if (!window.fetch || window.location.protocol === "file:") return;
     try {
-      const values = await fetchState([BUNDLE_KEY]);
-      const bundle = values[BUNDLE_KEY];
-      if (!bundle || !bundle.updatedAt) return;
-      const marker = `${APPLIED_PREFIX}${bundle.updatedAt}`;
+      const values = await fetchState();
+      const bundles = Object.entries(values)
+        .filter(([key, value]) => (key === LEGACY_BUNDLE_KEY || String(key).startsWith(BUNDLE_PREFIX)) && value && Array.isArray(value.entries))
+        .map(([key, value]) => ({ key, ...value }))
+        .sort((a, b) => String(a.updatedAt || "").localeCompare(String(b.updatedAt || "")));
+      if (!bundles.length) return;
+      const marker = `${APPLIED_PREFIX}${bundles.map(bundle => `${bundle.key}:${bundle.updatedAt || ""}`).join("|")}`;
       if (sessionStorage.getItem(marker)) return;
-      const changed = applyBundle(bundle);
+      const changed = bundles.some(bundle => applyBundle(bundle));
       sessionStorage.setItem(marker, "1");
       if (changed) setTimeout(() => window.location.reload(), 450);
     } catch (error) {
@@ -100,14 +167,19 @@
       const signature = bundleSignature(entries);
       if (!entries.length || signature === lastSignature) return;
       lastSignature = signature;
+      const key = ownBundleKey();
+      const existingValues = await fetchState([key]).catch(() => ({}));
+      const existingBundle = existingValues[key];
+      const mergedEntries = mergeEntries(existingBundle && existingBundle.entries, entries);
       const bundle = {
         updatedAt: new Date().toISOString(),
         origin: window.location.href,
         reason,
-        entries
+        deviceId: getDeviceId(),
+        entries: mergedEntries
       };
-      await putState(BUNDLE_KEY, bundle);
-      window.dispatchEvent(new CustomEvent("yango:auto-rescue-bundle-uploaded", { detail: { entries: entries.length, reason } }));
+      await putState(key, bundle);
+      window.dispatchEvent(new CustomEvent("yango:auto-rescue-bundle-uploaded", { detail: { entries: mergedEntries.length, reason } }));
     } catch (error) {
       console.warn("No pude subir paquete automático:", error);
     } finally {
@@ -138,9 +210,9 @@
     const entries = collectBundleEntries();
     const signature = bundleSignature(entries);
     if (!entries.length || signature === lastSignature) return;
-    const payload = JSON.stringify({ value: { updatedAt: new Date().toISOString(), origin: window.location.href, reason: "beforeunload", entries } });
+    const payload = JSON.stringify({ value: { updatedAt: new Date().toISOString(), origin: window.location.href, reason: "beforeunload", deviceId: getDeviceId(), entries } });
     try {
-      navigator.sendBeacon(`/api/state/${encodeURIComponent(BUNDLE_KEY)}`, new Blob([payload], { type: "application/json" }));
+      navigator.sendBeacon(`/api/state/${encodeURIComponent(ownBundleKey())}`, new Blob([payload], { type: "application/json" }));
     } catch (_error) {}
   });
 

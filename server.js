@@ -15,10 +15,17 @@ const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
 const MYSTERY_SHOPPER_SHEET_ID = "12-AWRARvNJytUoGNWj0IGtSMaO1clqtqyzqT6jntwNY";
 const MYSTERY_SHOPPER_SHEET_NAME = "Form Responses 1";
-const HELPER_VERSION = "20260804b";
+const HELPER_VERSION = "20260804c";
 
 let readyPromise = null;
 let brandingInventoryUpdatePromise = null;
+
+function describeError(error) {
+  if (!error) return "Unknown error";
+  if (error.message) return error.message;
+  if (typeof error === "string") return error;
+  try { return JSON.stringify(error); } catch (_error) { return String(error); }
+}
 
 const BRANDING_PARTNERS = ["BipBip", "DragoPro", "MotoGo"];
 const BRANDING_INVENTORY_UPDATES = [
@@ -392,7 +399,7 @@ app.get("/api/health", async (_req, res) => {
     const hasDb = await ensureDatabase();
     res.json({ ok: true, database: hasDb ? "connected" : "not_configured" });
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    res.status(500).json({ ok: false, error: describeError(error) });
   }
 });
 
@@ -434,11 +441,11 @@ app.get("/api/state", async (req, res) => {
     });
     res.json({ ok: true, values, updatedAt });
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    res.status(500).json({ ok: false, error: describeError(error) });
   }
 });
 
-app.put("/api/state/:key", async (req, res) => {
+async function saveStateValue(req, res) {
   try {
     if (!(await ensureDatabase())) return res.status(503).json({ ok: false, error: "DATABASE_URL is not configured" });
     const key = req.params.key;
@@ -452,9 +459,12 @@ app.put("/api/state/:key", async (req, res) => {
     `, [key, JSON.stringify(value)]);
     res.json({ ok: true, key: result.rows[0].key, updatedAt: result.rows[0].updated_at });
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    res.status(500).json({ ok: false, error: describeError(error) });
   }
-});
+}
+
+app.put("/api/state/:key", saveStateValue);
+app.post("/api/state/:key", saveStateValue);
 
 app.get("/", sendDashboard);
 app.use(express.static(__dirname, { index: false }));
