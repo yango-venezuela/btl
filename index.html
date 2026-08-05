@@ -10099,6 +10099,18 @@ function SocialMediaReport({
 }
 
 /* ============================ INFLUENCERS + SOCIAL ============================ */
+function normalizeInfluencerDeliverables(value) {
+  const allowed = new Map(SOCIAL_DELIVERABLES.map(item => [String(item).toLowerCase(), item]));
+  const raw = Array.isArray(value) ? value : String(value || "").split("+");
+  const output = [];
+  raw.forEach(item => {
+    const text = String(item || "").trim();
+    if (!text) return;
+    const canonical = allowed.get(text.toLowerCase()) || text;
+    if (!output.some(existing => String(existing).toLowerCase() === String(canonical).toLowerCase())) output.push(canonical);
+  });
+  return output.length ? output : ["Stories"];
+}
 function influencerTemplate(over = {}) {
   return {
     id: uid("inf"),
@@ -10139,6 +10151,7 @@ function influencerTemplate(over = {}) {
     comments: 0,
     notes: "",
     ...over,
+    deliverables: normalizeInfluencerDeliverables(over.deliverables || ["Stories"]),
     budget: Number(over.budget) || Number(over.closedBudget) || Number(over.negotiatedBudget) || 0,
     sameTiktokHandle: over.sameTiktokHandle !== false,
     tiktokHandle: over.sameTiktokHandle === false ? over.tiktokHandle || "" : "",

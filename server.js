@@ -28,7 +28,7 @@ const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
 const MYSTERY_SHOPPER_SHEET_ID = "12-AWRARvNJytUoGNWj0IGtSMaO1clqtqyzqT6jntwNY";
 const MYSTERY_SHOPPER_SHEET_NAME = "Form Responses 1";
-const HELPER_VERSION = "20260804f";
+const HELPER_VERSION = "20260805a";
 
 let readyPromise = null;
 let brandingInventoryUpdatePromise = null;
@@ -499,10 +499,32 @@ function stateRichnessScore(item) {
   }, 0);
 }
 
+function sanitizeInfluencerDeliverables(value) {
+  const allowed = new Map(["Stories", "Reel", "Post", "TikTok", "Live"].map(item => [normalizeStateText(item), item]));
+  const raw = Array.isArray(value) ? value : String(value || "").split("+");
+  const output = [];
+  raw.forEach(item => {
+    const key = normalizeStateText(item);
+    if (!key) return;
+    const canonical = allowed.get(key) || String(item).trim();
+    if (!output.some(existing => normalizeStateText(existing) === normalizeStateText(canonical))) output.push(canonical);
+  });
+  return output.length ? output : ["Stories"];
+}
+
+function sanitizeInfluencerItem(item) {
+  if (!item || typeof item !== "object") return item;
+  return {
+    ...item,
+    deliverables: sanitizeInfluencerDeliverables(item.deliverables)
+  };
+}
+
 function sanitizeInfluencerState(value) {
   if (!Array.isArray(value)) return value;
   const map = new Map();
-  value.forEach(item => {
+  value.forEach(rawItem => {
+    const item = sanitizeInfluencerItem(rawItem);
     const key = influencerStateKey(item);
     if (!key) return;
     const current = map.get(key);
