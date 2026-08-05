@@ -28,7 +28,7 @@ const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
 const MYSTERY_SHOPPER_SHEET_ID = "12-AWRARvNJytUoGNWj0IGtSMaO1clqtqyzqT6jntwNY";
 const MYSTERY_SHOPPER_SHEET_NAME = "Form Responses 1";
-const HELPER_VERSION = "20260804c";
+const HELPER_VERSION = "20260804d";
 
 let readyPromise = null;
 let brandingInventoryUpdatePromise = null;
@@ -395,6 +395,7 @@ function sendDashboard(req, res) {
       "branding-inventory-cleanup",
       "activation-status-sync",
       "mystery-shopper-sheet-sync",
+      "cloud-save-status",
       "yango-summary-dashboard",
       "yango-summary-standalone-fix"
     ];
@@ -407,6 +408,7 @@ function sendDashboard(req, res) {
       `<script src="/branding-inventory-cleanup.js?v=${HELPER_VERSION}" defer></script>`,
       `<script src="/activation-status-sync.js?v=${HELPER_VERSION}" defer></script>`,
       `<script src="/mystery-shopper-sheet-sync.js?v=${HELPER_VERSION}" defer></script>`,
+      `<script src="/cloud-save-status.js?v=${HELPER_VERSION}" defer></script>`,
       ...(!isTeamPanel ? [
         `<script src="/yango-summary-dashboard.js?v=${HELPER_VERSION}" defer></script>`,
         `<script src="/yango-summary-standalone-fix.js?v=${HELPER_VERSION}" defer></script>`
