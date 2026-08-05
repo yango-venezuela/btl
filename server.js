@@ -6,9 +6,12 @@ const { Pool } = require("pg");
 const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
+const isRailwayPrivateDatabase = /railway\.internal/i.test(String(databaseUrl || ""));
 const pool = databaseUrl ? new Pool({
   connectionString: databaseUrl,
-  ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false }
+  ssl: process.env.PGSSLMODE === "disable" || isRailwayPrivateDatabase ? false : { rejectUnauthorized: false },
+  connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || 8000),
+  idleTimeoutMillis: 30000
 }) : null;
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
