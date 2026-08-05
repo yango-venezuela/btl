@@ -4,7 +4,7 @@
   if (window[SYNC_FLAG]) return;
   window[SYNC_FLAG] = true;
 
-  const HYDRATE_VERSION = "20260804a";
+  const HYDRATE_VERSION = "20260804b";
   const HYDRATE_MARKER = `yango_shared_state_hydrated_${HYDRATE_VERSION}`;
 
   const normalize = value => String(value || "")
@@ -23,7 +23,7 @@
   };
 
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
-  const keyBlocked = key => /migration|backup|respaldo|auto_sync|token|password|pass|secret|hydrated/i.test(String(key || ""));
+  const keyBlocked = key => /migration|backup|respaldo|auto_sync|token|password|pass|secret|hydrated|manual_rescue_bundle|device_id/i.test(String(key || ""));
 
   const sharedKeyPattern = /^(yango_|mkt_|btl_)/i;
   const sharedKeywordPattern = /agency|agencia|proof|photo|foto|flyer|promotor|acts|activation|activacion|calendar|calendario|adjust|qr|result|resultado|budget|presupuesto|influ|branding|pop|material|media|ooh|mystery|shopper|samsung|raffle|rifa|social|tiktok|instagram|users|usuarios/i;
@@ -195,10 +195,13 @@
       let changed = false;
       Object.entries(remoteValues).forEach(([key, value]) => {
         if (!isSharedDashboardKey(key) && !/^yango_rescue_/.test(key)) return;
-        const remoteText = stableStringify(value);
+        const currentValue = parseJson(localStorage.getItem(key));
+        const type = typeFromKey(key) !== "unknown" ? typeFromKey(key) : typeFromValue(value);
+        const mergedValue = mergeSharedValue(type, value, currentValue);
+        const mergedText = stableStringify(mergedValue);
         const currentText = localStorage.getItem(key);
-        if (currentText !== remoteText) {
-          originalSetItem(key, remoteText);
+        if (currentText !== mergedText) {
+          originalSetItem(key, mergedText);
           changed = true;
         }
       });
