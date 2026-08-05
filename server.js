@@ -28,7 +28,7 @@ const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
 const MYSTERY_SHOPPER_SHEET_ID = "12-AWRARvNJytUoGNWj0IGtSMaO1clqtqyzqT6jntwNY";
 const MYSTERY_SHOPPER_SHEET_NAME = "Form Responses 1";
-const HELPER_VERSION = "20260804d";
+const HELPER_VERSION = "20260804e";
 
 let readyPromise = null;
 let brandingInventoryUpdatePromise = null;
