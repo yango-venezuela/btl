@@ -28,7 +28,7 @@ const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
 const MYSTERY_SHOPPER_SHEET_ID = "12-AWRARvNJytUoGNWj0IGtSMaO1clqtqyzqT6jntwNY";
 const MYSTERY_SHOPPER_SHEET_NAME = "Form Responses 1";
-const HELPER_VERSION = "20260804e";
+const HELPER_VERSION = "20260804f";
 
 let readyPromise = null;
 let brandingInventoryUpdatePromise = null;
@@ -475,11 +475,62 @@ app.get("/api/state", async (req, res) => {
   }
 });
 
+
+function normalizeStateText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function influencerStateKey(item) {
+  const name = normalizeStateText(item && item.name);
+  const handle = normalizeStateText(item && item.handle);
+  return name || handle ? `${name}|${handle}` : "";
+}
+
+function stateRichnessScore(item) {
+  if (!item || typeof item !== "object") return 0;
+  return Object.values(item).reduce((score, value) => {
+    if (Array.isArray(value)) return score + value.filter(Boolean).length;
+    if (value && typeof value === "object") return score + Object.keys(value).length;
+    return score + (value !== undefined && value !== null && String(value).trim() !== "" ? 1 : 0);
+  }, 0);
+}
+
+function sanitizeInfluencerState(value) {
+  if (!Array.isArray(value)) return value;
+  const map = new Map();
+  value.forEach(item => {
+    const key = influencerStateKey(item);
+    if (!key) return;
+    const current = map.get(key);
+    if (!current || stateRichnessScore(item) >= stateRichnessScore(current)) map.set(key, item);
+  });
+  return Array.from(map.values());
+}
+
+function sanitizeSocialReportState(value) {
+  if (!value || typeof value !== "object" || !Array.isArray(value.months)) return value;
+  return {
+    ...value,
+    months: Array.from(new Set(value.months.filter(Boolean)))
+  };
+}
+
+function sanitizeStateValue(key, value) {
+  if (key === "yango_influencers_h1") return sanitizeInfluencerState(value);
+  if (key === "yango_social_report_h1") return sanitizeSocialReportState(value);
+  return value;
+}
+
 async function saveStateValue(req, res) {
   try {
     if (!(await ensureDatabase())) return res.status(503).json({ ok: false, error: "DATABASE_URL is not configured" });
     const key = req.params.key;
-    const value = req.body && Object.prototype.hasOwnProperty.call(req.body, "value") ? req.body.value : req.body;
+    const incomingValue = req.body && Object.prototype.hasOwnProperty.call(req.body, "value") ? req.body.value : req.body;
+    const value = sanitizeStateValue(key, incomingValue);
     const result = await pool.query(`
       insert into app_state (key, value, updated_at)
       values ($1, $2::jsonb, now())
