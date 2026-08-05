@@ -7,9 +7,19 @@ const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
 const isRailwayPrivateDatabase = /railway\.internal/i.test(String(databaseUrl || ""));
+function shouldUseDatabaseSsl() {
+  if (!databaseUrl || process.env.PGSSLMODE === "disable" || isRailwayPrivateDatabase) return false;
+  if (process.env.PGSSLMODE === "require") return true;
+  try {
+    return new URL(databaseUrl).searchParams.get("sslmode") === "require";
+  } catch (_error) {
+    return false;
+  }
+}
+const databaseSsl = shouldUseDatabaseSsl();
 const pool = databaseUrl ? new Pool({
   connectionString: databaseUrl,
-  ssl: process.env.PGSSLMODE === "disable" || isRailwayPrivateDatabase ? false : { rejectUnauthorized: false },
+  ssl: databaseSsl ? { rejectUnauthorized: false } : false,
   connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || 8000),
   idleTimeoutMillis: 30000
 }) : null;
@@ -28,6 +38,21 @@ function describeError(error) {
   if (error.message) return error.message;
   if (typeof error === "string") return error;
   try { return JSON.stringify(error); } catch (_error) { return String(error); }
+}
+
+function databaseDiagnostics() {
+  if (!databaseUrl) return { configured: false };
+  try {
+    const url = new URL(databaseUrl);
+    return {
+      configured: true,
+      host: url.hostname,
+      port: url.port || "default",
+      ssl: databaseSsl ? "enabled" : "disabled"
+    };
+  } catch (_error) {
+    return { configured: true, host: "invalid-url", ssl: "unknown" };
+  }
 }
 
 const BRANDING_PARTNERS = ["BipBip", "DragoPro", "MotoGo"];
@@ -400,9 +425,9 @@ app.use(express.json({ limit: "50mb" }));
 app.get("/api/health", async (_req, res) => {
   try {
     const hasDb = await ensureDatabase();
-    res.json({ ok: true, database: hasDb ? "connected" : "not_configured" });
+    res.json({ ok: true, database: hasDb ? "connected" : "not_configured", diagnostics: databaseDiagnostics() });
   } catch (error) {
-    res.status(500).json({ ok: false, error: describeError(error) });
+    res.status(500).json({ ok: false, error: describeError(error), diagnostics: databaseDiagnostics() });
   }
 });
 
