@@ -122,7 +122,7 @@
     mystery: "yango_mystery_shopper_h1",
     raffle: "yango_samsung_raffle_h1",
     budgets: "yango_budgets_h1",
-    social: "yango_social_media_h1",
+    social: "yango_social_report_h1",
     users: "yango_users_h1"
   })[type] || "";
 

@@ -324,6 +324,15 @@
       #${PANEL_ID} { display: none; }
       #${PANEL_ID}.is-inline { display: contents; }
       #${PANEL_ID}.is-under-row { display: flex; flex-wrap: wrap; align-items: end; gap: 20px 24px; margin: 0 0 22px; }
+      .yango-influencer-root table { min-width: 1460px; border-collapse: separate !important; border-spacing: 0 !important; }
+      .yango-influencer-root th, .yango-influencer-root td { vertical-align: top !important; padding-top: 15px !important; padding-bottom: 15px !important; }
+      .yango-influencer-root tbody tr { background: #fff; }
+      .yango-influencer-root tbody tr:hover { background: #fff7f7; }
+      .yango-influencer-root td:first-child { min-width: 245px; }
+      .yango-influencer-root td:nth-child(4), .yango-influencer-root td:nth-child(5) { min-width: 120px; white-space: nowrap; }
+      .yango-influencer-root td:nth-child(7), .yango-influencer-root td:nth-child(8) { min-width: 175px; }
+      .yango-influencer-root td:nth-child(10) { min-width: 115px; }
+      .yango-influencer-root b { letter-spacing: -0.01em; }
     `;
     document.head.appendChild(style);
   }
@@ -443,6 +452,8 @@
       await loadInfluencers();
       const root = influencerRoot();
       const panel = document.getElementById(PANEL_ID);
+      document.querySelectorAll(".yango-influencer-root").forEach(node => { if (node !== root) node.classList.remove("yango-influencer-root"); });
+      if (root) root.classList.add("yango-influencer-root");
       if (!root) {
         if (panel) panel.style.display = "none";
         resetRows();

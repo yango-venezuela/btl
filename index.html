@@ -2470,7 +2470,7 @@ function mergeInfluencerSeeds(items) {
 function loadInfluencersSafe() {
   const seeded = normalizeInfluencerList(seedInfluencers());
   const primary = normalizeInfluencerList(load(INF_KEY, () => []));
-  if (primary.length) return mergeInfluencerLists(seeded, primary);
+  if (primary.length) return primary;
   const backup = normalizeInfluencerList(load(INF_BACKUP_KEY, () => []));
   if (backup.length) return mergeInfluencerLists(seeded, backup);
   const snapshots = load(INF_SNAPSHOTS_KEY, () => []);
@@ -3007,11 +3007,7 @@ function App() {
     if (values[MYS_KEY]) setMystery(values[MYS_KEY]);
     if (values[CFG_KEY]) setCfg(values[CFG_KEY]);
     if (values[INF_KEY]) {
-      const mergedInfluencers = mergeInfluencerSeeds(values[INF_KEY]);
-      setInfluencers(mergedInfluencers);
-      if (mergedInfluencers.length > normalizeInfluencerList(values[INF_KEY]).length) {
-        setTimeout(() => saveSharedState(INF_KEY, mergedInfluencers), 1300);
-      }
+      setInfluencers(normalizeInfluencerList(values[INF_KEY]));
     }
     if (values[SOC_KEY]) setSocialReport(normalizeSocialReport(values[SOC_KEY]));
     if (values[BTL_BUDGET_KEY]) setBtlBudgets(values[BTL_BUDGET_KEY]);
@@ -3048,8 +3044,7 @@ function App() {
         const hasSamsungRaffle = Boolean(remote.values[SAMSUNG_RAFFLE_KEY]);
         applySharedValues(remote.values);
         if (isEmptyDatabase) {
-          setTeamSyncStatus("Railway conectado · sembrando data inicial del Master...");
-          setTimeout(pushCurrentSharedState, 1300);
+          setTeamSyncStatus("Railway conectado · nube limpia. Importa o carga data para empezar.");
         } else {
           if (!hasSamsungRaffle) {
             setTimeout(() => saveSharedState(SAMSUNG_RAFFLE_KEY, normalizeSamsungRaffle(samsungRaffle)), 1300);
@@ -3309,7 +3304,7 @@ function TeamPanelStandalone({
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [popInventory, setPopInventory] = useState(() => load(`yango_team_${panel.id}_pop`, () => load(POP_KEY, seedPopInventory)));
-  const [influencers, setInfluencers] = useState(() => mergeInfluencerSeeds(load(`yango_team_${panel.id}_influencers`, () => loadInfluencersSafe())));
+  const [influencers, setInfluencers] = useState(() => normalizeInfluencerList(load(`yango_team_${panel.id}_influencers`, () => loadInfluencersSafe())));
   const [brandingInventory, setBrandingInventory] = useState(() => load(`yango_team_${panel.id}_branding`, () => load(BRANDING_KEY, seedBrandingInventory)).map(normalizeBrandingItem));
   const [samsungRaffle, setSamsungRaffle] = useState(() => normalizeSamsungRaffle(load(`yango_team_${panel.id}_samsung`, () => load(SAMSUNG_RAFFLE_KEY, seedSamsungRaffle))));
   useEffect(() => {
@@ -3328,11 +3323,7 @@ function TeamPanelStandalone({
         if (values[MEDIA_KEY]) setMediaAssets(values[MEDIA_KEY]);
         if (values[POP_KEY]) setPopInventory(values[POP_KEY]);
         if (values[INF_KEY]) {
-          const mergedInfluencers = mergeInfluencerSeeds(values[INF_KEY]);
-          setInfluencers(mergedInfluencers);
-          if (mergedInfluencers.length > normalizeInfluencerList(values[INF_KEY]).length) {
-            setTimeout(() => saveSharedState(INF_KEY, mergedInfluencers), 1300);
-          }
+          setInfluencers(normalizeInfluencerList(values[INF_KEY]));
         }
         if (values[BRANDING_KEY]) setBrandingInventory(values[BRANDING_KEY].map(normalizeBrandingItem));
         if (values[SAMSUNG_RAFFLE_KEY]) setSamsungRaffle(normalizeSamsungRaffle(values[SAMSUNG_RAFFLE_KEY]));
