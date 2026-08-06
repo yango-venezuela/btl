@@ -1,10 +1,10 @@
 (() => {
   if (typeof window === "undefined") return;
-  const SYNC_FLAG = "__yangoSafeSharedStateSyncInstalledV2";
+  const SYNC_FLAG = "__yangoSafeSharedStateSyncInstalledV3";
   if (window[SYNC_FLAG]) return;
   window[SYNC_FLAG] = true;
 
-  const HYDRATE_VERSION = "20260804b";
+  const HYDRATE_VERSION = "20260806a";
   const HYDRATE_MARKER = `yango_shared_state_hydrated_${HYDRATE_VERSION}`;
 
   const normalize = value => String(value || "")
@@ -26,7 +26,7 @@
   const keyBlocked = key => /migration|backup|respaldo|auto_sync|token|password|pass|secret|hydrated|manual_rescue_bundle|device_id/i.test(String(key || ""));
 
   const sharedKeyPattern = /^(yango_|mkt_|btl_)/i;
-  const sharedKeywordPattern = /agency|agencia|proof|photo|foto|flyer|promotor|acts|activation|activacion|calendar|calendario|adjust|qr|result|resultado|budget|presupuesto|influ|branding|pop|material|media|ooh|mystery|shopper|samsung|raffle|rifa|social|tiktok|instagram|users|usuarios/i;
+  const sharedKeywordPattern = /agency|agencia|proof|photo|foto|evidencia|flyer|promotor|acts|activation|activacion|calendar|calendario|adjust|qr|result|resultado|budget|presupuesto|influ|branding|pop|material|media|ooh|mystery|shopper|samsung|raffle|rifa|social|tiktok|instagram|users|usuarios/i;
 
   const isSharedDashboardKey = key => {
     const value = String(key || "");
@@ -43,7 +43,7 @@
 
   const typeFromKey = key => {
     const lower = String(key || "").toLowerCase();
-    if (/agency|agencia|proof|photo|foto|promotor|flyer/.test(lower)) return "agency";
+    if (/agency|agencia|proof|photo|foto|evidencia|promotor|flyer/.test(lower)) return "agency";
     if (/acts|activation|activacion|calendar|calendario|btl(?!_budget)/.test(lower)) return "acts";
     if (/adjust|qr|result|resultado/.test(lower)) return "qr";
     if (/influ/.test(lower)) return "influencers";
@@ -59,10 +59,10 @@
   };
 
   const typeFromValue = value => {
-    const sample = stableStringify(value).slice(0, 8000).toLowerCase();
+    const sample = stableStringify(value).slice(0, 12000).toLowerCase();
+    if (/promotora|promotoras|foto|fotos|photo|photos|evidencia|proof|flyers entreg|flyersentreg|cantidad de flyers|nombre de promotora|agency|agencia/.test(sample)) return "agency";
     if (/activaci|activation|calendario|calendar|sabana|petare|flyers|fecha calendario/.test(sample)) return "acts";
     if (/adjust|installs|clicks|registration|success_first_order|primer/.test(sample)) return "qr";
-    if (/promotora|promotoras|foto|fotos|flyers entreg/.test(sample)) return "agency";
     if (/instagram|tiktok|influencer|microinfluencer|reach/.test(sample)) return "influencers";
     if (/ooh|banderola|parada bus|valla|reach estimado/.test(sample)) return "media";
     if (/longsleeves|chalecos|cascos|stickers|bipbip|dragopro|motogo/.test(sample)) return "branding";
@@ -129,7 +129,6 @@
   const canonicalRank = key => {
     const lower = String(key || "").toLowerCase();
     if (keyBlocked(lower)) return -100;
-    if (/^yango_team_/.test(lower) || /^yango_agency_/.test(lower) || /^yango_agencia_/.test(lower)) return -30;
     if (/seed|sample|demo|template/.test(lower)) return -20;
     if (/^yango_/.test(lower)) return 30;
     if (/^mkt_|^btl_/.test(lower)) return 20;
@@ -168,7 +167,8 @@
       if (!isSharedDashboardKey(key)) continue;
       const parsed = parseJson(localStorage.getItem(key));
       if (parsed == null) continue;
-      entries.push({ key, value: parsed, type: typeFromKey(key), reason: "local-scan" });
+      const type = typeFromKey(key) !== "unknown" ? typeFromKey(key) : typeFromValue(parsed);
+      entries.push({ key, value: parsed, type, reason: "local-scan" });
     }
     return entries.filter(entry => entry.type !== "unknown");
   };
@@ -188,10 +188,29 @@
     return entries.sort((a, b) => b.size - a.size);
   };
 
+  const mirrorAgencyRemote = async remoteValues => {
+    const agencyKey = fallbackKeyForType("agency");
+    let agencyValue = remoteValues[agencyKey];
+    let changed = false;
+    Object.entries(remoteValues || {}).forEach(([key, value]) => {
+      if (key === agencyKey || keyBlocked(key)) return;
+      const type = typeFromKey(key) !== "unknown" ? typeFromKey(key) : typeFromValue(value);
+      if (type !== "agency") return;
+      agencyValue = mergeSharedValue("agency", agencyValue, value);
+      changed = true;
+    });
+    if (changed) {
+      remoteValues[agencyKey] = agencyValue;
+      await putState(agencyKey, agencyValue);
+      originalSetItem(agencyKey, stableStringify(agencyValue));
+    }
+  };
+
   const hydrateLocalFromRemote = async () => {
     if (!window.fetch || window.location.protocol === "file:") return;
     try {
       const remoteValues = await fetchRemoteValues();
+      await mirrorAgencyRemote(remoteValues);
       let changed = false;
       Object.entries(remoteValues).forEach(([key, value]) => {
         if (!isSharedDashboardKey(key) && !/^yango_rescue_/.test(key)) return;
@@ -223,7 +242,7 @@
     if (!isSharedDashboardKey(key)) return;
     const parsed = typeof value === "string" ? parseJson(value) : value;
     if (parsed == null) return;
-    const type = typeFromKey(key);
+    const type = typeFromKey(key) !== "unknown" ? typeFromKey(key) : typeFromValue(parsed);
     if (type === "unknown") return;
     pending.set(key, { key, value: parsed, type, reason });
     clearTimeout(timer);
@@ -254,6 +273,7 @@
           synced.push(`${entry.key}->${key}`);
         }
       }
+      await mirrorAgencyRemote(remoteValues);
       if (synced.length) {
         window.dispatchEvent(new CustomEvent("yango:shared-state-synced", { detail: { synced } }));
       }
@@ -284,6 +304,7 @@
           synced.push(target);
         }
       }
+      await mirrorAgencyRemote(remoteValues);
       button.textContent = `Listo: ${new Set(synced).size} datos`;
       window.dispatchEvent(new CustomEvent("yango:manual-shared-sync", { detail: { synced } }));
       setTimeout(() => {
