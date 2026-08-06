@@ -225,3 +225,139 @@
   setInterval(hydrateBundle, 30000);
   setInterval(() => uploadBundle("interval"), 45000);
 })();
+
+(() => {
+  if (typeof window === "undefined" || window.__yangoFreshStateSanitizerV3) return;
+  window.__yangoFreshStateSanitizerV3 = true;
+
+  const ALLOWED_DELIVERABLES = new Map(["Stories", "Reel", "Post", "TikTok", "Live"].map(item => [item.toLowerCase(), item]));
+  const VALID_STATUS = new Set(["planned", "done", "missed", "cancelled", "canceled", "pending", "completed", "active", "paused"]);
+  const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
+  const parse = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
+  const norm = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  const idText = item => norm(item && (item.id || item.name || item.nombre || item.handle || item.igUsername || item.instagram || item.tiktokUsername || item.username));
+
+  const cleanDeliverables = value => {
+    const raw = Array.isArray(value) ? value : String(value || "").split("+");
+    const out = [];
+    raw.forEach(part => {
+      const text = String(part || "").trim();
+      if (!text) return;
+      const canonical = ALLOWED_DELIVERABLES.get(text.toLowerCase()) || text;
+      if (!out.some(existing => String(existing).toLowerCase() === String(canonical).toLowerCase())) out.push(canonical);
+    });
+    return out.length ? out : ["Stories"];
+  };
+
+  const cleanInfluencers = value => {
+    if (!Array.isArray(value)) return value;
+    const byId = new Map();
+    value.forEach(item => {
+      if (!item || typeof item !== "object") return;
+      const key = idText(item);
+      if (!key) return;
+      const cleaned = { ...item, deliverables: cleanDeliverables(item.deliverables || item.entregables) };
+      const current = byId.get(key);
+      if (!current || stringify(cleaned).length >= stringify(current).length) byId.set(key, cleaned);
+    });
+    return Array.from(byId.values());
+  };
+
+  const looksActivation = item => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+    const text = norm([item.title, item.name, item.location, item.zone, item.zona, item.type, item.tipo, item.date, item.fecha, item.calendarDate].join(" "));
+    return /activacion|activation|petare|sabana|centro|este|oeste|norte|sur|flyer|cafe|helado|universidad|evento/.test(text);
+  };
+
+  const cleanStatus = value => {
+    const text = norm(value);
+    if (VALID_STATUS.has(text)) return text;
+    if (/se dio|hecha|realizada|done|complete|completed|aprob|valid/.test(text)) return "done";
+    if (/no se dio|missed|cancel|paus/.test(text)) return "missed";
+    return "planned";
+  };
+
+  const cleanActivations = value => {
+    if (Array.isArray(value)) return value.map(item => looksActivation(item) ? { ...item, status: cleanStatus(item.status || item.estado) } : item);
+    if (!value || typeof value !== "object") return value;
+    const next = { ...value };
+    Object.keys(next).forEach(key => {
+      if (Array.isArray(next[key]) && next[key].some(looksActivation)) next[key] = cleanActivations(next[key]);
+    });
+    return next;
+  };
+
+  const cleanByKey = (key, value) => {
+    if (/influ/i.test(key)) return cleanInfluencers(value);
+    if (/activ|calendar|calendario|btl_acts/i.test(key)) return cleanActivations(value);
+    return value;
+  };
+
+  const put = async (key, value) => {
+    const response = await fetch(`/api/state/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value })
+    });
+    return response.ok;
+  };
+
+  const cleanRemote = async () => {
+    const response = await fetch("/api/state", { cache: "no-store" });
+    if (!response.ok) return;
+    const payload = await response.json();
+    const values = payload.values || {};
+    for (const [key, value] of Object.entries(values)) {
+      const cleaned = cleanByKey(key, value);
+      if (stringify(cleaned) !== stringify(value)) await put(key, cleaned);
+    }
+  };
+
+  const cleanLocal = async () => {
+    const keys = [];
+    for (let index = 0; index < localStorage.length; index += 1) keys.push(localStorage.key(index));
+    for (const key of keys.filter(Boolean)) {
+      if (!/yango|btl|mkt|activ|calendar|calendario|influ/i.test(key)) continue;
+      const value = parse(localStorage.getItem(key));
+      if (value == null) continue;
+      const cleaned = cleanByKey(key, value);
+      if (stringify(cleaned) !== stringify(value)) {
+        localStorage.setItem(key, stringify(cleaned));
+        if (/yango|btl|mkt/i.test(key)) await put(key, cleaned);
+      }
+    }
+  };
+
+  const fixVisibleInfluencerRows = () => {
+    document.querySelectorAll("tbody tr").forEach(row => {
+      const cells = row.cells ? Array.from(row.cells) : [];
+      cells.forEach(cell => {
+        const text = cell.textContent || "";
+        if (!/(Stories|Reel|TikTok|Post|Live)\s*\+/.test(text)) return;
+        const parts = text.split("+").map(part => part.trim()).filter(Boolean);
+        const out = [];
+        parts.forEach(part => {
+          const firstLine = part.split(/\n/)[0].trim();
+          const canonical = ALLOWED_DELIVERABLES.get(firstLine.toLowerCase()) || firstLine;
+          if (ALLOWED_DELIVERABLES.has(canonical.toLowerCase()) && !out.some(existing => existing.toLowerCase() === canonical.toLowerCase())) out.push(canonical);
+        });
+        if (out.length && out.length < parts.length) {
+          const dateMatch = text.match(/\b\d{1,2}\/\d{1,2}\b/);
+          cell.innerHTML = `<strong>${out.join(" + ")}</strong>${dateMatch ? `<br><span style="color:#8aa0bf">${dateMatch[0]}</span>` : ""}`;
+        }
+      });
+    });
+  };
+
+  const run = async () => {
+    try { await cleanLocal(); } catch (error) { console.warn("No pude limpiar local:", error); }
+    try { await cleanRemote(); } catch (error) { console.warn("No pude limpiar nube:", error); }
+    try { await cleanLocal(); } catch (_error) {}
+    fixVisibleInfluencerRows();
+    window.dispatchEvent(new CustomEvent("yango:fresh-state-sanitized"));
+  };
+
+  [250, 1200, 2800, 5200].forEach(delay => setTimeout(run, delay));
+  setInterval(run, 30000);
+  new MutationObserver(() => setTimeout(fixVisibleInfluencerRows, 80)).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+})();
