@@ -28,7 +28,7 @@ const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
 const MYSTERY_SHOPPER_SHEET_ID = "12-AWRARvNJytUoGNWj0IGtSMaO1clqtqyzqT6jntwNY";
 const MYSTERY_SHOPPER_SHEET_NAME = "Form Responses 1";
-const HELPER_VERSION = "20260804f";
+const HELPER_VERSION = "20260806b";
 
 let readyPromise = null;
 let brandingInventoryUpdatePromise = null;
@@ -456,32 +456,16 @@ app.get("/api/mystery-shopper-responses", async (_req, res) => {
   }
 });
 
-app.get("/api/state", async (req, res) => {
-  try {
-    if (!(await ensureDatabase())) return res.status(503).json({ ok: false, error: "DATABASE_URL is not configured" });
-    const keys = String(req.query.keys || "").split(",").map(k => k.trim()).filter(Boolean);
-    const result = keys.length
-      ? await pool.query("select key, value, updated_at from app_state where key = any($1)", [keys])
-      : await pool.query("select key, value, updated_at from app_state");
-    const values = {};
-    const updatedAt = {};
-    result.rows.forEach(row => {
-      values[row.key] = row.value;
-      updatedAt[row.key] = row.updated_at;
-    });
-    res.json({ ok: true, values, updatedAt });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: describeError(error) });
-  }
-});
-
-
 function normalizeStateText(value) {
   return String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
+}
+
+function normalizeStateCompact(value) {
+  return normalizeStateText(value).replace(/[^a-z0-9]+/g, "");
 }
 
 function influencerStateKey(item) {
@@ -499,14 +483,28 @@ function stateRichnessScore(item) {
   }, 0);
 }
 
+function sanitizeDeliverables(value) {
+  const allowed = new Map(["Stories", "Reel", "Post", "TikTok", "Live"].map(item => [item.toLowerCase(), item]));
+  const raw = Array.isArray(value) ? value : String(value || "").split("+");
+  const output = [];
+  raw.forEach(item => {
+    const text = String(item || "").trim();
+    if (!text) return;
+    const canonical = allowed.get(text.toLowerCase()) || text;
+    if (!output.some(existing => String(existing).toLowerCase() === String(canonical).toLowerCase())) output.push(canonical);
+  });
+  return output.length ? output : ["Stories"];
+}
+
 function sanitizeInfluencerState(value) {
   if (!Array.isArray(value)) return value;
   const map = new Map();
   value.forEach(item => {
     const key = influencerStateKey(item);
     if (!key) return;
+    const next = item && typeof item === "object" ? { ...item, deliverables: sanitizeDeliverables(item.deliverables || item.entregables) } : item;
     const current = map.get(key);
-    if (!current || stateRichnessScore(item) >= stateRichnessScore(current)) map.set(key, item);
+    if (!current || stateRichnessScore(next) >= stateRichnessScore(current)) map.set(key, next);
   });
   return Array.from(map.values());
 }
@@ -519,11 +517,133 @@ function sanitizeSocialReportState(value) {
   };
 }
 
-function sanitizeStateValue(key, value) {
-  if (key === "yango_influencers_h1") return sanitizeInfluencerState(value);
-  if (key === "yango_social_report_h1") return sanitizeSocialReportState(value);
-  return value;
+function normalizeDateForState(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (value > 20000 && value < 80000) {
+      const date = new Date(Date.UTC(1899, 11, 30 + value));
+      return date.toISOString().slice(0, 10);
+    }
+    return "";
+  }
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const iso = raw.match(/(20\d{2}|19\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, "0")}-${String(iso[3]).padStart(2, "0")}`;
+  const local = raw.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/);
+  if (local) return `${local[3]}-${String(local[2]).padStart(2, "0")}-${String(local[1]).padStart(2, "0")}`;
+  const yearless = raw.match(/(?:^|[^\d])(\d{1,2})[-/.](\d{1,2})(?![-/.]\d)/);
+  if (yearless) return `2026-${String(yearless[2]).padStart(2, "0")}-${String(yearless[1]).padStart(2, "0")}`;
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return "";
 }
+
+function stateObjectText(item) {
+  if (!item || typeof item !== "object") return "";
+  return [
+    item.id, item.name, item.nombre, item.title, item.titulo, item.location, item.ubicacion,
+    item.zone, item.zona, item.type, item.tipo, item.activationType, item.tipoActivacion,
+    item.date, item.fecha, item.calendarDate, item.activationDate, item.createdAt,
+    item.promoters, item.promotoras, item.photos, item.fotos, item.evidence, item.evidencia
+  ].filter(Boolean).join(" ");
+}
+
+function looksLikeAgencyStateItem(item) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+  return /promotora|promotoras|foto|fotos|photo|photos|evidencia|proof|flyers entreg|cantidad de flyers|agency|agencia/i.test(JSON.stringify(item).slice(0, 6000));
+}
+
+function looksLikeActivationStateItem(item) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+  const sample = normalizeStateText(stateObjectText(item));
+  return /activacion|activation|petare|sabana|centro|este|oeste|norte|sur|flyer|cafe|helado|universidad|evento|chacaito|altamira|hoyada|junquito|montalban|vega/.test(sample);
+}
+
+function normalizeActivationStatus(status) {
+  const text = normalizeStateText(status);
+  if (["planned", "done", "missed", "cancelled", "canceled", "pending", "completed", "active", "paused"].includes(text)) return text;
+  if (/se dio|hecha|realizada|done|complete|completed|aprob|valid/.test(text)) return "done";
+  if (/no se dio|cancel|missed|paus|pausa/.test(text)) return "missed";
+  return "planned";
+}
+
+function normalizeActivationType(type) {
+  const text = normalizeStateText(type);
+  const compact = normalizeStateCompact(type);
+  const types = new Map([
+    ["flyers", "Flyers"], ["flyer", "Flyers"],
+    ["cafe", "Café"], ["café", "Café"],
+    ["helados", "Helados"], ["helado", "Helados"],
+    ["materialpop", "Material POP"], ["material pop", "Material POP"], ["pop", "Material POP"],
+    ["universidad", "Universidad"], ["universidades", "Universidad"],
+    ["evento", "Evento"], ["eventos", "Evento"]
+  ]);
+  return types.get(text) || types.get(compact) || "Flyers";
+}
+
+function sanitizeDatedStateItem(item) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+  const isAgency = looksLikeAgencyStateItem(item);
+  const isActivation = looksLikeActivationStateItem(item);
+  if (!isAgency && !isActivation) return item;
+  const date = normalizeDateForState(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt) || "2026-01-01";
+  const next = { ...item, date };
+  if (!next.fecha) next.fecha = date;
+  if (isActivation) {
+    next.type = normalizeActivationType(item.type || item.tipo || item.activationType || item.tipoActivacion);
+    next.tipo = normalizeActivationType(item.tipo || item.type || item.activationType || item.tipoActivacion);
+    next.status = normalizeActivationStatus(item.status || item.estado);
+  }
+  return next;
+}
+
+function sanitizeDatedState(value) {
+  if (Array.isArray(value)) return value.map(item => sanitizeDatedState(sanitizeDatedStateItem(item)));
+  if (!value || typeof value !== "object") return value;
+  const itemCleaned = sanitizeDatedStateItem(value);
+  const next = { ...itemCleaned };
+  Object.keys(next).forEach(key => {
+    if (Array.isArray(next[key]) || (next[key] && typeof next[key] === "object")) next[key] = sanitizeDatedState(next[key]);
+  });
+  return next;
+}
+
+function shouldSanitizeDatedState(key, value) {
+  if (/agency|agencia|proof|photo|foto|evidencia|promotor|flyer|activ|calendar|calendario|acts|btl|yango|mkt/i.test(String(key || ""))) return true;
+  try {
+    return /promotora|promotoras|foto|fotos|activacion|activation|calendario|calendar|petare|sabana|flyers entreg/i.test(JSON.stringify(value).slice(0, 8000));
+  } catch (_error) {
+    return false;
+  }
+}
+
+function sanitizeStateValue(key, value) {
+  let next = value;
+  if (key === "yango_influencers_h1") next = sanitizeInfluencerState(next);
+  if (key === "yango_social_report_h1") next = sanitizeSocialReportState(next);
+  if (shouldSanitizeDatedState(key, next)) next = sanitizeDatedState(next);
+  return next;
+}
+
+app.get("/api/state", async (req, res) => {
+  try {
+    if (!(await ensureDatabase())) return res.status(503).json({ ok: false, error: "DATABASE_URL is not configured" });
+    const keys = String(req.query.keys || "").split(",").map(k => k.trim()).filter(Boolean);
+    const result = keys.length
+      ? await pool.query("select key, value, updated_at from app_state where key = any($1)", [keys])
+      : await pool.query("select key, value, updated_at from app_state");
+    const values = {};
+    const updatedAt = {};
+    result.rows.forEach(row => {
+      values[row.key] = sanitizeStateValue(row.key, row.value);
+      updatedAt[row.key] = row.updated_at;
+    });
+    res.json({ ok: true, values, updatedAt });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: describeError(error) });
+  }
+});
 
 async function saveStateValue(req, res) {
   try {
