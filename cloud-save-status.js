@@ -82,13 +82,21 @@
 })();
 
 (() => {
-  if (typeof window === "undefined" || window.__yangoDashboardStateSanitizerV1) return;
-  window.__yangoDashboardStateSanitizerV1 = true;
+  if (typeof window === "undefined" || window.__yangoDashboardStateSanitizerV2) return;
+  window.__yangoDashboardStateSanitizerV2 = true;
 
   const INFLUENCER_KEY = "yango_influencers_h1";
-  const ACTIVATION_KEY_HINTS = /activations|activaciones|calendar|calendario|btl_acts/i;
+  const ACTIVATION_KEY_HINTS = /yango|btl|mkt|activations|activaciones|calendar|calendario|acts/i;
   const ALLOWED_DELIVERABLES = new Map(["Stories", "Reel", "Post", "TikTok", "Live"].map(value => [value.toLowerCase(), value]));
   const VALID_STATUSES = new Set(["planned", "done", "missed", "cancelled", "canceled", "pending", "completed", "active", "paused"]);
+  const VALID_TYPES = new Map([
+    ["flyers", "Flyers"], ["flyer", "Flyers"],
+    ["cafe", "Café"], ["café", "Café"],
+    ["helados", "Helados"], ["helado", "Helados"],
+    ["materialpop", "Material POP"], ["material pop", "Material POP"], ["pop", "Material POP"],
+    ["universidad", "Universidad"], ["universidades", "Universidad"],
+    ["evento", "Evento"], ["eventos", "Evento"]
+  ]);
 
   const stableText = value => {
     try { return JSON.stringify(value); } catch (_error) { return String(value); }
@@ -104,6 +112,8 @@
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
+
+  const normalizeCompact = value => normalizeText(value).replace(/[^a-z0-9]+/g, "");
 
   const normalizeDeliverables = value => {
     const raw = Array.isArray(value) ? value : String(value || "").split("+");
@@ -136,7 +146,7 @@
   const looksLikeActivation = item => {
     if (!item || typeof item !== "object" || Array.isArray(item)) return false;
     const sample = normalizeText([item.title, item.name, item.location, item.zone, item.zona, item.type, item.tipo, item.date, item.fecha, item.calendarDate].join(" "));
-    return /activacion|activation|petare|sabana|centro|este|oeste|norte|sur|flyer|cafe|helado|universidad|evento/.test(sample);
+    return /activacion|activation|petare|sabana|centro|este|oeste|norte|sur|flyer|cafe|helado|universidad|evento|chacaito|altamira|hoyada|junquito|montalban|vega/.test(sample);
   };
 
   const normalizeStatus = status => {
@@ -147,7 +157,18 @@
     return "planned";
   };
 
-  const sanitizeActivationItem = item => looksLikeActivation(item) ? { ...item, status: normalizeStatus(item.status || item.estado) } : item;
+  const normalizeType = type => {
+    const text = normalizeText(type);
+    const compact = normalizeCompact(type);
+    return VALID_TYPES.get(text) || VALID_TYPES.get(compact) || "Flyers";
+  };
+
+  const sanitizeActivationItem = item => looksLikeActivation(item) ? {
+    ...item,
+    type: normalizeType(item.type || item.tipo || item.activationType || item.tipoActivacion),
+    tipo: normalizeType(item.tipo || item.type || item.activationType || item.tipoActivacion),
+    status: normalizeStatus(item.status || item.estado)
+  } : item;
 
   const sanitizeActivations = value => {
     if (Array.isArray(value)) return value.map(sanitizeActivationItem);
@@ -158,14 +179,20 @@
       if (Array.isArray(next[key]) && next[key].some(looksLikeActivation)) {
         next[key] = next[key].map(sanitizeActivationItem);
         changed = true;
+      } else if (next[key] && typeof next[key] === "object" && !Array.isArray(next[key])) {
+        const nested = sanitizeActivations(next[key]);
+        if (stableText(nested) !== stableText(next[key])) {
+          next[key] = nested;
+          changed = true;
+        }
       }
     });
-    return changed ? next : value;
+    return changed || looksLikeActivation(next) ? sanitizeActivationItem(next) : value;
   };
 
   const sanitizeByKey = (key, value) => {
     if (key === INFLUENCER_KEY || /influ/i.test(key)) return sanitizeInfluencers(value);
-    if (ACTIVATION_KEY_HINTS.test(key)) return sanitizeActivations(value);
+    if (ACTIVATION_KEY_HINTS.test(key) || stableText(value).match(/activacion|activation|petare|sabana|calendario|calendar/i)) return sanitizeActivations(value);
     return value;
   };
 
@@ -217,5 +244,6 @@
 
   setTimeout(run, 300);
   setTimeout(run, 2000);
-  setInterval(run, 45000);
+  setTimeout(run, 5000);
+  setInterval(run, 30000);
 })();
