@@ -6,7 +6,7 @@ const { Pool } = require("pg");
 const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
-const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260810f";
+const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260810g";
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
@@ -204,14 +204,14 @@ function sanitizeStateValue(key, value) {
 function sendDashboard(req, res) {
   fs.readFile(path.join(__dirname, "index.html"), "utf8", (error, html) => {
     if (error) return res.status(500).send("No pude cargar el dashboard.");
-    const helperNames = ["preboot-state-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "mystery-shopper-sheet-sync", "cloud-save-status", "yango-summary-dashboard", "yango-summary-standalone-fix"];
+    const helperNames = ["preboot-state-guard", "summary-loop-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "mystery-shopper-sheet-sync", "cloud-save-status", "yango-summary-dashboard", "yango-summary-standalone-fix"];
     const helperPattern = new RegExp(`<script\\s+[^>]*src=["']\\/(?:${helperNames.join("|")})\\.js(?:\\?[^"']*)?["'][^>]*><\\/script>`, "gi");
     const base = html.replace(helperPattern, "");
     const preboot = `<script src="/preboot-state-guard.js?v=${HELPER_VERSION}"></script>`;
     const withPreboot = base.includes("</head>") ? base.replace("</head>", `${preboot}</head>`) : `${preboot}${base}`;
     const isTeamPanel = Boolean(req.query && req.query.panel);
     const helpers = [
-      "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "mystery-shopper-sheet-sync", "cloud-save-status",
+      "summary-loop-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "mystery-shopper-sheet-sync", "cloud-save-status",
       ...(!isTeamPanel ? ["yango-summary-dashboard", "yango-summary-standalone-fix"] : [])
     ].map(name => `<script src="/${name}.js?v=${HELPER_VERSION}" defer></script>`).join("");
     const output = withPreboot.replace("</body>", `${helpers}</body>`);
