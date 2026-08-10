@@ -1,13 +1,184 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoCloudSaveStatusV1) return;
-  window.__yangoCloudSaveStatusV1 = true;
+  if (typeof window === "undefined" || window.__yangoCloudSaveAndStateGuardV4) return;
+  window.__yangoCloudSaveAndStateGuardV4 = true;
 
   const STATUS_ID = "yango-cloud-save-status";
   const STYLE_ID = "yango-cloud-save-status-style";
   const HEALTH_URL = "/api/health";
+  const RELOAD_MARKER = "yango_locale_compare_guard_reloaded_v4";
   let lastOk = false;
 
   const escapeHtml = value => String(value || "").replace(/[&<>"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[char] || char));
+  const stableStringify = value => {
+    try { return JSON.stringify(value); } catch (_error) { return String(value); }
+  };
+  const parseJson = value => {
+    try { return JSON.parse(value); } catch (_error) { return null; }
+  };
+  const normalizeText = value => String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  const normalizeCompact = value => normalizeText(value).replace(/[^a-z0-9]+/g, "");
+
+  const VALID_TYPES = new Map([
+    ["flyers", "Flyers"], ["flyer", "Flyers"],
+    ["cafe", "Café"], ["café", "Café"],
+    ["helados", "Helados"], ["helado", "Helados"],
+    ["materialpop", "Material POP"], ["material pop", "Material POP"], ["pop", "Material POP"],
+    ["universidad", "Universidad"], ["universidades", "Universidad"],
+    ["evento", "Evento"], ["eventos", "Evento"]
+  ]);
+  const VALID_STATUSES = new Set(["planned", "done", "missed", "cancelled", "canceled", "pending", "completed", "active", "paused"]);
+
+  const normalizeDate = value => {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+    if (typeof value === "number" && Number.isFinite(value)) {
+      if (value > 20000 && value < 80000) return new Date(Date.UTC(1899, 11, 30 + value)).toISOString().slice(0, 10);
+      return "";
+    }
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const iso = raw.match(/(20\d{2}|19\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, "0")}-${String(iso[3]).padStart(2, "0")}`;
+    const local = raw.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/);
+    if (local) return `${local[3]}-${String(local[2]).padStart(2, "0")}-${String(local[1]).padStart(2, "0")}`;
+    const yearless = raw.match(/(?:^|[^\d])(\d{1,2})[-/.](\d{1,2})(?![-/.]\d)/);
+    if (yearless) return `2026-${String(yearless[2]).padStart(2, "0")}-${String(yearless[1]).padStart(2, "0")}`;
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+    return "";
+  };
+
+  const normalizeStatus = status => {
+    const text = normalizeText(status);
+    if (VALID_STATUSES.has(text)) return text;
+    if (/se dio|hecha|realizada|done|complete|completed|aprob|valid/.test(text)) return "done";
+    if (/no se dio|cancel|missed|paus|pausa/.test(text)) return "missed";
+    return "planned";
+  };
+
+  const normalizeType = type => {
+    const text = normalizeText(type);
+    const compact = normalizeCompact(type);
+    return VALID_TYPES.get(text) || VALID_TYPES.get(compact) || "Flyers";
+  };
+
+  const looksRelevantKey = key => /yango|btl|mkt|agency|agencia|proof|photo|foto|evidencia|promotor|flyer|activ|calendar|calendario|acts/i.test(String(key || ""));
+  const looksRelevantObject = value => {
+    if (!value || typeof value !== "object") return false;
+    const sample = stableStringify(value).slice(0, 4000);
+    return /activacion|activation|agencia|agency|promotora|promotoras|foto|fotos|photo|photos|evidencia|proof|flyers|petare|sabana|centro|chacaito|altamira|hoyada|junquito|montalban|vega|calendario|calendar/i.test(sample);
+  };
+
+  const asString = value => value == null ? "" : String(value);
+
+  const scrubItem = (item, forceRelevant = false) => {
+    if (Array.isArray(item)) return item.map(child => scrubItem(child, forceRelevant || looksRelevantObject(child)));
+    if (!item || typeof item !== "object") return item;
+
+    const relevant = forceRelevant || looksRelevantObject(item);
+    const next = { ...item };
+    Object.keys(next).forEach(key => {
+      if (next[key] && typeof next[key] === "object") next[key] = scrubItem(next[key], relevant || looksRelevantKey(key));
+    });
+
+    if (relevant) {
+      const date = normalizeDate(next.date || next.fecha || next.calendarDate || next.activationDate || next.createdAt || next.updatedAt) || "2026-01-01";
+      next.date = date;
+      if (!next.fecha) next.fecha = date;
+      next.name = asString(next.name || next.nombre || next.title || next.titulo || next.location || next.ubicacion || "");
+      next.nombre = asString(next.nombre || next.name);
+      next.title = asString(next.title || next.titulo || next.name || next.nombre);
+      next.titulo = asString(next.titulo || next.title);
+      next.location = asString(next.location || next.ubicacion || next.zone || next.zona || "");
+      next.ubicacion = asString(next.ubicacion || next.location);
+      next.zone = asString(next.zone || next.zona || next.location);
+      next.zona = asString(next.zona || next.zone);
+      next.type = normalizeType(next.type || next.tipo || next.activationType || next.tipoActivacion);
+      next.tipo = normalizeType(next.tipo || next.type || next.activationType || next.tipoActivacion);
+      next.status = normalizeStatus(next.status || next.estado);
+      next.estado = asString(next.estado || next.status);
+    }
+
+    return next;
+  };
+
+  const sanitizeValue = (key, value) => {
+    if (!looksRelevantKey(key) && !looksRelevantObject(value)) return value;
+    return scrubItem(value, true);
+  };
+
+  const sanitizeLocalStorage = () => {
+    const changed = [];
+    const keys = [];
+    for (let index = 0; index < localStorage.length; index += 1) keys.push(localStorage.key(index));
+    keys.filter(Boolean).forEach(key => {
+      if (!looksRelevantKey(key)) return;
+      const parsed = parseJson(localStorage.getItem(key));
+      if (parsed == null) return;
+      const cleaned = sanitizeValue(key, parsed);
+      const before = stableStringify(parsed);
+      const after = stableStringify(cleaned);
+      if (before !== after) {
+        localStorage.setItem(key, after);
+        changed.push({ key, value: cleaned });
+      }
+    });
+    return changed;
+  };
+
+  const putState = async (key, value) => {
+    try {
+      const response = await fetch(`/api/state/${encodeURIComponent(key)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value })
+      });
+      return response.ok;
+    } catch (_error) {
+      return false;
+    }
+  };
+
+  const sanitizeRemoteState = async () => {
+    try {
+      const response = await fetch("/api/state", { cache: "no-store" });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const values = payload && payload.values || {};
+      for (const [key, value] of Object.entries(values)) {
+        const cleaned = sanitizeValue(key, value);
+        if (stableStringify(cleaned) !== stableStringify(value)) await putState(key, cleaned);
+      }
+    } catch (error) {
+      console.warn("No pude limpiar estado remoto:", error);
+    }
+  };
+
+  const syncCleanups = async () => {
+    const changed = sanitizeLocalStorage();
+    for (const entry of changed) {
+      if (/^yango_|^btl_|^mkt_/i.test(entry.key)) await putState(entry.key, entry.value);
+    }
+  };
+
+  const recoverFromLocaleCompare = async error => {
+    const message = String(error && (error.message || error.reason && error.reason.message || error.reason) || error || "");
+    if (!/localeCompare|Cannot read properties of undefined|undefined is not an object/i.test(message)) return;
+    sanitizeLocalStorage();
+    await sanitizeRemoteState();
+    sanitizeLocalStorage();
+    if (!sessionStorage.getItem(RELOAD_MARKER)) {
+      sessionStorage.setItem(RELOAD_MARKER, "1");
+      window.location.reload();
+    }
+  };
+
+  window.addEventListener("error", event => recoverFromLocaleCompare(event.error || event.message));
+  window.addEventListener("unhandledrejection", event => recoverFromLocaleCompare(event.reason));
 
   const ensureStyle = () => {
     if (document.getElementById(STYLE_ID)) return;
@@ -49,12 +220,8 @@
     try {
       const res = await fetch(HEALTH_URL + "?t=" + Date.now(), { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data && data.ok && data.database === "connected") {
-        setStatus(true, "Guardado en la nube OK");
-      } else {
-        const reason = data && data.error ? ": " + String(data.error).slice(0, 80) : "";
-        setStatus(false, "No se esta guardando en la nube" + reason);
-      }
+      if (res.ok && data && data.ok && data.database === "connected") setStatus(true, "Guardado en la nube OK");
+      else setStatus(false, "No se esta guardando en la nube" + (data && data.error ? ": " + String(data.error).slice(0, 80) : ""));
     } catch (error) {
       setStatus(false, "No se esta guardando en la nube: " + String(error && error.message || error).slice(0, 80));
     }
@@ -76,174 +243,13 @@
     };
   }
 
+  sanitizeLocalStorage();
+  setTimeout(syncCleanups, 150);
+  setTimeout(syncCleanups, 1000);
+  setTimeout(sanitizeRemoteState, 1800);
+  setTimeout(syncCleanups, 3200);
+  setInterval(syncCleanups, 30000);
   setTimeout(check, 600);
   setTimeout(check, 3500);
   setInterval(check, 30000);
-})();
-
-(() => {
-  if (typeof window === "undefined" || window.__yangoDashboardStateSanitizerV2) return;
-  window.__yangoDashboardStateSanitizerV2 = true;
-
-  const INFLUENCER_KEY = "yango_influencers_h1";
-  const ACTIVATION_KEY_HINTS = /yango|btl|mkt|activations|activaciones|calendar|calendario|acts/i;
-  const ALLOWED_DELIVERABLES = new Map(["Stories", "Reel", "Post", "TikTok", "Live"].map(value => [value.toLowerCase(), value]));
-  const VALID_STATUSES = new Set(["planned", "done", "missed", "cancelled", "canceled", "pending", "completed", "active", "paused"]);
-  const VALID_TYPES = new Map([
-    ["flyers", "Flyers"], ["flyer", "Flyers"],
-    ["cafe", "Café"], ["café", "Café"],
-    ["helados", "Helados"], ["helado", "Helados"],
-    ["materialpop", "Material POP"], ["material pop", "Material POP"], ["pop", "Material POP"],
-    ["universidad", "Universidad"], ["universidades", "Universidad"],
-    ["evento", "Evento"], ["eventos", "Evento"]
-  ]);
-
-  const stableText = value => {
-    try { return JSON.stringify(value); } catch (_error) { return String(value); }
-  };
-
-  const parseJson = value => {
-    try { return JSON.parse(value); } catch (_error) { return null; }
-  };
-
-  const normalizeText = value => String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-
-  const normalizeCompact = value => normalizeText(value).replace(/[^a-z0-9]+/g, "");
-
-  const normalizeDeliverables = value => {
-    const raw = Array.isArray(value) ? value : String(value || "").split("+");
-    const output = [];
-    raw.forEach(item => {
-      const text = String(item || "").trim();
-      if (!text) return;
-      const canonical = ALLOWED_DELIVERABLES.get(text.toLowerCase()) || text;
-      if (!output.some(existing => String(existing).toLowerCase() === String(canonical).toLowerCase())) output.push(canonical);
-    });
-    return output.length ? output : ["Stories"];
-  };
-
-  const influencerId = item => normalizeText(item && (item.id || item.name || item.nombre || item.handle || item.igUsername || item.instagram || item.tiktokUsername));
-
-  const sanitizeInfluencers = value => {
-    if (!Array.isArray(value)) return value;
-    const map = new Map();
-    value.forEach(item => {
-      if (!item || typeof item !== "object") return;
-      const id = influencerId(item);
-      if (!id) return;
-      const next = { ...item, deliverables: normalizeDeliverables(item.deliverables || item.entregables) };
-      const current = map.get(id);
-      if (!current || stableText(next).length >= stableText(current).length) map.set(id, next);
-    });
-    return Array.from(map.values());
-  };
-
-  const looksLikeActivation = item => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return false;
-    const sample = normalizeText([item.title, item.name, item.location, item.zone, item.zona, item.type, item.tipo, item.date, item.fecha, item.calendarDate].join(" "));
-    return /activacion|activation|petare|sabana|centro|este|oeste|norte|sur|flyer|cafe|helado|universidad|evento|chacaito|altamira|hoyada|junquito|montalban|vega/.test(sample);
-  };
-
-  const normalizeStatus = status => {
-    const text = normalizeText(status);
-    if (VALID_STATUSES.has(text)) return text;
-    if (/se dio|hecha|realizada|done|complete|completed|aprob|valid/.test(text)) return "done";
-    if (/no se dio|cancel|missed|paus|pausa/.test(text)) return "missed";
-    return "planned";
-  };
-
-  const normalizeType = type => {
-    const text = normalizeText(type);
-    const compact = normalizeCompact(type);
-    return VALID_TYPES.get(text) || VALID_TYPES.get(compact) || "Flyers";
-  };
-
-  const sanitizeActivationItem = item => looksLikeActivation(item) ? {
-    ...item,
-    type: normalizeType(item.type || item.tipo || item.activationType || item.tipoActivacion),
-    tipo: normalizeType(item.tipo || item.type || item.activationType || item.tipoActivacion),
-    status: normalizeStatus(item.status || item.estado)
-  } : item;
-
-  const sanitizeActivations = value => {
-    if (Array.isArray(value)) return value.map(sanitizeActivationItem);
-    if (!value || typeof value !== "object") return value;
-    let changed = false;
-    const next = { ...value };
-    Object.keys(next).forEach(key => {
-      if (Array.isArray(next[key]) && next[key].some(looksLikeActivation)) {
-        next[key] = next[key].map(sanitizeActivationItem);
-        changed = true;
-      } else if (next[key] && typeof next[key] === "object" && !Array.isArray(next[key])) {
-        const nested = sanitizeActivations(next[key]);
-        if (stableText(nested) !== stableText(next[key])) {
-          next[key] = nested;
-          changed = true;
-        }
-      }
-    });
-    return changed || looksLikeActivation(next) ? sanitizeActivationItem(next) : value;
-  };
-
-  const sanitizeByKey = (key, value) => {
-    if (key === INFLUENCER_KEY || /influ/i.test(key)) return sanitizeInfluencers(value);
-    if (ACTIVATION_KEY_HINTS.test(key) || stableText(value).match(/activacion|activation|petare|sabana|calendario|calendar/i)) return sanitizeActivations(value);
-    return value;
-  };
-
-  const putState = async (key, value) => {
-    const res = await fetch(`/api/state/${encodeURIComponent(key)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value })
-    });
-    return res.ok;
-  };
-
-  const sanitizeLocalStorage = async () => {
-    const keys = [];
-    for (let index = 0; index < localStorage.length; index += 1) keys.push(localStorage.key(index));
-    for (const key of keys.filter(Boolean)) {
-      if (!/yango|btl|mkt|activ|calendar|calendario|influ/i.test(key)) continue;
-      const parsed = parseJson(localStorage.getItem(key));
-      if (parsed == null) continue;
-      const cleaned = sanitizeByKey(key, parsed);
-      if (stableText(cleaned) !== stableText(parsed)) {
-        localStorage.setItem(key, stableText(cleaned));
-        if (/yango_|btl_|mkt_/i.test(key)) await putState(key, cleaned);
-      }
-    }
-  };
-
-  const sanitizeRemoteState = async () => {
-    try {
-      const res = await fetch("/api/state", { cache: "no-store" });
-      if (!res.ok) return;
-      const payload = await res.json();
-      const values = payload && payload.values || {};
-      for (const [key, value] of Object.entries(values)) {
-        const cleaned = sanitizeByKey(key, value);
-        if (stableText(cleaned) !== stableText(value)) await putState(key, cleaned);
-      }
-    } catch (error) {
-      console.warn("No pude limpiar el estado compartido:", error);
-    }
-  };
-
-  const run = async () => {
-    await sanitizeLocalStorage();
-    await sanitizeRemoteState();
-    await sanitizeLocalStorage();
-    window.dispatchEvent(new CustomEvent("yango:state-sanitized"));
-  };
-
-  setTimeout(run, 300);
-  setTimeout(run, 2000);
-  setTimeout(run, 5000);
-  setInterval(run, 30000);
 })();
