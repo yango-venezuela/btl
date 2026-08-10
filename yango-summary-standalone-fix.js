@@ -1,6 +1,7 @@
 (() => {
   let summarySelected = false;
   let previousHeader = null;
+  let tickScheduled = false;
 
   function clean(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -142,7 +143,7 @@
     const button = event.target.closest && event.target.closest("button");
     if (!button || button.id === "yds-nav-shortcut") return;
     const text = clean(button.textContent);
-    const isPanelNav = ["Vista global", "Resultados", "Mapa", "Calendario", "Activaciones", "Admin agencia", "Material POP", "Mystery Shopper", "Inventario Branding", "Rifa Samsung", "Influencers", "Reporte Social Media", "Media", "Usuarios"].some((label) => text.includes(label));
+    const isPanelNav = ["Vista global", "Resultados", "Mapa", "Calendario", "Activaciones", "Admin agencia", "Material POP", "Mystery Shopper", "Inventario Branding", "Influencers", "Reporte Social Media", "Media", "Usuarios"].some((label) => text.includes(label));
     if (isPanelNav) {
       summarySelected = false;
       setTimeout(hideSummary, 40);
@@ -150,14 +151,29 @@
   }, true);
 
   function tick() {
+    tickScheduled = false;
     placeNavGroup();
     bindClicks();
     if (summarySelected) showSummary();
     else hideSummary();
   }
 
-  window.addEventListener("resize", tick);
-  window.addEventListener("load", tick);
-  document.addEventListener("DOMContentLoaded", tick);
-  setInterval(tick, 300);
+  function scheduleTick(delay = 80) {
+    if (tickScheduled) return;
+    tickScheduled = true;
+    setTimeout(tick, delay);
+  }
+
+  window.addEventListener("resize", () => scheduleTick(120));
+  window.addEventListener("load", () => scheduleTick(80));
+  document.addEventListener("DOMContentLoaded", () => scheduleTick(80));
+  document.addEventListener("yango:shared-state-hydrated", () => scheduleTick(120));
+  document.addEventListener("yango:shared-state-synced", () => scheduleTick(120));
+
+  try {
+    new MutationObserver(() => scheduleTick(120)).observe(document.body || document.documentElement, { childList: true, subtree: true });
+  } catch (_error) {}
+
+  setTimeout(tick, 200);
+  setTimeout(tick, 1800);
 })();
