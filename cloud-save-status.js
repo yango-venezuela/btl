@@ -253,3 +253,58 @@
   setTimeout(check, 3500);
   setInterval(check, 30000);
 })();
+
+(() => {
+  if (typeof window === "undefined" || window.__yangoRemoveSamsungRaffleV1) return;
+  window.__yangoRemoveSamsungRaffleV1 = true;
+
+  const RAFFLE_KEY_PATTERN = /samsung|raffle|rifa/i;
+  const REMOTE_KEYS = ["yango_samsung_raffle_h1", "samsung_raffle", "rifa_samsung"];
+  const cleanText = value => String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  const putEmptyState = async key => {
+    try {
+      await fetch(`/api/state/${encodeURIComponent(key)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: [] })
+      });
+    } catch (_error) {}
+  };
+
+  const clearRaffleStorage = async () => {
+    const keys = [];
+    for (let index = 0; index < localStorage.length; index += 1) keys.push(localStorage.key(index));
+    keys.filter(key => RAFFLE_KEY_PATTERN.test(String(key || ""))).forEach(key => localStorage.removeItem(key));
+    for (const key of REMOTE_KEYS) await putEmptyState(key);
+  };
+
+  const removeRaffleUi = () => {
+    const nodes = [...document.querySelectorAll("button,a,[role='button'],li,nav div,aside div,section,main > div")];
+    nodes.forEach(node => {
+      const text = cleanText(node.textContent);
+      if (!/rifa samsung|samsung|raffle/.test(text)) return;
+      const box = node.getBoundingClientRect ? node.getBoundingClientRect() : { width: 0, height: 0 };
+      if (box.width === 0 && box.height === 0) return;
+      if (node.matches && node.matches("section,main > div")) {
+        node.remove();
+        return;
+      }
+      const menuLike = node.closest && node.closest("button,a,[role='button'],li");
+      (menuLike || node).remove();
+    });
+  };
+
+  const run = () => {
+    removeRaffleUi();
+    clearRaffleStorage();
+  };
+
+  setTimeout(run, 100);
+  setTimeout(run, 800);
+  setTimeout(run, 2200);
+  setInterval(removeRaffleUi, 5000);
+})();
