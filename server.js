@@ -6,7 +6,7 @@ const { Pool } = require("pg");
 const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
-const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260810g";
+const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260810h";
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
@@ -201,6 +201,17 @@ function sanitizeStateValue(key, value) {
   return looksLikeDashboardState(key, value) ? sanitizeDated(value, true) : value;
 }
 
+function isCollaboratorPanel(req) {
+  const query = req.query || {};
+  const token = [
+    req.path || "",
+    req.originalUrl || "",
+    ...Object.keys(query),
+    ...Object.values(query).map(value => Array.isArray(value) ? value.join(" ") : String(value || ""))
+  ].join(" ").toLowerCase();
+  return /(^|[^a-z])(luis|giselle|gise|agency|agencia)([^a-z]|$)/.test(token) || /(^|[^a-z])(panel|usuario|user|role|rol)([^a-z]|$)/.test(token);
+}
+
 function sendDashboard(req, res) {
   fs.readFile(path.join(__dirname, "index.html"), "utf8", (error, html) => {
     if (error) return res.status(500).send("No pude cargar el dashboard.");
@@ -209,7 +220,7 @@ function sendDashboard(req, res) {
     const base = html.replace(helperPattern, "");
     const preboot = `<script src="/preboot-state-guard.js?v=${HELPER_VERSION}"></script>`;
     const withPreboot = base.includes("</head>") ? base.replace("</head>", `${preboot}</head>`) : `${preboot}${base}`;
-    const isTeamPanel = Boolean(req.query && req.query.panel);
+    const isTeamPanel = isCollaboratorPanel(req);
     const helpers = [
       "summary-loop-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "mystery-shopper-sheet-sync", "cloud-save-status",
       ...(!isTeamPanel ? ["yango-summary-dashboard", "yango-summary-standalone-fix"] : [])
