@@ -1,8 +1,10 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoSharedStateSyncV5) return;
-  window.__yangoSharedStateSyncV5 = true;
+  if (typeof window === "undefined" || window.__yangoSharedStateSyncV6) return;
+  window.__yangoSharedStateSyncV6 = true;
 
   const pending = new Map();
+  const lastSeen = new Map();
+  const lastValue = new Map();
   let timer = null;
   let flushing = false;
   let hydrating = false;
@@ -20,6 +22,7 @@
     social: "yango_social_report_h1",
     users: "yango_users_h1"
   };
+  const canonicalSet = new Set(Object.values(canonicalKeys));
 
   const normalize = value => String(value || "")
     .normalize("NFD")
@@ -29,6 +32,7 @@
     .trim();
   const parseJson = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
   const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
+  const clone = value => parseJson(stringify(value));
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
   const blockedKey = key => /migration|backup|respaldo|token|password|pass|secret|hydrated|debug|devtools|theme|tooltip|toast|mapbox|leaflet/i.test(String(key || ""));
 
@@ -66,7 +70,7 @@
 
   const sharedKey = key => {
     const k = String(key || "");
-    if (!k || blockedKey(k)) return false;
+    if (!k || blockedKey(k) || /samsung|raffle|rifa/i.test(k)) return false;
     return /^(yango_|mkt_|btl_)/i.test(k) || /agency|agencia|proof|photo|foto|evidencia|flyer|promotor|acts|activation|activacion|calendar|calendario|adjust|qr|result|resultado|budget|presupuesto|influ|branding|pop|material|media|ooh|mystery|shopper|social|tiktok|instagram|users|usuarios/i.test(k);
   };
 
@@ -77,13 +81,29 @@
 
   const stableId = item => {
     if (!isObject(item)) return "";
-    return String(item.id || item.activationId || item.actId || item.uuid || item.key || item.responseId || item.name || item.nombre || item.username || item.handle || [item.title || item.titulo || "", item.date || item.fecha || item.calendarDate || "", item.location || item.ubicacion || item.zone || item.zona || "", item.type || item.tipo || ""].join("|")).trim();
+    return String(
+      item.id || item.activationId || item.actId || item.uuid || item.key || item.responseId ||
+      item.name || item.nombre || item.username || item.handle || item.igUsername || item.instagram || item.tiktokUsername ||
+      [item.title || item.titulo || "", item.date || item.fecha || item.calendarDate || "", item.location || item.ubicacion || item.zone || item.zona || "", item.type || item.tipo || ""].join("|")
+    ).trim();
   };
 
-  const mergeArrays = (remoteValue, localValue) => {
+  const mergeArrays = (remoteValue, localValue, baselineValue) => {
     const remote = Array.isArray(remoteValue) ? remoteValue : [];
     const local = Array.isArray(localValue) ? localValue : [];
-    const merged = [...remote];
+    const baseline = Array.isArray(baselineValue) ? baselineValue : null;
+    const localIds = new Set(local.map(stableId).filter(Boolean));
+    const deletedIds = new Set();
+    if (baseline) {
+      baseline.forEach(item => {
+        const id = stableId(item);
+        if (id && !localIds.has(id)) deletedIds.add(id);
+      });
+    }
+    const merged = remote.filter(item => {
+      const id = stableId(item);
+      return !id || !deletedIds.has(id);
+    });
     const indexById = new Map();
     merged.forEach((item, index) => {
       const id = stableId(item);
@@ -101,15 +121,16 @@
     return merged;
   };
 
-  const merge = (remoteValue, localValue) => {
-    if (Array.isArray(remoteValue) || Array.isArray(localValue)) return mergeArrays(remoteValue, localValue);
+  const merge = (remoteValue, localValue, baselineValue) => {
+    if (Array.isArray(remoteValue) || Array.isArray(localValue)) return mergeArrays(remoteValue, localValue, baselineValue);
     if (!isObject(remoteValue)) return localValue === undefined || localValue === null ? remoteValue : localValue;
     if (!isObject(localValue)) return remoteValue;
     const next = { ...remoteValue };
     Object.keys(localValue).forEach(key => {
-      if (Array.isArray(remoteValue[key]) || Array.isArray(localValue[key])) next[key] = mergeArrays(remoteValue[key], localValue[key]);
-      else if (isObject(remoteValue[key]) || isObject(localValue[key])) next[key] = merge(remoteValue[key], localValue[key]);
-      else next[key] = localValue[key] !== undefined && localValue[key] !== null && localValue[key] !== "" ? localValue[key] : remoteValue[key];
+      const base = isObject(baselineValue) || Array.isArray(baselineValue) ? baselineValue[key] : undefined;
+      if (Array.isArray(remoteValue[key]) || Array.isArray(localValue[key])) next[key] = mergeArrays(remoteValue[key], localValue[key], base);
+      else if (isObject(remoteValue[key]) || isObject(localValue[key])) next[key] = merge(remoteValue[key], localValue[key], base);
+      else next[key] = localValue[key] !== undefined && localValue[key] !== null ? localValue[key] : remoteValue[key];
     });
     return next;
   };
@@ -132,16 +153,30 @@
 
   const originalSetItem = localStorage.setItem.bind(localStorage);
 
-  const collectLocal = () => {
+  const remember = (key, value) => {
+    const text = stringify(value);
+    lastSeen.set(key, text);
+    lastValue.set(key, clone(value));
+  };
+
+  const writeLocal = (key, value) => {
+    const text = stringify(value);
+    if (localStorage.getItem(key) !== text) originalSetItem(key, text);
+    remember(key, value);
+  };
+
+  const localEntries = () => {
     const entries = [];
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
       if (!sharedKey(key)) continue;
-      const value = parseJson(localStorage.getItem(key));
+      const raw = localStorage.getItem(key);
+      const value = parseJson(raw);
       if (value == null) continue;
       const type = typeOf(key, value);
-      if (!canonicalKeys[type]) continue;
-      entries.push({ key, type, value });
+      const target = canonicalKeys[type];
+      if (!target) continue;
+      entries.push({ key, type, target, raw, value });
     }
     return entries;
   };
@@ -151,13 +186,21 @@
     hydrating = true;
     try {
       const remote = await fetchRemote();
+      let changed = false;
       Object.entries(remote).forEach(([key, remoteValue]) => {
         if (!sharedKey(key)) return;
-        const localValue = parseJson(localStorage.getItem(key));
-        const merged = localValue == null ? remoteValue : merge(remoteValue, localValue);
-        originalSetItem(key, stringify(merged));
+        const before = localStorage.getItem(key);
+        writeLocal(key, remoteValue);
+        if (before !== stringify(remoteValue)) changed = true;
       });
-      window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { keys: Object.keys(remote).filter(sharedKey) } }));
+      localEntries().forEach(entry => {
+        const remoteValue = remote[entry.target];
+        if (remoteValue === undefined || entry.key === entry.target) return;
+        const before = localStorage.getItem(entry.key);
+        writeLocal(entry.key, remoteValue);
+        if (before !== stringify(remoteValue)) changed = true;
+      });
+      if (changed) window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { keys: Object.keys(remote).filter(sharedKey) } }));
     } catch (error) {
       console.warn("No pude hidratar datos compartidos:", error);
     } finally {
@@ -166,15 +209,18 @@
   };
 
   const queue = (key, rawValue, reason) => {
-    if (!sharedKey(key)) return;
+    if (hydrating || !sharedKey(key)) return;
     const value = typeof rawValue === "string" ? parseJson(rawValue) : rawValue;
     if (value == null) return;
     const type = typeOf(key, value);
     const target = canonicalKeys[type];
     if (!target) return;
-    pending.set(`${key}->${target}`, { key, target, type, value, reason });
+    const raw = stringify(value);
+    const baseline = lastValue.has(key) ? clone(lastValue.get(key)) : undefined;
+    if (lastSeen.get(key) === raw) return;
+    pending.set(`${key}->${target}`, { key, target, type, value, baseline, reason });
     clearTimeout(timer);
-    timer = setTimeout(flush, 700);
+    timer = setTimeout(flush, 650);
     setTimeout(flush, 2200);
   };
 
@@ -188,10 +234,11 @@
       const synced = [];
       for (const entry of entries) {
         const current = remote[entry.target];
-        const merged = merge(current, entry.value);
+        const merged = merge(current, entry.value, entry.baseline);
         remote[entry.target] = merged;
         await putRemote(entry.target, merged);
-        originalSetItem(entry.target, stringify(merged));
+        writeLocal(entry.target, merged);
+        writeLocal(entry.key, merged);
         synced.push(`${entry.key}->${entry.target}`);
       }
       if (synced.length) window.dispatchEvent(new CustomEvent("yango:shared-state-synced", { detail: { synced } }));
@@ -202,7 +249,7 @@
     }
   };
 
-  const scanSoon = reason => setTimeout(() => collectLocal().forEach(entry => queue(entry.key, entry.value, reason)), 350);
+  const scanSoon = reason => setTimeout(() => localEntries().forEach(entry => queue(entry.key, entry.value, reason)), 350);
 
   localStorage.setItem = function patchedSetItem(key, value) {
     originalSetItem(key, value);
@@ -214,24 +261,24 @@
   document.addEventListener("input", () => scanSoon("input"), true);
   document.addEventListener("submit", () => scanSoon("submit"), true);
   window.addEventListener("focus", () => { hydrate(); scanSoon("focus"); });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { hydrate(); scanSoon("visible"); } });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) hydrate(); });
   window.addEventListener("beforeunload", () => { scanSoon("beforeunload"); flush(); });
 
   setTimeout(hydrate, 150);
-  setTimeout(() => { hydrate(); scanSoon("startup"); }, 1600);
-  setTimeout(() => { hydrate(); scanSoon("startup-rescan"); }, 4500);
-  setInterval(() => { hydrate(); scanSoon("interval"); }, 15000);
+  setTimeout(() => { hydrate(); scanSoon("startup"); }, 1800);
+  setInterval(hydrate, 30000);
 })();
 
 (() => {
-  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV3) return;
-  window.__yangoBtlMapPolishLoaderInstalledV3 = true;
+  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV4) return;
+  window.__yangoBtlMapPolishLoaderInstalledV4 = true;
   const load = () => {
+    if (document.querySelector('script[src^="/btl-map-polish.js"]')) return;
     const script = document.createElement("script");
-    script.src = `/btl-map-polish.js?v=20260810a-${Date.now()}`;
+    script.src = `/btl-map-polish.js?v=20260810b-${Date.now()}`;
     script.defer = true;
     document.head.appendChild(script);
   };
-  setTimeout(load, 100);
-  setTimeout(load, 1800);
+  setTimeout(load, 200);
+  setTimeout(load, 2200);
 })();
