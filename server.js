@@ -6,7 +6,7 @@ const { Pool } = require("pg");
 const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
-const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260810c";
+const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260810e";
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
@@ -195,7 +195,6 @@ function sanitizeInfluencers(value) {
 }
 
 function sanitizeStateValue(key, value) {
-  if (/samsung|raffle|rifa/i.test(String(key || ""))) return [];
   if (key === "yango_influencers_h1") return sanitizeInfluencers(value);
   if (key === "yango_social_report_h1" && value && typeof value === "object" && Array.isArray(value.months)) return { ...value, months: [...new Set(value.months.filter(Boolean))] };
   return looksLikeDashboardState(key, value) ? sanitizeDated(value, true) : value;
@@ -204,7 +203,7 @@ function sanitizeStateValue(key, value) {
 function sendDashboard(req, res) {
   fs.readFile(path.join(__dirname, "index.html"), "utf8", (error, html) => {
     if (error) return res.status(500).send("No pude cargar el dashboard.");
-    const helperNames = ["samsung-raffle-export", "preboot-state-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "mystery-shopper-sheet-sync", "cloud-save-status", "yango-summary-dashboard", "yango-summary-standalone-fix"];
+    const helperNames = ["preboot-state-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "mystery-shopper-sheet-sync", "cloud-save-status", "yango-summary-dashboard", "yango-summary-standalone-fix"];
     const helperPattern = new RegExp(`<script\\s+[^>]*src=["']\\/(?:${helperNames.join("|")})\\.js(?:\\?[^"']*)?["'][^>]*><\\/script>`, "gi");
     const base = html.replace(helperPattern, "");
     const preboot = `<script src="/preboot-state-guard.js?v=${HELPER_VERSION}"></script>`;
