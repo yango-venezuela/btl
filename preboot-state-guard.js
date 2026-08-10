@@ -1,10 +1,11 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV1) return;
-  window.__yangoPrebootStateGuardV1 = true;
+  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV2) return;
+  window.__yangoPrebootStateGuardV2 = true;
 
   const RIFA_KEY = /samsung|raffle|rifa/i;
   const RELEVANT_KEY = /yango|btl|mkt|agency|agencia|proof|photo|foto|evidencia|promotor|flyer|activ|calendar|calendario|acts/i;
   const RELEVANT_VALUE = /activacion|activation|agencia|agency|promotora|promotoras|foto|fotos|photo|photos|evidencia|proof|flyers|petare|sabana|centro|chacaito|altamira|hoyada|junquito|montalban|vega|calendario|calendar/i;
+  const SORTABLE_FIELDS = ["date", "fecha", "calendarDate", "activationDate", "createdAt", "updatedAt", "name", "nombre", "title", "titulo", "location", "ubicacion", "zone", "zona", "type", "tipo", "status", "estado"];
   const VALID_STATUSES = new Set(["planned", "done", "missed", "cancelled", "canceled", "pending", "completed", "active", "paused"]);
   const VALID_TYPES = new Map([
     ["flyers", "Flyers"], ["flyer", "Flyers"],
@@ -53,11 +54,15 @@
     return "planned";
   };
   const relevantValue = value => value && typeof value === "object" && RELEVANT_VALUE.test(stringify(value).slice(0, 6000));
+  const looksSortableDashboardItem = item => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+    return SORTABLE_FIELDS.some(field => Object.prototype.hasOwnProperty.call(item, field)) || relevantValue(item);
+  };
 
   const scrub = (value, forced = false) => {
     if (Array.isArray(value)) return value.map(item => scrub(item, forced || relevantValue(item))).filter(item => item != null);
     if (!value || typeof value !== "object") return value;
-    const relevant = forced || relevantValue(value);
+    const relevant = forced || relevantValue(value) || looksSortableDashboardItem(value);
     const next = { ...value };
     Object.keys(next).forEach(key => {
       if (next[key] && typeof next[key] === "object") next[key] = scrub(next[key], relevant || RELEVANT_KEY.test(key));
@@ -67,6 +72,8 @@
     const date = normalizeDate(next.date || next.fecha || next.calendarDate || next.activationDate || next.createdAt || next.updatedAt) || "2026-01-01";
     next.date = date;
     next.fecha = text(next.fecha || date);
+    next.calendarDate = text(next.calendarDate || date);
+    next.activationDate = text(next.activationDate || date);
     next.name = text(next.name || next.nombre || next.title || next.titulo || next.location || next.ubicacion || "Sin nombre");
     next.nombre = text(next.nombre || next.name);
     next.title = text(next.title || next.titulo || next.name);
@@ -112,6 +119,31 @@
   };
 
   sanitizeLocalStorage();
+
+  const originalSort = Array.prototype.sort;
+  if (originalSort && !Array.prototype.__yangoSafeDashboardSort) {
+    Object.defineProperty(Array.prototype, "__yangoSafeDashboardSort", { value: true, configurable: true });
+    Array.prototype.sort = function safeDashboardSort(compareFn) {
+      try {
+        if (this && this.length && Array.prototype.some.call(this, looksSortableDashboardItem)) {
+          for (let index = 0; index < this.length; index += 1) {
+            const item = this[index];
+            if (item && typeof item === "object" && !Array.isArray(item)) this[index] = scrub(item, true);
+          }
+        }
+        return originalSort.call(this, compareFn);
+      } catch (error) {
+        if (/localeCompare|Cannot read properties of undefined|undefined is not an object|reading 'date'|reading \"date\"/.test(text(error && error.message))) {
+          for (let index = 0; index < this.length; index += 1) {
+            const item = this[index];
+            if (item && typeof item === "object" && !Array.isArray(item)) this[index] = scrub(item, true);
+          }
+          try { return originalSort.call(this, compareFn); } catch (_retryError) { return originalSort.call(this); }
+        }
+        throw error;
+      }
+    };
+  }
 
   const originalFetch = window.fetch && window.fetch.bind(window);
   if (originalFetch) {
