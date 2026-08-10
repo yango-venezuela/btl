@@ -7,6 +7,13 @@ const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
 const isRailwayPrivateDatabase = /railway\.internal/i.test(String(databaseUrl || ""));
+const HELPER_VERSION = "20260810a";
+
+const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
+const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
+const MYSTERY_SHOPPER_SHEET_ID = "12-AWRARvNJytUoGNWj0IGtSMaO1clqtqyzqT6jntwNY";
+const MYSTERY_SHOPPER_SHEET_NAME = "Form Responses 1";
+
 function shouldUseDatabaseSsl() {
   if (!databaseUrl || process.env.PGSSLMODE === "disable" || isRailwayPrivateDatabase) return false;
   if (process.env.PGSSLMODE === "require") return true;
@@ -16,6 +23,7 @@ function shouldUseDatabaseSsl() {
     return false;
   }
 }
+
 const databaseSsl = shouldUseDatabaseSsl();
 const pool = databaseUrl ? new Pool({
   connectionString: databaseUrl,
@@ -24,14 +32,7 @@ const pool = databaseUrl ? new Pool({
   idleTimeoutMillis: 30000
 }) : null;
 
-const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
-const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
-const MYSTERY_SHOPPER_SHEET_ID = "12-AWRARvNJytUoGNWj0IGtSMaO1clqtqyzqT6jntwNY";
-const MYSTERY_SHOPPER_SHEET_NAME = "Form Responses 1";
-const HELPER_VERSION = "20260806b";
-
 let readyPromise = null;
-let brandingInventoryUpdatePromise = null;
 
 function describeError(error) {
   if (!error) return "Unknown error";
@@ -55,245 +56,6 @@ function databaseDiagnostics() {
   }
 }
 
-const BRANDING_PARTNERS = ["BipBip", "DragoPro", "MotoGo"];
-const BRANDING_INVENTORY_UPDATES = [
-  {
-    id: "branding_inventory_2026_07_21_v2",
-    items: [
-      { product: "Longsleeves", variant: "S", officeStock: 3, supplierPending: 0, partners: { BipBip: 0, DragoPro: 25, MotoGo: 12 } },
-      { product: "Longsleeves", variant: "M", officeStock: 2, supplierPending: 1, partners: { BipBip: 0, DragoPro: 66, MotoGo: 21 } },
-      { product: "Longsleeves", variant: "L", officeStock: 0, supplierPending: 0, partners: { BipBip: 0, DragoPro: 99, MotoGo: 33 } },
-      { product: "Longsleeves", variant: "XL", officeStock: 0, supplierPending: 0, partners: { BipBip: 0, DragoPro: 35, MotoGo: 5 } },
-      { product: "Chalecos", variant: "S", officeStock: 0, supplierPending: 20, partners: { BipBip: 0, DragoPro: 10, MotoGo: 0 } },
-      { product: "Chalecos", variant: "M", officeStock: 172, supplierPending: 18, partners: { BipBip: 0, DragoPro: 70, MotoGo: 0 } },
-      { product: "Chalecos", variant: "L", officeStock: 0, supplierPending: 140, partners: { BipBip: 0, DragoPro: 40, MotoGo: 0 } },
-      { product: "Chalecos", variant: "XL", officeStock: 0, supplierPending: 20, partners: { BipBip: 0, DragoPro: 10, MotoGo: 0 } },
-      { product: "Cascos", variant: "S", officeStock: 153, supplierPending: 0, unitCost: 18, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
-      { product: "Cascos", variant: "M", officeStock: 450, supplierPending: 0, unitCost: 18, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
-      { product: "Cascos", variant: "L", officeStock: 450, supplierPending: 0, unitCost: 18, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
-      { product: "Cascos", variant: "XL", officeStock: 153, supplierPending: 0, unitCost: 18, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } }
-    ]
-  },
-  {
-    id: "branding_stickers_2026_07_21_v1",
-    items: [
-      { product: "Stickers", variant: "Pequeñas Rojas", officeStock: 4100, supplierPending: 0, unitCost: 0.25, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
-      { product: "Stickers", variant: "Grandes Rojas", officeStock: 4000, supplierPending: 0, unitCost: 0.25, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
-      { product: "Stickers", variant: "Medianas Rojas", officeStock: 1200, supplierPending: 0, unitCost: 0.25, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } },
-      { product: "Stickers", variant: "Transfer Blancas", officeStock: 400, supplierPending: 0, unitCost: 0.25, partners: { BipBip: 0, DragoPro: 0, MotoGo: 0 } }
-    ]
-  },
-  {
-    id: "branding_cascos_bipbip_transfer_2026_07_21_v1",
-    mode: "transfer",
-    items: [
-      { product: "Cascos", variant: "S", boxes: 3, quantity: 27, from: "Oficina", to: "BipBip" },
-      { product: "Cascos", variant: "M", boxes: 7, quantity: 63, from: "Oficina", to: "BipBip" },
-      { product: "Cascos", variant: "L", boxes: 8, quantity: 72, from: "Oficina", to: "BipBip" },
-      { product: "Cascos", variant: "XL", boxes: 4, quantity: 36, from: "Oficina", to: "BipBip" }
-    ]
-  }
-];
-
-function normalizeText(value) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/talla/g, "")
-    .replace(/[^a-z0-9]+/g, "")
-    .trim();
-}
-
-function isBrandingInventoryArray(value) {
-  if (!Array.isArray(value)) return false;
-  return value.some(item => {
-    if (!item || typeof item !== "object") return false;
-    const product = normalizeText(item.product);
-    return Boolean(product) && ["stickers", "cascos", "longsleeves", "chalecos", "chaquetas"].includes(product);
-  });
-}
-
-function makeBrandingId(product, variant) {
-  return `branding-${normalizeText(product)}-${normalizeText(variant)}`;
-}
-
-function withSupplierNote(notes, pending) {
-  const base = String(notes || "").replace(/\s*Proveedor pendiente:\s*\d+\.?\s*/gi, "").trim();
-  if (!Number(pending)) return base;
-  return [base, `Proveedor pendiente: ${pending}`].filter(Boolean).join(" · ");
-}
-
-function buildPartners(currentPartners, targetPartners) {
-  return BRANDING_PARTNERS.reduce((next, partner) => {
-    const current = currentPartners && currentPartners[partner] && typeof currentPartners[partner] === "object"
-      ? currentPartners[partner]
-      : {};
-    const amount = Number(targetPartners && Object.prototype.hasOwnProperty.call(targetPartners, partner) ? targetPartners[partner] : 0) || 0;
-    next[partner] = {
-      ...current,
-      stock: amount,
-      realStock: amount
-    };
-    return next;
-  }, {});
-}
-
-function upsertBrandingItem(items, update) {
-  const productKey = normalizeText(update.product);
-  const variantKey = normalizeText(update.variant);
-  const index = items.findIndex(item => normalizeText(item && item.product) === productKey && normalizeText(item && item.variant) === variantKey);
-  const current = index >= 0 ? items[index] : {};
-  const nextItem = {
-    ...current,
-    id: current.id || makeBrandingId(update.product, update.variant),
-    product: update.product,
-    variant: update.variant,
-    officeStock: Number(update.officeStock) || 0,
-    supplierPending: Number(update.supplierPending) || 0,
-    unitCost: current.unitCost ?? update.unitCost ?? 0,
-    notes: withSupplierNote(current.notes, update.supplierPending),
-    partners: buildPartners(current.partners, update.partners),
-    movements: Array.isArray(current.movements) ? current.movements : []
-  };
-
-  if (index >= 0) {
-    items[index] = nextItem;
-  } else {
-    items.push(nextItem);
-  }
-}
-
-function transferBrandingItem(items, transfer, migrationId) {
-  const productKey = normalizeText(transfer.product);
-  const variantKey = normalizeText(transfer.variant);
-  const index = items.findIndex(item => normalizeText(item && item.product) === productKey && normalizeText(item && item.variant) === variantKey);
-  const current = index >= 0 ? items[index] : {
-    id: makeBrandingId(transfer.product, transfer.variant),
-    product: transfer.product,
-    variant: transfer.variant,
-    officeStock: 0,
-    partners: {},
-    movements: []
-  };
-  const quantity = Number(transfer.quantity) || 0;
-  const toPartner = transfer.to || "BipBip";
-  const currentPartners = current.partners && typeof current.partners === "object" ? current.partners : {};
-  const currentToPartner = currentPartners[toPartner] && typeof currentPartners[toPartner] === "object" ? currentPartners[toPartner] : {};
-  const nextPartners = { ...currentPartners };
-  nextPartners[toPartner] = {
-    ...currentToPartner,
-    stock: (Number(currentToPartner.stock) || 0) + quantity,
-    realStock: (Number(currentToPartner.realStock) || 0) + quantity
-  };
-
-  const movement = {
-    id: `${migrationId}-${normalizeText(transfer.product)}-${normalizeText(transfer.variant)}`,
-    date: "2026-07-21",
-    type: "transfer",
-    from: transfer.from || "Oficina",
-    to: toPartner,
-    quantity,
-    notes: `${transfer.boxes || ""} cajas x 9 cascos`.trim()
-  };
-  const movements = Array.isArray(current.movements) ? current.movements.filter(item => item && item.id !== movement.id) : [];
-
-  const nextItem = {
-    ...current,
-    product: transfer.product,
-    variant: transfer.variant,
-    officeStock: Math.max(0, (Number(current.officeStock) || 0) - quantity),
-    partners: nextPartners,
-    movements: [...movements, movement]
-  };
-
-  if (index >= 0) {
-    items[index] = nextItem;
-  } else {
-    items.push(nextItem);
-  }
-}
-
-function patchBrandingInventoryArray(value, migration) {
-  const next = value.map(item => item && typeof item === "object" ? { ...item } : item);
-  if (migration.mode === "transfer") {
-    migration.items.forEach(update => transferBrandingItem(next, update, migration.id));
-  } else {
-    migration.items.forEach(update => upsertBrandingItem(next, update));
-  }
-  return next;
-}
-
-function patchBrandingStateValue(value, migration) {
-  if (isBrandingInventoryArray(value)) {
-    return { changed: true, value: patchBrandingInventoryArray(value, migration) };
-  }
-
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { changed: false, value };
-  }
-
-  let changed = false;
-  const next = { ...value };
-  Object.keys(next).forEach(key => {
-    if (isBrandingInventoryArray(next[key])) {
-      next[key] = patchBrandingInventoryArray(next[key], migration);
-      changed = true;
-    }
-  });
-
-  return { changed, value: next };
-}
-
-async function applyOneBrandingInventoryUpdate(migration) {
-  const migrationKey = `migration:${migration.id}`;
-  const existing = await pool.query("select value from app_state where key = $1", [migrationKey]);
-  if (existing.rowCount) return;
-
-  const result = await pool.query("select key, value from app_state");
-  const updatedKeys = [];
-  for (const row of result.rows) {
-    if (String(row.key).startsWith("migration:")) continue;
-    const patched = patchBrandingStateValue(row.value, migration);
-    if (!patched.changed) continue;
-
-    await pool.query("update app_state set value = $2::jsonb, updated_at = now() where key = $1", [
-      row.key,
-      JSON.stringify(patched.value)
-    ]);
-    updatedKeys.push(row.key);
-  }
-
-  if (!updatedKeys.length) {
-    console.log(`${migration.id} skipped: branding inventory state was not found yet.`);
-    return;
-  }
-
-  await pool.query(`
-    insert into app_state (key, value, updated_at)
-    values ($1, $2::jsonb, now())
-    on conflict (key)
-    do update set value = excluded.value, updated_at = now()
-  `, [migrationKey, JSON.stringify({ appliedAt: new Date().toISOString(), stateKeys: updatedKeys })]);
-  console.log(`Applied ${migration.id} to ${updatedKeys.join(", ")}`);
-}
-
-async function applyBrandingInventoryUpdate() {
-  if (!pool) return;
-  if (!brandingInventoryUpdatePromise) {
-    brandingInventoryUpdatePromise = (async () => {
-      try {
-        for (const migration of BRANDING_INVENTORY_UPDATES) {
-          await applyOneBrandingInventoryUpdate(migration);
-        }
-      } catch (error) {
-        console.warn("Could not apply branding inventory updates:", error.message);
-      }
-    })();
-  }
-  await brandingInventoryUpdatePromise;
-}
-
 async function ensureDatabase() {
   if (!pool) return false;
   if (!readyPromise) {
@@ -306,8 +68,55 @@ async function ensureDatabase() {
     `);
   }
   await readyPromise;
-  await applyBrandingInventoryUpdate();
   return true;
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let value = "";
+  let quoted = false;
+  for (let index = 0; index < String(text || "").length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+    if (quoted) {
+      if (char === '"' && next === '"') {
+        value += '"';
+        index += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        value += char;
+      }
+    } else if (char === '"') {
+      quoted = true;
+    } else if (char === ",") {
+      row.push(value);
+      value = "";
+    } else if (char === "\n") {
+      row.push(value);
+      rows.push(row);
+      row = [];
+      value = "";
+    } else if (char !== "\r") {
+      value += char;
+    }
+  }
+  if (value || row.length) {
+    row.push(value);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function csvToObjects(text) {
+  const rows = parseCsv(text).filter(row => row.some(cell => String(cell || "").trim() !== ""));
+  if (!rows.length) return [];
+  const headers = rows[0].map(header => String(header || "").trim());
+  return rows.slice(1).map(row => headers.reduce((obj, header, index) => {
+    obj[header || `Column ${index + 1}`] = row[index] || "";
+    return obj;
+  }, {}));
 }
 
 async function fetchCsvText(sheetId, params) {
@@ -330,136 +139,11 @@ async function fetchCsvText(sheetId, params) {
   throw lastError || new Error("No pude leer Google Sheets.");
 }
 
-async function fetchSummaryCsvText(gid) {
-  return fetchCsvText(SUMMARY_SHEET_ID, { tqx: "out:csv", gid });
-}
-
-async function fetchMysteryShopperCsvText() {
-  return fetchCsvText(MYSTERY_SHOPPER_SHEET_ID, { tqx: "out:csv", sheet: MYSTERY_SHOPPER_SHEET_NAME });
-}
-
-function parseCsv(text) {
-  const rows = [];
-  let row = [];
-  let value = "";
-  let quoted = false;
-  for (let index = 0; index < String(text || "").length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-    if (quoted) {
-      if (char === '"' && next === '"') {
-        value += '"';
-        index += 1;
-      } else if (char === '"') {
-        quoted = false;
-      } else {
-        value += char;
-      }
-    } else if (char === '"') {
-      quoted = true;
-    } else if (char === ',') {
-      row.push(value);
-      value = "";
-    } else if (char === '\n') {
-      row.push(value);
-      rows.push(row);
-      row = [];
-      value = "";
-    } else if (char !== '\r') {
-      value += char;
-    }
-  }
-  if (value || row.length) {
-    row.push(value);
-    rows.push(row);
-  }
-  return rows;
-}
-
-function csvToObjects(text) {
-  const rows = parseCsv(text).filter(row => row.some(cell => String(cell || "").trim() !== ""));
-  if (!rows.length) return [];
-  const headers = rows[0].map(header => String(header || "").trim());
-  return rows.slice(1).map(row => headers.reduce((obj, header, index) => {
-    obj[header || `Column ${index + 1}`] = row[index] || "";
-    return obj;
-  }, {}));
-}
-
-function sendDashboard(req, res) {
-  fs.readFile(path.join(__dirname, "index.html"), "utf8", (error, html) => {
-    if (error) return res.status(500).send("No pude cargar el dashboard.");
-    const helperNames = [
-      "samsung-raffle-export",
-      "influencer-payment-filter",
-      "branding-inventory-cleanup",
-      "activation-status-sync",
-      "mystery-shopper-sheet-sync",
-      "cloud-save-status",
-      "yango-summary-dashboard",
-      "yango-summary-standalone-fix"
-    ];
-    const helperPattern = new RegExp(`<script\\s+[^>]*src=["']\\/(?:${helperNames.join("|")})\\.js(?:\\?[^"']*)?["'][^>]*><\\/script>`, "gi");
-    const withoutOldHelpers = html.replace(helperPattern, "");
-    const isTeamPanel = Boolean(req.query && req.query.panel);
-    const helperTags = [
-      `<script src="/samsung-raffle-export.js?v=${HELPER_VERSION}" defer></script>`,
-      `<script src="/influencer-payment-filter.js?v=${HELPER_VERSION}" defer></script>`,
-      `<script src="/branding-inventory-cleanup.js?v=${HELPER_VERSION}" defer></script>`,
-      `<script src="/activation-status-sync.js?v=${HELPER_VERSION}" defer></script>`,
-      `<script src="/mystery-shopper-sheet-sync.js?v=${HELPER_VERSION}" defer></script>`,
-      `<script src="/cloud-save-status.js?v=${HELPER_VERSION}" defer></script>`,
-      ...(!isTeamPanel ? [
-        `<script src="/yango-summary-dashboard.js?v=${HELPER_VERSION}" defer></script>`,
-        `<script src="/yango-summary-standalone-fix.js?v=${HELPER_VERSION}" defer></script>`
-      ] : [])
-    ];
-    const withHelpers = withoutOldHelpers.replace("</body>", `${helperTags.join("")}</body>`);
-    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    res.set("Pragma", "no-cache");
-    res.set("Expires", "0");
-    res.type("html").send(withHelpers);
-  });
-}
-
-app.use(express.json({ limit: "50mb" }));
-
-app.get("/api/health", async (_req, res) => {
-  try {
-    const hasDb = await ensureDatabase();
-    res.json({ ok: true, database: hasDb ? "connected" : "not_configured", diagnostics: databaseDiagnostics() });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: describeError(error), diagnostics: databaseDiagnostics() });
-  }
-});
-
-app.get("/api/yango-summary-csv", async (req, res) => {
-  try {
-    const gid = String(req.query.gid || "");
-    if (!SUMMARY_GIDS.has(gid)) return res.status(400).send("Invalid sheet gid");
-    const text = await fetchSummaryCsvText(gid);
-    res.set("Cache-Control", "no-store");
-    res.type("text/csv").send(text);
-  } catch (error) {
-    res.status(502).send(error.message);
-  }
-});
-
-app.get("/api/mystery-shopper-responses", async (_req, res) => {
-  try {
-    const text = await fetchMysteryShopperCsvText();
-    const rows = csvToObjects(text);
-    res.set("Cache-Control", "no-store");
-    res.json({ ok: true, source: "google_sheets", sheetId: MYSTERY_SHOPPER_SHEET_ID, sheetName: MYSTERY_SHOPPER_SHEET_NAME, rows });
-  } catch (error) {
-    res.status(502).json({ ok: false, error: error.message });
-  }
-});
-
 function normalizeStateText(value) {
   return String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
 }
@@ -468,19 +152,45 @@ function normalizeStateCompact(value) {
   return normalizeStateText(value).replace(/[^a-z0-9]+/g, "");
 }
 
-function influencerStateKey(item) {
-  const name = normalizeStateText(item && item.name);
-  const handle = normalizeStateText(item && item.handle);
-  return name || handle ? `${name}|${handle}` : "";
+function normalizeDateForState(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (value > 20000 && value < 80000) return new Date(Date.UTC(1899, 11, 30 + value)).toISOString().slice(0, 10);
+    return "";
+  }
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const iso = raw.match(/(20\d{2}|19\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, "0")}-${String(iso[3]).padStart(2, "0")}`;
+  const local = raw.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/);
+  if (local) return `${local[3]}-${String(local[2]).padStart(2, "0")}-${String(local[1]).padStart(2, "0")}`;
+  const yearless = raw.match(/(?:^|[^\d])(\d{1,2})[-/.](\d{1,2})(?![-/.]\d)/);
+  if (yearless) return `2026-${String(yearless[2]).padStart(2, "0")}-${String(yearless[1]).padStart(2, "0")}`;
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return "";
 }
 
-function stateRichnessScore(item) {
-  if (!item || typeof item !== "object") return 0;
-  return Object.values(item).reduce((score, value) => {
-    if (Array.isArray(value)) return score + value.filter(Boolean).length;
-    if (value && typeof value === "object") return score + Object.keys(value).length;
-    return score + (value !== undefined && value !== null && String(value).trim() !== "" ? 1 : 0);
-  }, 0);
+function normalizeActivationType(type) {
+  const text = normalizeStateText(type);
+  const compact = normalizeStateCompact(type);
+  const types = new Map([
+    ["flyers", "Flyers"], ["flyer", "Flyers"],
+    ["cafe", "Café"], ["café", "Café"],
+    ["helados", "Helados"], ["helado", "Helados"],
+    ["materialpop", "Material POP"], ["material pop", "Material POP"], ["pop", "Material POP"],
+    ["universidad", "Universidad"], ["universidades", "Universidad"],
+    ["evento", "Evento"], ["eventos", "Evento"]
+  ]);
+  return types.get(text) || types.get(compact) || "Flyers";
+}
+
+function normalizeActivationStatus(status) {
+  const text = normalizeStateText(status);
+  if (["planned", "done", "missed", "cancelled", "canceled", "pending", "completed", "active", "paused"].includes(text)) return text;
+  if (/se dio|hecha|realizada|done|complete|completed|aprob|valid/.test(text)) return "done";
+  if (/no se dio|cancel|missed|paus|pausa/.test(text)) return "missed";
+  return "planned";
 }
 
 function sanitizeDeliverables(value) {
@@ -494,6 +204,21 @@ function sanitizeDeliverables(value) {
     if (!output.some(existing => String(existing).toLowerCase() === String(canonical).toLowerCase())) output.push(canonical);
   });
   return output.length ? output : ["Stories"];
+}
+
+function stateRichnessScore(item) {
+  if (!item || typeof item !== "object") return 0;
+  return Object.values(item).reduce((score, value) => {
+    if (Array.isArray(value)) return score + value.filter(Boolean).length;
+    if (value && typeof value === "object") return score + Object.keys(value).length;
+    return score + (value !== undefined && value !== null && String(value).trim() !== "" ? 1 : 0);
+  }, 0);
+}
+
+function influencerStateKey(item) {
+  const name = normalizeStateText(item && (item.name || item.nombre));
+  const handle = normalizeStateText(item && (item.handle || item.igUsername || item.instagram || item.tiktokUsername));
+  return name || handle ? `${name}|${handle}` : "";
 }
 
 function sanitizeInfluencerState(value) {
@@ -511,32 +236,7 @@ function sanitizeInfluencerState(value) {
 
 function sanitizeSocialReportState(value) {
   if (!value || typeof value !== "object" || !Array.isArray(value.months)) return value;
-  return {
-    ...value,
-    months: Array.from(new Set(value.months.filter(Boolean)))
-  };
-}
-
-function normalizeDateForState(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
-  if (typeof value === "number" && Number.isFinite(value)) {
-    if (value > 20000 && value < 80000) {
-      const date = new Date(Date.UTC(1899, 11, 30 + value));
-      return date.toISOString().slice(0, 10);
-    }
-    return "";
-  }
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  const iso = raw.match(/(20\d{2}|19\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
-  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, "0")}-${String(iso[3]).padStart(2, "0")}`;
-  const local = raw.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/);
-  if (local) return `${local[3]}-${String(local[2]).padStart(2, "0")}-${String(local[1]).padStart(2, "0")}`;
-  const yearless = raw.match(/(?:^|[^\d])(\d{1,2})[-/.](\d{1,2})(?![-/.]\d)/);
-  if (yearless) return `2026-${String(yearless[2]).padStart(2, "0")}-${String(yearless[1]).padStart(2, "0")}`;
-  const parsed = new Date(raw);
-  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
-  return "";
+  return { ...value, months: Array.from(new Set(value.months.filter(Boolean))) };
 }
 
 function stateObjectText(item) {
@@ -560,28 +260,6 @@ function looksLikeActivationStateItem(item) {
   return /activacion|activation|petare|sabana|centro|este|oeste|norte|sur|flyer|cafe|helado|universidad|evento|chacaito|altamira|hoyada|junquito|montalban|vega/.test(sample);
 }
 
-function normalizeActivationStatus(status) {
-  const text = normalizeStateText(status);
-  if (["planned", "done", "missed", "cancelled", "canceled", "pending", "completed", "active", "paused"].includes(text)) return text;
-  if (/se dio|hecha|realizada|done|complete|completed|aprob|valid/.test(text)) return "done";
-  if (/no se dio|cancel|missed|paus|pausa/.test(text)) return "missed";
-  return "planned";
-}
-
-function normalizeActivationType(type) {
-  const text = normalizeStateText(type);
-  const compact = normalizeStateCompact(type);
-  const types = new Map([
-    ["flyers", "Flyers"], ["flyer", "Flyers"],
-    ["cafe", "Café"], ["café", "Café"],
-    ["helados", "Helados"], ["helado", "Helados"],
-    ["materialpop", "Material POP"], ["material pop", "Material POP"], ["pop", "Material POP"],
-    ["universidad", "Universidad"], ["universidades", "Universidad"],
-    ["evento", "Evento"], ["eventos", "Evento"]
-  ]);
-  return types.get(text) || types.get(compact) || "Flyers";
-}
-
 function sanitizeDatedStateItem(item) {
   if (!item || typeof item !== "object" || Array.isArray(item)) return item;
   const isAgency = looksLikeAgencyStateItem(item);
@@ -589,17 +267,26 @@ function sanitizeDatedStateItem(item) {
   if (!isAgency && !isActivation) return item;
   const date = normalizeDateForState(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt) || "2026-01-01";
   const next = { ...item, date };
-  if (!next.fecha) next.fecha = date;
+  next.fecha = String(next.fecha || date);
+  next.name = String(next.name || next.nombre || next.title || next.titulo || next.location || next.ubicacion || "Sin nombre");
+  next.nombre = String(next.nombre || next.name);
+  next.title = String(next.title || next.titulo || next.name);
+  next.titulo = String(next.titulo || next.title);
+  next.location = String(next.location || next.ubicacion || next.zone || next.zona || "");
+  next.ubicacion = String(next.ubicacion || next.location);
+  next.zone = String(next.zone || next.zona || next.location);
+  next.zona = String(next.zona || next.zone);
   if (isActivation) {
     next.type = normalizeActivationType(item.type || item.tipo || item.activationType || item.tipoActivacion);
     next.tipo = normalizeActivationType(item.tipo || item.type || item.activationType || item.tipoActivacion);
     next.status = normalizeActivationStatus(item.status || item.estado);
+    next.estado = String(next.estado || next.status);
   }
   return next;
 }
 
 function sanitizeDatedState(value) {
-  if (Array.isArray(value)) return value.map(item => sanitizeDatedState(sanitizeDatedStateItem(item)));
+  if (Array.isArray(value)) return value.map(item => sanitizeDatedState(sanitizeDatedStateItem(item))).filter(item => item != null);
   if (!value || typeof value !== "object") return value;
   const itemCleaned = sanitizeDatedStateItem(value);
   const next = { ...itemCleaned };
@@ -619,12 +306,87 @@ function shouldSanitizeDatedState(key, value) {
 }
 
 function sanitizeStateValue(key, value) {
+  if (/samsung|raffle|rifa/i.test(String(key || ""))) return [];
   let next = value;
   if (key === "yango_influencers_h1") next = sanitizeInfluencerState(next);
   if (key === "yango_social_report_h1") next = sanitizeSocialReportState(next);
   if (shouldSanitizeDatedState(key, next)) next = sanitizeDatedState(next);
   return next;
 }
+
+function sendDashboard(_req, res) {
+  fs.readFile(path.join(__dirname, "index.html"), "utf8", (error, html) => {
+    if (error) return res.status(500).send("No pude cargar el dashboard.");
+    const helperNames = [
+      "samsung-raffle-export",
+      "preboot-state-guard",
+      "influencer-payment-filter",
+      "branding-inventory-cleanup",
+      "activation-status-sync",
+      "mystery-shopper-sheet-sync",
+      "cloud-save-status",
+      "yango-summary-dashboard",
+      "yango-summary-standalone-fix"
+    ];
+    const helperPattern = new RegExp(`<script\\s+[^>]*src=["']\\/(?:${helperNames.join("|")})\\.js(?:\\?[^"']*)?["'][^>]*><\\/script>`, "gi");
+    const withoutOldHelpers = html.replace(helperPattern, "");
+    const prebootTag = `<script src="/preboot-state-guard.js?v=${HELPER_VERSION}"></script>`;
+    const withPreboot = withoutOldHelpers.includes("</head>")
+      ? withoutOldHelpers.replace("</head>", `${prebootTag}</head>`)
+      : `${prebootTag}${withoutOldHelpers}`;
+    const isTeamPanel = Boolean(_req.query && _req.query.panel);
+    const helperTags = [
+      `<script src="/influencer-payment-filter.js?v=${HELPER_VERSION}" defer></script>`,
+      `<script src="/branding-inventory-cleanup.js?v=${HELPER_VERSION}" defer></script>`,
+      `<script src="/activation-status-sync.js?v=${HELPER_VERSION}" defer></script>`,
+      `<script src="/mystery-shopper-sheet-sync.js?v=${HELPER_VERSION}" defer></script>`,
+      `<script src="/cloud-save-status.js?v=${HELPER_VERSION}" defer></script>`,
+      ...(!isTeamPanel ? [
+        `<script src="/yango-summary-dashboard.js?v=${HELPER_VERSION}" defer></script>`,
+        `<script src="/yango-summary-standalone-fix.js?v=${HELPER_VERSION}" defer></script>`
+      ] : [])
+    ];
+    const withHelpers = withPreboot.replace("</body>", `${helperTags.join("")}</body>`);
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+    res.type("html").send(withHelpers);
+  });
+}
+
+app.use(express.json({ limit: "50mb" }));
+
+app.get("/api/health", async (_req, res) => {
+  try {
+    const hasDb = await ensureDatabase();
+    res.json({ ok: true, database: hasDb ? "connected" : "not_configured", diagnostics: databaseDiagnostics() });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: describeError(error), diagnostics: databaseDiagnostics() });
+  }
+});
+
+app.get("/api/yango-summary-csv", async (req, res) => {
+  try {
+    const gid = String(req.query.gid || "");
+    if (!SUMMARY_GIDS.has(gid)) return res.status(400).send("Invalid sheet gid");
+    const text = await fetchCsvText(SUMMARY_SHEET_ID, { tqx: "out:csv", gid });
+    res.set("Cache-Control", "no-store");
+    res.type("text/csv").send(text);
+  } catch (error) {
+    res.status(502).send(error.message);
+  }
+});
+
+app.get("/api/mystery-shopper-responses", async (_req, res) => {
+  try {
+    const text = await fetchCsvText(MYSTERY_SHOPPER_SHEET_ID, { tqx: "out:csv", sheet: MYSTERY_SHOPPER_SHEET_NAME });
+    const rows = csvToObjects(text);
+    res.set("Cache-Control", "no-store");
+    res.json({ ok: true, source: "google_sheets", sheetId: MYSTERY_SHOPPER_SHEET_ID, sheetName: MYSTERY_SHOPPER_SHEET_NAME, rows });
+  } catch (error) {
+    res.status(502).json({ ok: false, error: error.message });
+  }
+});
 
 app.get("/api/state", async (req, res) => {
   try {
