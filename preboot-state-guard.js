@@ -1,8 +1,7 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV4) return;
-  window.__yangoPrebootStateGuardV4 = true;
+  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV5) return;
+  window.__yangoPrebootStateGuardV5 = true;
 
-  const RIFA_KEY = /samsung|raffle|rifa/i;
   const RELEVANT_KEY = /yango|btl|mkt|agency|agencia|proof|photo|foto|evidencia|promotor|flyer|activ|calendar|calendario|acts/i;
   const RELEVANT_VALUE = /activacion|activation|agencia|agency|promotora|promotoras|foto|fotos|photo|photos|evidencia|proof|flyers|petare|sabana|centro|chacaito|altamira|hoyada|junquito|montalban|montalbán|vega|calendario|calendar/i;
   const SORTABLE_FIELDS = ["date", "fecha", "calendarDate", "activationDate", "createdAt", "updatedAt", "name", "nombre", "title", "titulo", "location", "ubicacion", "zone", "zona", "type", "tipo", "status", "estado"];
@@ -39,8 +38,7 @@
     const yearless = raw.match(/(?:^|[^\d])(\d{1,2})[-/.](\d{1,2})(?![-/.]\d)/);
     if (yearless) return `2026-${String(yearless[2]).padStart(2, "0")}-${String(yearless[1]).padStart(2, "0")}`;
     const parsed = new Date(raw);
-    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
-    return "";
+    return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
   };
 
   const normalizeType = value => VALID_TYPES.get(norm(value)) || VALID_TYPES.get(compact(value)) || "Flyers";
@@ -53,24 +51,18 @@
   };
 
   const relevantValue = value => value && typeof value === "object" && RELEVANT_VALUE.test(stringify(value).slice(0, 8000));
-  const looksSortableDashboardItem = item => {
-    if (!isObject(item)) return false;
-    return SORTABLE_FIELDS.some(field => Object.prototype.hasOwnProperty.call(item, field)) || relevantValue(item);
-  };
-
+  const looksSortableDashboardItem = item => isObject(item) && (SORTABLE_FIELDS.some(field => Object.prototype.hasOwnProperty.call(item, field)) || relevantValue(item));
   const firstDate = item => normalizeDate(item && (item.date ?? item.fecha ?? item.calendarDate ?? item.activationDate ?? item.createdAt ?? item.updatedAt));
 
   const scrub = (value, forced = false) => {
     if (Array.isArray(value)) return value.map(item => scrub(item, forced || relevantValue(item))).filter(item => item != null);
     if (!isObject(value)) return value;
-
     const relevant = forced || relevantValue(value) || looksSortableDashboardItem(value);
     const next = { ...value };
     Object.keys(next).forEach(key => {
       if (next[key] && typeof next[key] === "object") next[key] = scrub(next[key], relevant || RELEVANT_KEY.test(key));
     });
     if (!relevant) return next;
-
     const date = firstDate(next) || FALLBACK_DATE;
     next.date = date;
     next.fecha = text(next.fecha || date) || date;
@@ -97,7 +89,6 @@
     if (!values || typeof values !== "object") return values;
     const next = { ...values };
     Object.keys(next).forEach(key => {
-      if (RIFA_KEY.test(key)) { next[key] = []; return; }
       if (RELEVANT_KEY.test(key) || relevantValue(next[key])) next[key] = scrub(next[key], true);
     });
     return next;
@@ -108,7 +99,6 @@
       const keys = [];
       for (let index = 0; index < localStorage.length; index += 1) keys.push(localStorage.key(index));
       keys.filter(Boolean).forEach(key => {
-        if (RIFA_KEY.test(key)) { localStorage.removeItem(key); return; }
         if (!RELEVANT_KEY.test(key)) return;
         const parsed = parseJson(localStorage.getItem(key));
         if (parsed == null) return;
@@ -125,21 +115,15 @@
       name: text(clean.name || clean.nombre || clean.title || clean.titulo || clean.location || clean.ubicacion || "")
     };
   };
-
   const safeDateSort = (a, b) => {
     const aa = safeComparable(a);
     const bb = safeComparable(b);
     return bb.date.localeCompare(aa.date) || aa.name.localeCompare(bb.name);
   };
-
   const isDashboardArray = array => {
-    try {
-      return array && array.length && Array.prototype.some.call(array, item => !item || looksSortableDashboardItem(item) || relevantValue(item));
-    } catch (_error) {
-      return false;
-    }
+    try { return array && array.length && Array.prototype.some.call(array, item => !item || looksSortableDashboardItem(item) || relevantValue(item)); }
+    catch (_error) { return false; }
   };
-
   const scrubArrayInPlace = array => {
     try {
       for (let index = 0; index < array.length; index += 1) {
@@ -154,10 +138,9 @@
 
   try {
     const originalSetItem = Storage && Storage.prototype && Storage.prototype.setItem;
-    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV4) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV4", { value: true, configurable: true });
+    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV5) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV5", { value: true, configurable: true });
       Storage.prototype.setItem = function safeSetItem(key, value) {
-        if (RIFA_KEY.test(String(key || ""))) return originalSetItem.call(this, key, "[]");
         if (RELEVANT_KEY.test(String(key || ""))) {
           const parsed = parseJson(value);
           if (parsed != null) return originalSetItem.call(this, key, stringify(scrub(parsed, true)));
@@ -168,8 +151,8 @@
   } catch (_error) {}
 
   const originalSort = Array.prototype.sort;
-  if (originalSort && !Array.prototype.__yangoSafeDashboardSortV4) {
-    Object.defineProperty(Array.prototype, "__yangoSafeDashboardSortV4", { value: true, configurable: true });
+  if (originalSort && !Array.prototype.__yangoSafeDashboardSortV5) {
+    Object.defineProperty(Array.prototype, "__yangoSafeDashboardSortV5", { value: true, configurable: true });
     Array.prototype.sort = function safeDashboardSort(compareFn) {
       const dashboardArray = isDashboardArray(this);
       try {
@@ -187,8 +170,8 @@
   }
 
   const originalToSorted = Array.prototype.toSorted;
-  if (originalToSorted && !Array.prototype.__yangoSafeDashboardToSortedV4) {
-    Object.defineProperty(Array.prototype, "__yangoSafeDashboardToSortedV4", { value: true, configurable: true });
+  if (originalToSorted && !Array.prototype.__yangoSafeDashboardToSortedV5) {
+    Object.defineProperty(Array.prototype, "__yangoSafeDashboardToSortedV5", { value: true, configurable: true });
     Array.prototype.toSorted = function safeDashboardToSorted(compareFn) {
       const copy = Array.from(this || []);
       try {
@@ -206,8 +189,8 @@
   }
 
   const originalFetch = window.fetch && window.fetch.bind(window);
-  if (originalFetch && !window.__yangoSafeFetchV4) {
-    window.__yangoSafeFetchV4 = true;
+  if (originalFetch && !window.__yangoSafeFetchV5) {
+    window.__yangoSafeFetchV5 = true;
     window.fetch = async (...args) => {
       const response = await originalFetch(...args);
       try {
@@ -231,7 +214,7 @@
       if (!/Algo salió mal/i.test(body)) return;
       if (!/localeCompare|reading 'date'|evaluating 'b\.date|Cannot read properties of undefined|undefined is not an object/i.test(body)) return;
       const attempts = Number(sessionStorage.getItem("yango_date_recovery_attempts") || "0");
-      if (attempts >= 2) return;
+      if (attempts >= 1) return;
       sessionStorage.setItem("yango_date_recovery_attempts", String(attempts + 1));
       sanitizeLocalStorage();
       setTimeout(() => window.location.reload(), 350);
@@ -239,16 +222,11 @@
   };
 
   window.addEventListener("error", event => {
-    if (/localeCompare|reading 'date'|evaluating 'b\.date|Cannot read properties of undefined|undefined is not an object/i.test(text(event && event.message))) {
-      sanitizeLocalStorage();
-    }
+    if (/localeCompare|reading 'date'|evaluating 'b\.date|Cannot read properties of undefined|undefined is not an object/i.test(text(event && event.message))) sanitizeLocalStorage();
   }, true);
-
   window.addEventListener("unhandledrejection", event => {
     const reason = event && event.reason;
-    if (/localeCompare|reading 'date'|evaluating 'b\.date|Cannot read properties of undefined|undefined is not an object/i.test(text(reason && reason.message || reason))) {
-      sanitizeLocalStorage();
-    }
+    if (/localeCompare|reading 'date'|evaluating 'b\.date|Cannot read properties of undefined|undefined is not an object/i.test(text(reason && reason.message || reason))) sanitizeLocalStorage();
   }, true);
 
   if (document.readyState === "loading") {
