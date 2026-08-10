@@ -7,7 +7,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
 const isRailwayPrivateDatabase = /railway\.internal/i.test(String(databaseUrl || ""));
-const HELPER_VERSION = "20260810a";
+const HELPER_VERSION = "20260810b";
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
@@ -45,12 +45,7 @@ function databaseDiagnostics() {
   if (!databaseUrl) return { configured: false };
   try {
     const url = new URL(databaseUrl);
-    return {
-      configured: true,
-      host: url.hostname,
-      port: url.port || "default",
-      ssl: databaseSsl ? "enabled" : "disabled"
-    };
+    return { configured: true, host: url.hostname, port: url.port || "default", ssl: databaseSsl ? "enabled" : "disabled" };
   } catch (_error) {
     return { configured: true, host: "invalid-url", ssl: "unknown" };
   }
@@ -80,32 +75,15 @@ function parseCsv(text) {
     const char = text[index];
     const next = text[index + 1];
     if (quoted) {
-      if (char === '"' && next === '"') {
-        value += '"';
-        index += 1;
-      } else if (char === '"') {
-        quoted = false;
-      } else {
-        value += char;
-      }
-    } else if (char === '"') {
-      quoted = true;
-    } else if (char === ",") {
-      row.push(value);
-      value = "";
-    } else if (char === "\n") {
-      row.push(value);
-      rows.push(row);
-      row = [];
-      value = "";
-    } else if (char !== "\r") {
-      value += char;
-    }
+      if (char === '"' && next === '"') { value += '"'; index += 1; }
+      else if (char === '"') quoted = false;
+      else value += char;
+    } else if (char === '"') quoted = true;
+    else if (char === ",") { row.push(value); value = ""; }
+    else if (char === "\n") { row.push(value); rows.push(row); row = []; value = ""; }
+    else if (char !== "\r") value += char;
   }
-  if (value || row.length) {
-    row.push(value);
-    rows.push(row);
-  }
+  if (value || row.length) { row.push(value); rows.push(row); }
   return rows;
 }
 
@@ -140,12 +118,7 @@ async function fetchCsvText(sheetId, params) {
 }
 
 function normalizeStateText(value) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 }
 
 function normalizeStateCompact(value) {
@@ -244,7 +217,7 @@ function stateObjectText(item) {
   return [
     item.id, item.name, item.nombre, item.title, item.titulo, item.location, item.ubicacion,
     item.zone, item.zona, item.type, item.tipo, item.activationType, item.tipoActivacion,
-    item.date, item.fecha, item.calendarDate, item.activationDate, item.createdAt,
+    item.date, item.fecha, item.calendarDate, item.activationDate, item.createdAt, item.updatedAt,
     item.promoters, item.promotoras, item.photos, item.fotos, item.evidence, item.evidencia
   ].filter(Boolean).join(" ");
 }
@@ -257,17 +230,22 @@ function looksLikeAgencyStateItem(item) {
 function looksLikeActivationStateItem(item) {
   if (!item || typeof item !== "object" || Array.isArray(item)) return false;
   const sample = normalizeStateText(stateObjectText(item));
-  return /activacion|activation|petare|sabana|centro|este|oeste|norte|sur|flyer|cafe|helado|universidad|evento|chacaito|altamira|hoyada|junquito|montalban|vega/.test(sample);
+  return /activacion|activation|petare|sabana|centro|este|oeste|norte|sur|flyer|cafe|helado|universidad|evento|chacaito|altamira|hoyada|junquito|montalban|vega|calendario|calendar/.test(sample);
 }
 
-function sanitizeDatedStateItem(item) {
+function sanitizeDatedStateItem(item, force = false) {
   if (!item || typeof item !== "object" || Array.isArray(item)) return item;
-  const isAgency = looksLikeAgencyStateItem(item);
-  const isActivation = looksLikeActivationStateItem(item);
+  const isAgency = force || looksLikeAgencyStateItem(item);
+  const isActivation = force || looksLikeActivationStateItem(item);
   if (!isAgency && !isActivation) return item;
   const date = normalizeDateForState(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt) || "2026-01-01";
-  const next = { ...item, date };
+  const next = { ...item };
+  next.date = String(date);
   next.fecha = String(next.fecha || date);
+  next.calendarDate = String(next.calendarDate || date);
+  next.activationDate = String(next.activationDate || date);
+  next.createdAt = String(next.createdAt || date);
+  next.updatedAt = String(next.updatedAt || date);
   next.name = String(next.name || next.nombre || next.title || next.titulo || next.location || next.ubicacion || "Sin nombre");
   next.nombre = String(next.nombre || next.name);
   next.title = String(next.title || next.titulo || next.name);
@@ -276,22 +254,19 @@ function sanitizeDatedStateItem(item) {
   next.ubicacion = String(next.ubicacion || next.location);
   next.zone = String(next.zone || next.zona || next.location);
   next.zona = String(next.zona || next.zone);
-  if (isActivation) {
-    next.type = normalizeActivationType(item.type || item.tipo || item.activationType || item.tipoActivacion);
-    next.tipo = normalizeActivationType(item.tipo || item.type || item.activationType || item.tipoActivacion);
-    next.status = normalizeActivationStatus(item.status || item.estado);
-    next.estado = String(next.estado || next.status);
-  }
+  next.type = normalizeActivationType(next.type || next.tipo || next.activationType || next.tipoActivacion);
+  next.tipo = normalizeActivationType(next.tipo || next.type || next.activationType || next.tipoActivacion);
+  next.status = normalizeActivationStatus(next.status || next.estado);
+  next.estado = String(next.estado || next.status);
   return next;
 }
 
-function sanitizeDatedState(value) {
-  if (Array.isArray(value)) return value.map(item => sanitizeDatedState(sanitizeDatedStateItem(item))).filter(item => item != null);
+function sanitizeDatedState(value, force = false) {
+  if (Array.isArray(value)) return value.map(item => sanitizeDatedState(sanitizeDatedStateItem(item, force), force)).filter(item => item != null);
   if (!value || typeof value !== "object") return value;
-  const itemCleaned = sanitizeDatedStateItem(value);
-  const next = { ...itemCleaned };
+  const next = { ...sanitizeDatedStateItem(value, force) };
   Object.keys(next).forEach(key => {
-    if (Array.isArray(next[key]) || (next[key] && typeof next[key] === "object")) next[key] = sanitizeDatedState(next[key]);
+    if (Array.isArray(next[key]) || (next[key] && typeof next[key] === "object")) next[key] = sanitizeDatedState(next[key], force || /items|rows|data|activ|calendar|agencia|agency|reports|proofs/i.test(key));
   });
   return next;
 }
@@ -310,11 +285,11 @@ function sanitizeStateValue(key, value) {
   let next = value;
   if (key === "yango_influencers_h1") next = sanitizeInfluencerState(next);
   if (key === "yango_social_report_h1") next = sanitizeSocialReportState(next);
-  if (shouldSanitizeDatedState(key, next)) next = sanitizeDatedState(next);
+  if (shouldSanitizeDatedState(key, next)) next = sanitizeDatedState(next, true);
   return next;
 }
 
-function sendDashboard(_req, res) {
+function sendDashboard(req, res) {
   fs.readFile(path.join(__dirname, "index.html"), "utf8", (error, html) => {
     if (error) return res.status(500).send("No pude cargar el dashboard.");
     const helperNames = [
@@ -334,7 +309,7 @@ function sendDashboard(_req, res) {
     const withPreboot = withoutOldHelpers.includes("</head>")
       ? withoutOldHelpers.replace("</head>", `${prebootTag}</head>`)
       : `${prebootTag}${withoutOldHelpers}`;
-    const isTeamPanel = Boolean(_req.query && _req.query.panel);
+    const isTeamPanel = Boolean(req.query && req.query.panel);
     const helperTags = [
       `<script src="/influencer-payment-filter.js?v=${HELPER_VERSION}" defer></script>`,
       `<script src="/branding-inventory-cleanup.js?v=${HELPER_VERSION}" defer></script>`,
@@ -401,6 +376,7 @@ app.get("/api/state", async (req, res) => {
       values[row.key] = sanitizeStateValue(row.key, row.value);
       updatedAt[row.key] = row.updated_at;
     });
+    res.set("Cache-Control", "no-store");
     res.json({ ok: true, values, updatedAt });
   } catch (error) {
     res.status(500).json({ ok: false, error: describeError(error) });
