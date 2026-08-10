@@ -6,7 +6,7 @@ const { Pool } = require("pg");
 const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
-const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260810h";
+const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260810i";
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
@@ -221,10 +221,9 @@ function sendDashboard(req, res) {
     const preboot = `<script src="/preboot-state-guard.js?v=${HELPER_VERSION}"></script>`;
     const withPreboot = base.includes("</head>") ? base.replace("</head>", `${preboot}</head>`) : `${preboot}${base}`;
     const isTeamPanel = isCollaboratorPanel(req);
-    const helpers = [
-      "summary-loop-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "mystery-shopper-sheet-sync", "cloud-save-status",
-      ...(!isTeamPanel ? ["yango-summary-dashboard", "yango-summary-standalone-fix"] : [])
-    ].map(name => `<script src="/${name}.js?v=${HELPER_VERSION}" defer></script>`).join("");
+    const adminHelpers = ["summary-loop-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "mystery-shopper-sheet-sync", "cloud-save-status", "yango-summary-dashboard", "yango-summary-standalone-fix"];
+    const collaboratorHelpers = ["activation-status-sync", "cloud-save-status"];
+    const helpers = (isTeamPanel ? collaboratorHelpers : adminHelpers).map(name => `<script src="/${name}.js?v=${HELPER_VERSION}" defer></script>`).join("");
     const output = withPreboot.replace("</body>", `${helpers}</body>`);
     res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.set("Pragma", "no-cache");
