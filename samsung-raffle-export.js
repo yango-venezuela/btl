@@ -1,6 +1,7 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoSamsungRaffleRemovedV1) return;
-  window.__yangoSamsungRaffleRemovedV1 = true;
+  if (typeof window === "undefined" || window.__yangoSamsungRaffleRemovedV2) return;
+  window.__yangoSamsungRaffleRemovedV2 = true;
+  window.__yangoRemoveSamsungRaffleV1 = true;
 
   const KEYS = ["yango_samsung_raffle_h1", "samsung_raffle", "rifa_samsung"];
   const TEXT_PATTERN = /rifa samsung|samsung|raffle/i;
@@ -24,16 +25,31 @@
     }
   };
 
+  const normalizedText = node => String(node && node.textContent || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
   const removeRaffleUi = () => {
-    const candidates = [...document.querySelectorAll("button,a,[role='button'],li,nav div,aside div,section,main > div")];
-    candidates.forEach(node => {
-      const text = String(node.textContent || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      if (!TEXT_PATTERN.test(text)) return;
-      if (node.matches && node.matches("section,main > div")) node.remove();
-      else {
-        const clickable = node.closest && node.closest("button,a,[role='button'],li");
-        (clickable || node).remove();
+    [...document.querySelectorAll("button,a,[role='button'],li")].forEach(node => {
+      const text = normalizedText(node);
+      if (TEXT_PATTERN.test(text) && text.length < 80) node.remove();
+    });
+
+    [...document.querySelectorAll("h1,h2,h3")].forEach(title => {
+      if (!TEXT_PATTERN.test(normalizedText(title))) return;
+      let node = title;
+      for (let depth = 0; depth < 4 && node && node.parentElement; depth += 1) {
+        const text = normalizedText(node.parentElement);
+        if (text.includes("top 40") || text.includes("telefono") || text.includes("premio") || text.includes("contactado")) {
+          node.parentElement.remove();
+          return;
+        }
+        node = node.parentElement;
       }
+      title.remove();
     });
   };
 
