@@ -6,7 +6,7 @@ const { Pool } = require("pg");
 const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
-const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260810e";
+const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260810f";
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
@@ -195,6 +195,7 @@ function sanitizeInfluencers(value) {
 }
 
 function sanitizeStateValue(key, value) {
+  if (/samsung|raffle|rifa/i.test(String(key || ""))) return [];
   if (key === "yango_influencers_h1") return sanitizeInfluencers(value);
   if (key === "yango_social_report_h1" && value && typeof value === "object" && Array.isArray(value.months)) return { ...value, months: [...new Set(value.months.filter(Boolean))] };
   return looksLikeDashboardState(key, value) ? sanitizeDated(value, true) : value;
@@ -266,6 +267,7 @@ async function saveStateValue(req, res) {
   try {
     if (!(await ensureDatabase())) return res.status(503).json({ ok: false, error: "DATABASE_URL is not configured" });
     const key = req.params.key;
+    if (/samsung|raffle|rifa/i.test(String(key || ""))) return res.json({ ok: true, key, retired: true });
     const incoming = req.body && Object.prototype.hasOwnProperty.call(req.body, "value") ? req.body.value : req.body;
     const value = sanitizeStateValue(key, incoming);
     const result = await pool.query("insert into app_state (key, value, updated_at) values ($1, $2::jsonb, now()) on conflict (key) do update set value = excluded.value, updated_at = now() returning key, updated_at", [key, JSON.stringify(value)]);
