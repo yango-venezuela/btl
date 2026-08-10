@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV2) return;
-  window.__yangoPrebootStateGuardV2 = true;
+  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV3) return;
+  window.__yangoPrebootStateGuardV3 = true;
 
   const RIFA_KEY = /samsung|raffle|rifa/i;
   const RELEVANT_KEY = /yango|btl|mkt|agency|agencia|proof|photo|foto|evidencia|promotor|flyer|activ|calendar|calendario|acts/i;
@@ -16,12 +16,8 @@
     ["evento", "Evento"], ["eventos", "Evento"]
   ]);
 
-  const stringify = value => {
-    try { return JSON.stringify(value); } catch (_error) { return String(value); }
-  };
-  const parseJson = value => {
-    try { return JSON.parse(value); } catch (_error) { return null; }
-  };
+  const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
+  const parseJson = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
   const text = value => String(value == null ? "" : value);
   const norm = value => text(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
   const compact = value => norm(value).replace(/[^a-z0-9]+/g, "");
@@ -53,6 +49,7 @@
     if (/no se dio|cancel|missed|paus|pausa/.test(current)) return "missed";
     return "planned";
   };
+
   const relevantValue = value => value && typeof value === "object" && RELEVANT_VALUE.test(stringify(value).slice(0, 6000));
   const looksSortableDashboardItem = item => {
     if (!item || typeof item !== "object" || Array.isArray(item)) return false;
@@ -74,6 +71,8 @@
     next.fecha = text(next.fecha || date);
     next.calendarDate = text(next.calendarDate || date);
     next.activationDate = text(next.activationDate || date);
+    next.createdAt = text(next.createdAt || date);
+    next.updatedAt = text(next.updatedAt || date);
     next.name = text(next.name || next.nombre || next.title || next.titulo || next.location || next.ubicacion || "Sin nombre");
     next.nombre = text(next.nombre || next.name);
     next.title = text(next.title || next.titulo || next.name);
@@ -93,10 +92,7 @@
     if (!values || typeof values !== "object") return values;
     const next = { ...values };
     Object.keys(next).forEach(key => {
-      if (RIFA_KEY.test(key)) {
-        next[key] = [];
-        return;
-      }
+      if (RIFA_KEY.test(key)) { next[key] = []; return; }
       if (RELEVANT_KEY.test(key) || relevantValue(next[key])) next[key] = scrub(next[key], true);
     });
     return next;
@@ -106,10 +102,7 @@
     const keys = [];
     for (let index = 0; index < localStorage.length; index += 1) keys.push(localStorage.key(index));
     keys.filter(Boolean).forEach(key => {
-      if (RIFA_KEY.test(key)) {
-        localStorage.removeItem(key);
-        return;
-      }
+      if (RIFA_KEY.test(key)) { localStorage.removeItem(key); return; }
       if (!RELEVANT_KEY.test(key)) return;
       const parsed = parseJson(localStorage.getItem(key));
       if (parsed == null) return;
@@ -118,27 +111,43 @@
     });
   };
 
+  const safeComparable = item => {
+    if (!item || typeof item !== "object") return { date: "2026-01-01", name: text(item) };
+    const clean = scrub(item, true);
+    return {
+      date: text(clean.date || clean.fecha || clean.calendarDate || clean.activationDate || clean.createdAt || clean.updatedAt || "2026-01-01"),
+      name: text(clean.name || clean.nombre || clean.title || clean.titulo || clean.location || clean.ubicacion || "")
+    };
+  };
+  const safeDateSort = (a, b) => {
+    const aa = safeComparable(a);
+    const bb = safeComparable(b);
+    return bb.date.localeCompare(aa.date) || aa.name.localeCompare(bb.name);
+  };
+
   sanitizeLocalStorage();
 
   const originalSort = Array.prototype.sort;
-  if (originalSort && !Array.prototype.__yangoSafeDashboardSort) {
-    Object.defineProperty(Array.prototype, "__yangoSafeDashboardSort", { value: true, configurable: true });
+  if (originalSort && !Array.prototype.__yangoSafeDashboardSortV3) {
+    Object.defineProperty(Array.prototype, "__yangoSafeDashboardSortV3", { value: true, configurable: true });
     Array.prototype.sort = function safeDashboardSort(compareFn) {
+      const isDashboardArray = this && this.length && Array.prototype.some.call(this, item => !item || looksSortableDashboardItem(item) || relevantValue(item));
       try {
-        if (this && this.length && Array.prototype.some.call(this, looksSortableDashboardItem)) {
+        if (isDashboardArray) {
           for (let index = 0; index < this.length; index += 1) {
             const item = this[index];
-            if (item && typeof item === "object" && !Array.isArray(item)) this[index] = scrub(item, true);
+            this[index] = item && typeof item === "object" && !Array.isArray(item) ? scrub(item, true) : item;
           }
         }
         return originalSort.call(this, compareFn);
       } catch (error) {
-        if (/localeCompare|Cannot read properties of undefined|undefined is not an object|reading 'date'|reading \"date\"/.test(text(error && error.message))) {
+        const message = text(error && error.message);
+        if (isDashboardArray || /localeCompare|Cannot read properties of undefined|undefined is not an object|reading 'date'|evaluating 'b\.date\.localeCompare'/.test(message)) {
           for (let index = 0; index < this.length; index += 1) {
             const item = this[index];
-            if (item && typeof item === "object" && !Array.isArray(item)) this[index] = scrub(item, true);
+            this[index] = item && typeof item === "object" && !Array.isArray(item) ? scrub(item, true) : item;
           }
-          try { return originalSort.call(this, compareFn); } catch (_retryError) { return originalSort.call(this); }
+          try { return originalSort.call(this, safeDateSort); } catch (_safeError) { return originalSort.call(this); }
         }
         throw error;
       }
@@ -157,11 +166,7 @@
         if (!payload || typeof payload !== "object") return response;
         if (payload.values) payload.values = sanitizeStateValues(payload.values);
         if (payload.value) payload.value = scrub(payload.value, true);
-        return new Response(JSON.stringify(payload), {
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers
-        });
+        return new Response(JSON.stringify(payload), { status: response.status, statusText: response.statusText, headers: response.headers });
       } catch (_error) {
         return response;
       }
