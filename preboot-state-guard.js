@@ -1,9 +1,10 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV5) return;
-  window.__yangoPrebootStateGuardV5 = true;
+  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV6) return;
+  window.__yangoPrebootStateGuardV6 = true;
 
-  const RELEVANT_KEY = /yango|btl|mkt|agency|agencia|proof|photo|foto|evidencia|promotor|flyer|activ|calendar|calendario|acts/i;
-  const RELEVANT_VALUE = /activacion|activation|agencia|agency|promotora|promotoras|foto|fotos|photo|photos|evidencia|proof|flyers|petare|sabana|centro|chacaito|altamira|hoyada|junquito|montalban|montalbán|vega|calendario|calendar/i;
+  const RELEVANT_KEY = /yango|btl|mkt|agency|agencia|proof|photo|foto|evidencia|promotor|flyer|activ|calendar|calendario|acts|qr|promo|code|result|resultado/i;
+  const RELEVANT_VALUE = /activacion|activation|agencia|agency|promotora|promotoras|foto|fotos|photo|photos|evidencia|proof|flyers|petare|sabana|centro|chacaito|altamira|hoyada|junquito|montalban|montalbán|vega|calendario|calendar|qr|promo code|promo codes/i;
+  const ARRAY_FIELDS = /^(qr|qrs|qrCodes|qrList|promo|promos|promoCodes|promoCodeRows|codes|result|results|resultado|resultados|activations|activaciones|calendar|calendario|items|rows|photos|fotos|proofs|evidencias|reports|reportes)$/i;
   const SORTABLE_FIELDS = ["date", "fecha", "calendarDate", "activationDate", "createdAt", "updatedAt", "name", "nombre", "title", "titulo", "location", "ubicacion", "zone", "zona", "type", "tipo", "status", "estado"];
   const VALID_STATUSES = new Set(["planned", "done", "missed", "cancelled", "canceled", "pending", "completed", "active", "paused"]);
   const VALID_TYPES = new Map([
@@ -17,11 +18,35 @@
 
   const FALLBACK_DATE = "2026-01-01";
   const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
-  const parseJson = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
+  const rawParseJson = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
   const text = value => String(value == null ? "" : value);
   const norm = value => text(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
   const compact = value => norm(value).replace(/[^a-z0-9]+/g, "");
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
+
+  const normalizeCollections = (value, key = "") => {
+    if (value == null) return ARRAY_FIELDS.test(String(key || "")) ? [] : value;
+    if (Array.isArray(value)) return value.map(item => normalizeCollections(item));
+    if (!isObject(value)) return value;
+    const next = { ...value };
+    Object.keys(next).forEach(childKey => {
+      next[childKey] = normalizeCollections(next[childKey], childKey);
+    });
+    return next;
+  };
+
+  try {
+    const originalJsonParse = JSON.parse;
+    if (originalJsonParse && !JSON.__yangoSafeParseV6) {
+      Object.defineProperty(JSON, "__yangoSafeParseV6", { value: true, configurable: true });
+      JSON.parse = function yangoSafeJsonParse(value, reviver) {
+        const parsed = originalJsonParse.call(JSON, value, reviver);
+        return normalizeCollections(parsed);
+      };
+    }
+  } catch (_error) {}
+
+  const parseJson = value => { try { return normalizeCollections(JSON.parse(value)); } catch (_error) { return null; } };
 
   const normalizeDate = value => {
     if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
@@ -55,14 +80,16 @@
   const firstDate = item => normalizeDate(item && (item.date ?? item.fecha ?? item.calendarDate ?? item.activationDate ?? item.createdAt ?? item.updatedAt));
 
   const scrub = (value, forced = false) => {
+    value = normalizeCollections(value);
     if (Array.isArray(value)) return value.map(item => scrub(item, forced || relevantValue(item))).filter(item => item != null);
     if (!isObject(value)) return value;
     const relevant = forced || relevantValue(value) || looksSortableDashboardItem(value);
     const next = { ...value };
     Object.keys(next).forEach(key => {
+      if (next[key] == null && ARRAY_FIELDS.test(key)) { next[key] = []; return; }
       if (next[key] && typeof next[key] === "object") next[key] = scrub(next[key], relevant || RELEVANT_KEY.test(key));
     });
-    if (!relevant) return next;
+    if (!relevant) return normalizeCollections(next);
     const date = firstDate(next) || FALLBACK_DATE;
     next.date = date;
     next.fecha = text(next.fecha || date) || date;
@@ -82,14 +109,16 @@
     next.tipo = normalizeType(next.tipo || next.type || next.activationType || next.tipoActivacion);
     next.status = normalizeStatus(next.status || next.estado);
     next.estado = text(next.estado || next.status) || next.status;
-    return next;
+    return normalizeCollections(next);
   };
 
   const sanitizeStateValues = values => {
     if (!values || typeof values !== "object") return values;
     const next = { ...values };
     Object.keys(next).forEach(key => {
-      if (RELEVANT_KEY.test(key) || relevantValue(next[key])) next[key] = scrub(next[key], true);
+      if (ARRAY_FIELDS.test(key)) next[key] = normalizeCollections(next[key], key);
+      else if (RELEVANT_KEY.test(key) || relevantValue(next[key])) next[key] = scrub(next[key], true);
+      else next[key] = normalizeCollections(next[key], key);
     });
     return next;
   };
@@ -99,10 +128,10 @@
       const keys = [];
       for (let index = 0; index < localStorage.length; index += 1) keys.push(localStorage.key(index));
       keys.filter(Boolean).forEach(key => {
-        if (!RELEVANT_KEY.test(key)) return;
+        if (!RELEVANT_KEY.test(key) && !ARRAY_FIELDS.test(key)) return;
         const parsed = parseJson(localStorage.getItem(key));
-        if (parsed == null) return;
-        const cleaned = scrub(parsed, true);
+        if (parsed == null && !ARRAY_FIELDS.test(key)) return;
+        const cleaned = ARRAY_FIELDS.test(key) ? normalizeCollections(parsed, key) : scrub(parsed, true);
         if (stringify(cleaned) !== stringify(parsed)) localStorage.setItem(key, stringify(cleaned));
       });
     } catch (_error) {}
@@ -138,12 +167,12 @@
 
   try {
     const originalSetItem = Storage && Storage.prototype && Storage.prototype.setItem;
-    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV5) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV5", { value: true, configurable: true });
+    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV6) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV6", { value: true, configurable: true });
       Storage.prototype.setItem = function safeSetItem(key, value) {
-        if (RELEVANT_KEY.test(String(key || ""))) {
+        if (RELEVANT_KEY.test(String(key || "")) || ARRAY_FIELDS.test(String(key || ""))) {
           const parsed = parseJson(value);
-          if (parsed != null) return originalSetItem.call(this, key, stringify(scrub(parsed, true)));
+          if (parsed != null || ARRAY_FIELDS.test(String(key || ""))) return originalSetItem.call(this, key, stringify(ARRAY_FIELDS.test(String(key || "")) ? normalizeCollections(parsed, key) : scrub(parsed, true)));
         }
         return originalSetItem.call(this, key, value);
       };
@@ -151,8 +180,8 @@
   } catch (_error) {}
 
   const originalSort = Array.prototype.sort;
-  if (originalSort && !Array.prototype.__yangoSafeDashboardSortV5) {
-    Object.defineProperty(Array.prototype, "__yangoSafeDashboardSortV5", { value: true, configurable: true });
+  if (originalSort && !Array.prototype.__yangoSafeDashboardSortV6) {
+    Object.defineProperty(Array.prototype, "__yangoSafeDashboardSortV6", { value: true, configurable: true });
     Array.prototype.sort = function safeDashboardSort(compareFn) {
       const dashboardArray = isDashboardArray(this);
       try {
@@ -170,8 +199,8 @@
   }
 
   const originalToSorted = Array.prototype.toSorted;
-  if (originalToSorted && !Array.prototype.__yangoSafeDashboardToSortedV5) {
-    Object.defineProperty(Array.prototype, "__yangoSafeDashboardToSortedV5", { value: true, configurable: true });
+  if (originalToSorted && !Array.prototype.__yangoSafeDashboardToSortedV6) {
+    Object.defineProperty(Array.prototype, "__yangoSafeDashboardToSortedV6", { value: true, configurable: true });
     Array.prototype.toSorted = function safeDashboardToSorted(compareFn) {
       const copy = Array.from(this || []);
       try {
@@ -189,8 +218,8 @@
   }
 
   const originalFetch = window.fetch && window.fetch.bind(window);
-  if (originalFetch && !window.__yangoSafeFetchV5) {
-    window.__yangoSafeFetchV5 = true;
+  if (originalFetch && !window.__yangoSafeFetchV6) {
+    window.__yangoSafeFetchV6 = true;
     window.fetch = async (...args) => {
       const response = await originalFetch(...args);
       try {
@@ -201,7 +230,7 @@
         if (!payload || typeof payload !== "object") return response;
         if (payload.values) payload.values = sanitizeStateValues(payload.values);
         if (payload.value) payload.value = scrub(payload.value, true);
-        return new Response(JSON.stringify(payload), { status: response.status, statusText: response.statusText, headers: response.headers });
+        return new Response(JSON.stringify(normalizeCollections(payload)), { status: response.status, statusText: response.statusText, headers: response.headers });
       } catch (_error) {
         return response;
       }
@@ -212,21 +241,21 @@
     try {
       const body = document.body && document.body.innerText ? document.body.innerText : "";
       if (!/Algo salió mal/i.test(body)) return;
-      if (!/localeCompare|reading 'date'|evaluating 'b\.date|Cannot read properties of undefined|undefined is not an object/i.test(body)) return;
-      const attempts = Number(sessionStorage.getItem("yango_date_recovery_attempts") || "0");
-      if (attempts >= 1) return;
-      sessionStorage.setItem("yango_date_recovery_attempts", String(attempts + 1));
+      if (!/localeCompare|reading 'date'|evaluating 'b\.date|qr\.reduce|reading 'reduce'|Cannot read properties of null|Cannot read properties of undefined|undefined is not an object|null is not an object/i.test(body)) return;
+      const attempts = Number(sessionStorage.getItem("yango_preboot_recovery_attempts") || "0");
+      if (attempts >= 2) return;
+      sessionStorage.setItem("yango_preboot_recovery_attempts", String(attempts + 1));
       sanitizeLocalStorage();
       setTimeout(() => window.location.reload(), 350);
     } catch (_error) {}
   };
 
   window.addEventListener("error", event => {
-    if (/localeCompare|reading 'date'|evaluating 'b\.date|Cannot read properties of undefined|undefined is not an object/i.test(text(event && event.message))) sanitizeLocalStorage();
+    if (/localeCompare|reading 'date'|evaluating 'b\.date|qr\.reduce|reading 'reduce'|Cannot read properties of null|Cannot read properties of undefined|undefined is not an object|null is not an object/i.test(text(event && event.message))) sanitizeLocalStorage();
   }, true);
   window.addEventListener("unhandledrejection", event => {
     const reason = event && event.reason;
-    if (/localeCompare|reading 'date'|evaluating 'b\.date|Cannot read properties of undefined|undefined is not an object/i.test(text(reason && reason.message || reason))) sanitizeLocalStorage();
+    if (/localeCompare|reading 'date'|evaluating 'b\.date|qr\.reduce|reading 'reduce'|Cannot read properties of null|Cannot read properties of undefined|undefined is not an object|null is not an object/i.test(text(reason && reason.message || reason))) sanitizeLocalStorage();
   }, true);
 
   if (document.readyState === "loading") {
