@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoSharedStateSyncV8) return;
-  window.__yangoSharedStateSyncV8 = true;
+  if (typeof window === "undefined" || window.__yangoSharedStateSyncV9) return;
+  window.__yangoSharedStateSyncV9 = true;
 
   const pending = new Map();
   const lastSeen = new Map();
@@ -251,7 +251,7 @@
       const synced = [];
       for (const entry of entries) {
         const current = remote[entry.target];
-        const shouldReplace = entry.key === entry.target && entry.target === canonicalKeys.influencers;
+        const shouldReplace = entry.target === canonicalKeys.influencers;
         const merged = shouldReplace ? entry.value : merge(current, entry.value, entry.baseline);
         remote[entry.target] = merged;
         await putRemote(entry.target, merged);
