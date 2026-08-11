@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoSharedStateSyncV6) return;
-  window.__yangoSharedStateSyncV6 = true;
+  if (typeof window === "undefined" || window.__yangoSharedStateSyncV7) return;
+  window.__yangoSharedStateSyncV7 = true;
 
   const pending = new Map();
   const lastSeen = new Map();
@@ -35,6 +35,17 @@
   const clone = value => parseJson(stringify(value));
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
   const blockedKey = key => /migration|backup|respaldo|token|password|pass|secret|hydrated|debug|devtools|theme|tooltip|toast|mapbox|leaflet/i.test(String(key || ""));
+
+  const waitForCollaboratorMirror = () => new Promise(resolve => {
+    if (!window.__yangoCollaboratorMirrorPending) return resolve();
+    let elapsed = 0;
+    const tick = () => {
+      if (!window.__yangoCollaboratorMirrorPending || elapsed >= 2500) return resolve();
+      elapsed += 100;
+      setTimeout(tick, 100);
+    };
+    tick();
+  });
 
   const typeFromKey = key => {
     const k = String(key || "").toLowerCase();
@@ -183,6 +194,7 @@
 
   const hydrate = async () => {
     if (hydrating || !window.fetch || window.location.protocol === "file:") return;
+    await waitForCollaboratorMirror();
     hydrating = true;
     try {
       const remote = await fetchRemote();
@@ -209,6 +221,7 @@
   };
 
   const queue = (key, rawValue, reason) => {
+    if (window.__yangoCollaboratorMirrorPending) return;
     if (hydrating || !sharedKey(key)) return;
     const value = typeof rawValue === "string" ? parseJson(rawValue) : rawValue;
     if (value == null) return;
@@ -225,6 +238,10 @@
   };
 
   const flush = async () => {
+    if (window.__yangoCollaboratorMirrorPending) {
+      setTimeout(flush, 450);
+      return;
+    }
     if (flushing || !pending.size || !window.fetch || window.location.protocol === "file:") return;
     flushing = true;
     try {
@@ -249,7 +266,13 @@
     }
   };
 
-  const scanSoon = reason => setTimeout(() => localEntries().forEach(entry => queue(entry.key, entry.value, reason)), 350);
+  const scanSoon = reason => {
+    if (window.__yangoCollaboratorMirrorPending) return;
+    setTimeout(() => {
+      if (window.__yangoCollaboratorMirrorPending) return;
+      localEntries().forEach(entry => queue(entry.key, entry.value, reason));
+    }, 350);
+  };
 
   localStorage.setItem = function patchedSetItem(key, value) {
     originalSetItem(key, value);
