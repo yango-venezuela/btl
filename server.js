@@ -6,7 +6,7 @@ const { Pool } = require("pg");
 const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
-const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260810i";
+const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260811a";
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
@@ -160,6 +160,33 @@ function sanitizeDated(value, force = false) {
   return next;
 }
 
+function activationStableKey(item) {
+  if (!item || typeof item !== "object") return "";
+  const name = cleanText(item.name || item.nombre || item.title || item.titulo);
+  const location = cleanText(item.location || item.ubicacion || item.zone || item.zona);
+  const type = cleanText(item.type || item.tipo || item.activationType || item.tipoActivacion);
+  const date = normalizeDate(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt);
+  return [date, location || name, type].filter(Boolean).join("|");
+}
+
+function sanitizeActivations(value) {
+  const dated = sanitizeDated(value, true);
+  if (!Array.isArray(dated)) return dated;
+  const map = new Map();
+  dated.forEach(item => {
+    if (!item || typeof item !== "object") return;
+    const name = cleanText(item.name || item.nombre || item.title || item.titulo);
+    const location = cleanText(item.location || item.ubicacion || item.zone || item.zona);
+    const key = activationStableKey(item);
+    if (!key) return;
+    if (!location && (!name || name === "sin nombre" || name === "undefined" || name === "null")) return;
+    if (name === "sin nombre") return;
+    if (!map.has(key)) map.set(key, item);
+    else map.set(key, { ...map.get(key), ...item });
+  });
+  return [...map.values()].sort((a, b) => String(a.date || a.fecha || "").localeCompare(String(b.date || b.fecha || "")) || String(a.name || a.nombre || "").localeCompare(String(b.name || b.nombre || "")));
+}
+
 function sanitizeDeliverables(value) {
   const allowed = new Map(["Stories", "Reel", "Post", "TikTok", "Live"].map(x => [x.toLowerCase(), x]));
   const raw = Array.isArray(value) ? value : String(value || "").split("+");
@@ -187,7 +214,7 @@ function sanitizeInfluencers(value) {
   const map = new Map();
   value.forEach(item => {
     const key = influencerKey(item);
-    if (!key) return;
+    if (!key || /^carlos rides\|/.test(key) || key === "carlos rides|") return;
     const next = item && typeof item === "object" ? { ...item, deliverables: sanitizeDeliverables(item.deliverables || item.entregables) } : item;
     if (!map.has(key) || richness(next) >= richness(map.get(key))) map.set(key, next);
   });
@@ -196,6 +223,7 @@ function sanitizeInfluencers(value) {
 
 function sanitizeStateValue(key, value) {
   if (/samsung|raffle|rifa/i.test(String(key || ""))) return [];
+  if (key === "yango_activations_h1") return sanitizeActivations(value);
   if (key === "yango_influencers_h1") return sanitizeInfluencers(value);
   if (key === "yango_social_report_h1" && value && typeof value === "object" && Array.isArray(value.months)) return { ...value, months: [...new Set(value.months.filter(Boolean))] };
   return looksLikeDashboardState(key, value) ? sanitizeDated(value, true) : value;
