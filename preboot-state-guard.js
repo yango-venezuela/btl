@@ -1,17 +1,21 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV7) return;
-  window.__yangoPrebootStateGuardV7 = true;
+  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV8) return;
+  window.__yangoPrebootStateGuardV8 = true;
 
   const COLLECTION_KEY = /(^|[_:\-\s])(qr|qrs|promo|promos|promoCodes|code|codes|result|results|resultado|resultados|activation|activations|activacion|activaciones|calendar|calendario|agency|agencia|proof|proofs|photo|photos|foto|fotos|evidencia|evidencias|report|reports|reporte|reportes|items|rows)([_:\-\s]|$)/i;
   const COLLECTION_HINT = /(qr|promo|result|resultado|activation|activacion|calendar|calendario|agency|agencia|proof|photo|foto|evidencia|report|reporte)/i;
   const DASHBOARD_HINT = /yango|btl|mkt|agency|agencia|proof|photo|foto|evidencia|promotor|flyer|activ|calendar|calendario|acts|qr|promo|code|result|resultado/i;
   const DATE_FIELDS = ["date", "fecha", "calendarDate", "activationDate", "createdAt", "updatedAt"];
   const FALLBACK_DATE = "2026-01-01";
+  const RETIRED_KEY = /samsung|raffle|rifa/i;
+  const RETIRED_TEXT = /rifa samsung|samsung raffle|raffle samsung|\brifa\b|samsung/i;
+  const PANEL_HINT = /(?:[?&](?:panel|usuario|user|role|rol)=|\/)(luis|giselle|gise|agency|agencia|panel|usuario|user|role|rol)(?:[/?&#]|$)/i;
 
   const text = value => String(value == null ? "" : value);
   const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
   const isCollectionKey = key => COLLECTION_KEY.test(text(key)) || COLLECTION_HINT.test(text(key));
+  const isCollaboratorPanel = () => PANEL_HINT.test(window.location.href || "");
 
   function normalizeDate(value) {
     if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
@@ -54,6 +58,7 @@
   }
 
   function sanitizeStoredString(key, raw) {
+    if (RETIRED_KEY.test(text(key))) return "[]";
     if (!DASHBOARD_HINT.test(text(key)) && !isCollectionKey(key)) return raw;
     if (raw == null || raw === "null" || raw === "undefined") return isCollectionKey(key) ? "[]" : raw;
     const parsed = parse(raw, key);
@@ -61,11 +66,27 @@
     return stringify(parsed);
   }
 
+  function storageKeys() {
+    const keys = [];
+    try {
+      for (let index = 0; index < localStorage.length; index += 1) keys.push(localStorage.key(index));
+    } catch (_error) {}
+    return keys.filter(Boolean);
+  }
+
+  function cleanRetiredStorage() {
+    try {
+      storageKeys().forEach(key => { if (RETIRED_KEY.test(key)) localStorage.removeItem(key); });
+    } catch (_error) {}
+  }
+
   function sanitizeLocalStorage() {
     try {
-      const keys = [];
-      for (let index = 0; index < localStorage.length; index += 1) keys.push(localStorage.key(index));
-      keys.filter(Boolean).forEach(key => {
+      storageKeys().forEach(key => {
+        if (RETIRED_KEY.test(key)) {
+          localStorage.removeItem(key);
+          return;
+        }
         const raw = localStorage.getItem(key);
         const clean = sanitizeStoredString(key, raw);
         if (clean !== raw && clean != null) localStorage.setItem(key, clean);
@@ -73,19 +94,76 @@
     } catch (_error) {}
   }
 
+  function hideRetiredUi() {
+    try {
+      const nodes = Array.from(document.querySelectorAll("button,a,[role='button'],li,nav div,aside div,section,h1,h2,h3,h4,span,p"));
+      nodes.forEach(node => {
+        const label = text(node.textContent).replace(/\s+/g, " ").trim();
+        if (!label || !RETIRED_TEXT.test(label)) return;
+        const target = node.closest("button,a,li,[role='button'],section") || node;
+        target.style.setProperty("display", "none", "important");
+        target.setAttribute("aria-hidden", "true");
+      });
+    } catch (_error) {}
+  }
+
+  function dispatchSharedEvents(keys, changed) {
+    try { window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { keys, mirror: true, changed } })); } catch (_error) {}
+    try { window.dispatchEvent(new CustomEvent("yango:collaborator-mirror-hydrated", { detail: { keys, changed } })); } catch (_error) {}
+    keys.forEach(key => {
+      try { window.dispatchEvent(new StorageEvent("storage", { key, newValue: localStorage.getItem(key), storageArea: localStorage })); } catch (_error) {}
+    });
+  }
+
+  async function hydrateCollaboratorMirror() {
+    if (!isCollaboratorPanel() || !window.fetch || window.location.protocol === "file:") return;
+    if (window.__yangoCollaboratorMirrorRunning) return;
+    window.__yangoCollaboratorMirrorRunning = true;
+    window.__yangoCollaboratorMirrorPending = true;
+    try {
+      cleanRetiredStorage();
+      const response = await window.fetch(`/api/state?mirror=1&t=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const values = payload && payload.values && typeof payload.values === "object" ? payload.values : {};
+      const keys = Object.keys(values).filter(key => !RETIRED_KEY.test(key));
+      let changed = false;
+      keys.forEach(key => {
+        const value = normalizeCollections(values[key], key);
+        const next = stringify(value);
+        if (localStorage.getItem(key) !== next) {
+          localStorage.setItem(key, next);
+          changed = true;
+        }
+      });
+      cleanRetiredStorage();
+      dispatchSharedEvents(keys, changed);
+      if (changed && !sessionStorage.getItem("yango_collaborator_mirror_reloaded")) {
+        sessionStorage.setItem("yango_collaborator_mirror_reloaded", "1");
+        setTimeout(() => window.location.reload(), 80);
+      }
+    } catch (_error) {
+      // If the network is momentarily down, the normal sync script will retry after boot.
+    } finally {
+      window.__yangoCollaboratorMirrorPending = false;
+      window.__yangoCollaboratorMirrorRunning = false;
+    }
+  }
+
   try {
     const originalGetItem = Storage && Storage.prototype && Storage.prototype.getItem;
     const originalSetItem = Storage && Storage.prototype && Storage.prototype.setItem;
-    if (originalGetItem && !Storage.prototype.__yangoSafeGetItemV7) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeGetItemV7", { value: true, configurable: true });
+    if (originalGetItem && !Storage.prototype.__yangoSafeGetItemV8) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeGetItemV8", { value: true, configurable: true });
       Storage.prototype.getItem = function safeGetItem(key) {
         const raw = originalGetItem.call(this, key);
         return sanitizeStoredString(key, raw);
       };
     }
-    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV7) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV7", { value: true, configurable: true });
+    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV8) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV8", { value: true, configurable: true });
       Storage.prototype.setItem = function safeSetItem(key, value) {
+        if (RETIRED_KEY.test(text(key))) return originalSetItem.call(this, key, "[]");
         return originalSetItem.call(this, key, sanitizeStoredString(key, value));
       };
     }
@@ -93,8 +171,8 @@
 
   try {
     const originalParse = JSON.parse;
-    if (originalParse && !JSON.__yangoSafeParseV7) {
-      Object.defineProperty(JSON, "__yangoSafeParseV7", { value: true, configurable: true });
+    if (originalParse && !JSON.__yangoSafeParseV8) {
+      Object.defineProperty(JSON, "__yangoSafeParseV8", { value: true, configurable: true });
       JSON.parse = function safeJsonParse(value, reviver) {
         return normalizeCollections(originalParse.call(JSON, value, reviver));
       };
@@ -110,8 +188,8 @@
 
   try {
     const originalSort = Array.prototype.sort;
-    if (originalSort && !Array.prototype.__yangoSafeSortV7) {
-      Object.defineProperty(Array.prototype, "__yangoSafeSortV7", { value: true, configurable: true });
+    if (originalSort && !Array.prototype.__yangoSafeSortV8) {
+      Object.defineProperty(Array.prototype, "__yangoSafeSortV8", { value: true, configurable: true });
       Array.prototype.sort = function safeSort(compareFn) {
         try { return originalSort.call(this, compareFn); }
         catch (error) {
@@ -129,8 +207,8 @@
 
   try {
     const originalFetch = window.fetch && window.fetch.bind(window);
-    if (originalFetch && !window.__yangoSafeFetchV7) {
-      window.__yangoSafeFetchV7 = true;
+    if (originalFetch && !window.__yangoSafeFetchV8) {
+      window.__yangoSafeFetchV8 = true;
       window.fetch = async (...args) => {
         const response = await originalFetch(...args);
         try {
@@ -140,7 +218,8 @@
           if (payload && typeof payload === "object") {
             if (payload.values && typeof payload.values === "object") {
               Object.keys(payload.values).forEach(key => {
-                payload.values[key] = normalizeCollections(payload.values[key], key);
+                if (RETIRED_KEY.test(key)) delete payload.values[key];
+                else payload.values[key] = normalizeCollections(payload.values[key], key);
               });
             }
             if (Object.prototype.hasOwnProperty.call(payload, "value")) payload.value = normalizeCollections(payload.value, "value");
@@ -154,6 +233,7 @@
 
   function recoverFromErrorScreen() {
     try {
+      hideRetiredUi();
       const body = document.body && document.body.innerText ? document.body.innerText : "";
       if (!/Algo salió mal/i.test(body)) return;
       if (!/qr\.reduce|reading 'reduce'|localeCompare|date|undefined|null/i.test(body)) return;
@@ -161,11 +241,17 @@
       if (attempts >= 2) return;
       sessionStorage.setItem("yango_preboot_recovery_attempts", String(attempts + 1));
       sanitizeLocalStorage();
+      if (isCollaboratorPanel()) hydrateCollaboratorMirror();
       setTimeout(() => window.location.reload(), 350);
     } catch (_error) {}
   }
 
+  cleanRetiredStorage();
   sanitizeLocalStorage();
+  if (isCollaboratorPanel()) {
+    window.__yangoCollaboratorPanel = true;
+    hydrateCollaboratorMirror();
+  }
   window.addEventListener("error", event => {
     if (/qr\.reduce|reading 'reduce'|localeCompare|date|undefined|null/i.test(text(event && event.message))) sanitizeLocalStorage();
   }, true);
@@ -175,5 +261,7 @@
   }, true);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", recoverFromErrorScreen);
   else recoverFromErrorScreen();
-  try { new MutationObserver(recoverFromErrorScreen).observe(document.documentElement, { childList: true, subtree: true }); } catch (_error) {}
+  try { new MutationObserver(() => { hideRetiredUi(); recoverFromErrorScreen(); }).observe(document.documentElement, { childList: true, subtree: true }); } catch (_error) {}
+  setTimeout(hideRetiredUi, 300);
+  setTimeout(hideRetiredUi, 1500);
 })();
