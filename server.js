@@ -6,7 +6,7 @@ const { Pool } = require("pg");
 const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
-const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260811a";
+const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260812b";
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
@@ -229,28 +229,55 @@ function sanitizeStateValue(key, value) {
   return looksLikeDashboardState(key, value) ? sanitizeDated(value, true) : value;
 }
 
-function isCollaboratorPanel(req) {
+function sameStateValue(a, b) {
+  return safeStringify(a) === safeStringify(b);
+}
+
+function persistCleanState(key, value) {
+  if (!pool) return;
+  if (/samsung|raffle|rifa/i.test(String(key || ""))) {
+    pool.query("delete from app_state where key = $1", [key]).catch(error => console.warn("No pude retirar estado viejo:", key, error.message));
+    return;
+  }
+  pool.query("insert into app_state (key, value, updated_at) values ($1, $2::jsonb, now()) on conflict (key) do update set value = excluded.value, updated_at = now()", [key, JSON.stringify(value)]).catch(error => console.warn("No pude persistir limpieza:", key, error.message));
+}
+
+function requestToken(req) {
   const query = req.query || {};
-  const token = [
+  return [
     req.path || "",
     req.originalUrl || "",
     ...Object.keys(query),
     ...Object.values(query).map(value => Array.isArray(value) ? value.join(" ") : String(value || ""))
   ].join(" ").toLowerCase();
-  return /(^|[^a-z])(luis|giselle|gise|agency|agencia)([^a-z]|$)/.test(token) || /(^|[^a-z])(panel|usuario|user|role|rol)([^a-z]|$)/.test(token);
+}
+
+function isLuisPanel(req) {
+  return /(^|[^a-z])luis([^a-z]|$)/.test(requestToken(req));
+}
+
+function isCollaboratorPanel(req) {
+  const token = requestToken(req);
+  return /(^|[^a-z])(giselle|gise|agency|agencia)([^a-z]|$)/.test(token) || /(^|[^a-z])(panel|usuario|user|role|rol)([^a-z]|$)/.test(token);
+}
+
+function sendDisabledUser(res) {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.type("html").send(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Usuario desactivado</title><style>body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f7f9fc;color:#101828;display:grid;min-height:100vh;place-items:center}.card{max-width:520px;background:white;border:1px solid #dde6f2;border-radius:24px;padding:32px;box-shadow:0 20px 60px rgba(16,24,40,.08)}.mark{font-size:44px;color:#e60012;font-weight:900}h1{margin:8px 0 10px;font-size:28px}p{color:#667085;line-height:1.5}.btn{display:inline-block;margin-top:12px;background:#e60012;color:#fff;text-decoration:none;border-radius:14px;padding:12px 18px;font-weight:800}</style></head><body><main class="card"><div class="mark">Y</div><h1>Usuario desactivado</h1><p>El acceso de Luis fue retirado. Usa el Admin principal o el usuario de Giselle para seguir trabajando con la data central.</p><a class="btn" href="/">Ir al Admin</a></main></body></html>`);
 }
 
 function sendDashboard(req, res) {
+  if (isLuisPanel(req)) return sendDisabledUser(res);
   fs.readFile(path.join(__dirname, "index.html"), "utf8", (error, html) => {
     if (error) return res.status(500).send("No pude cargar el dashboard.");
-    const helperNames = ["preboot-state-guard", "summary-loop-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "mystery-shopper-sheet-sync", "cloud-save-status", "yango-summary-dashboard", "yango-summary-standalone-fix"];
+    const helperNames = ["preboot-state-guard", "summary-loop-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "authoritative-influencer-sync", "mystery-shopper-sheet-sync", "cloud-save-status", "yango-summary-dashboard", "yango-summary-standalone-fix"];
     const helperPattern = new RegExp(`<script\\s+[^>]*src=["']\\/(?:${helperNames.join("|")})\\.js(?:\\?[^"']*)?["'][^>]*><\\/script>`, "gi");
     const base = html.replace(helperPattern, "");
     const preboot = `<script src="/preboot-state-guard.js?v=${HELPER_VERSION}"></script>`;
     const withPreboot = base.includes("</head>") ? base.replace("</head>", `${preboot}</head>`) : `${preboot}${base}`;
     const isTeamPanel = isCollaboratorPanel(req);
-    const adminHelpers = ["summary-loop-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "mystery-shopper-sheet-sync", "cloud-save-status", "yango-summary-dashboard", "yango-summary-standalone-fix"];
-    const collaboratorHelpers = ["activation-status-sync", "cloud-save-status"];
+    const adminHelpers = ["summary-loop-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "authoritative-influencer-sync", "mystery-shopper-sheet-sync", "cloud-save-status", "yango-summary-dashboard", "yango-summary-standalone-fix"];
+    const collaboratorHelpers = ["activation-status-sync", "authoritative-influencer-sync", "cloud-save-status"];
     const helpers = (isTeamPanel ? collaboratorHelpers : adminHelpers).map(name => `<script src="/${name}.js?v=${HELPER_VERSION}" defer></script>`).join("");
     const output = withPreboot.replace("</body>", `${helpers}</body>`);
     res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -294,10 +321,16 @@ app.get("/api/state", async (req, res) => {
     if (!(await ensureDatabase())) return res.status(503).json({ ok: false, error: "DATABASE_URL is not configured" });
     const keys = String(req.query.keys || "").split(",").map(k => k.trim()).filter(Boolean);
     const result = keys.length ? await pool.query("select key, value, updated_at from app_state where key = any($1)", [keys]) : await pool.query("select key, value, updated_at from app_state");
-    const values = {}, updatedAt = {};
-    result.rows.forEach(row => { values[row.key] = sanitizeStateValue(row.key, row.value); updatedAt[row.key] = row.updated_at; });
+    const values = {}, updatedAt = {}, cleanup = [];
+    result.rows.forEach(row => {
+      const clean = sanitizeStateValue(row.key, row.value);
+      values[row.key] = clean;
+      updatedAt[row.key] = row.updated_at;
+      if (/samsung|raffle|rifa/i.test(row.key) || !sameStateValue(clean, row.value)) cleanup.push({ key: row.key, value: clean });
+    });
     res.set("Cache-Control", "no-store");
     res.json({ ok: true, values, updatedAt, helperVersion: HELPER_VERSION });
+    cleanup.forEach(item => persistCleanState(item.key, item.value));
   } catch (error) { res.status(500).json({ ok: false, error: describeError(error) }); }
 });
 
@@ -305,7 +338,10 @@ async function saveStateValue(req, res) {
   try {
     if (!(await ensureDatabase())) return res.status(503).json({ ok: false, error: "DATABASE_URL is not configured" });
     const key = req.params.key;
-    if (/samsung|raffle|rifa/i.test(String(key || ""))) return res.json({ ok: true, key, retired: true });
+    if (/samsung|raffle|rifa/i.test(String(key || ""))) {
+      persistCleanState(key, []);
+      return res.json({ ok: true, key, retired: true });
+    }
     const incoming = req.body && Object.prototype.hasOwnProperty.call(req.body, "value") ? req.body.value : req.body;
     const value = sanitizeStateValue(key, incoming);
     const result = await pool.query("insert into app_state (key, value, updated_at) values ($1, $2::jsonb, now()) on conflict (key) do update set value = excluded.value, updated_at = now() returning key, updated_at", [key, JSON.stringify(value)]);
