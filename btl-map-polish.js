@@ -1,10 +1,138 @@
 (() => {
+  if (typeof window === "undefined" || window.__yangoActivationUnnamedCleanerV1) return;
+  window.__yangoActivationUnnamedCleanerV1 = true;
+
+  const normalize = value => String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  const parse = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
+  const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
+  const isObject = value => value && typeof value === "object" && !Array.isArray(value);
+  const activationKey = key => /yango_activations|\bacts\b|activation|activacion|activaciones|calendar|calendario/i.test(String(key || ""));
+  const retiredKey = key => /samsung|raffle|rifa/i.test(String(key || ""));
+  const looksActivation = (item, sourceKey = "") => {
+    if (!isObject(item)) return false;
+    const sample = normalize(`${sourceKey} ${item.name || ""} ${item.nombre || ""} ${item.title || ""} ${item.titulo || ""} ${item.location || ""} ${item.ubicacion || ""} ${item.zone || ""} ${item.zona || ""} ${item.type || ""} ${item.tipo || ""} ${item.calendarDate || ""} ${item.fecha || ""}`);
+    if (/influencer|instagram|tiktok|branding|stickers|cascos|chalecos|longsleeves|media|ooh|mystery|shopper|agency|agencia/.test(sample)) return false;
+    return /activ|calendar|calendario|flyer|cafe|helado|universidad|evento|petare|sabana|centro|este|oeste|norte|sur|satelite/.test(sample);
+  };
+  const badActivationName = item => {
+    const name = normalize(item && (item.name || item.nombre || item.title || item.titulo));
+    return !name || name === "sin nombre" || name === "undefined" || name === "null" || name === "nan";
+  };
+  const cleanValue = (value, sourceKey = "") => {
+    if (Array.isArray(value)) {
+      let changed = false;
+      const next = [];
+      value.forEach(item => {
+        if (isObject(item) && looksActivation(item, sourceKey) && badActivationName(item)) {
+          changed = true;
+          return;
+        }
+        const cleaned = cleanValue(item, sourceKey);
+        if (cleaned !== item) changed = true;
+        if (cleaned != null) next.push(cleaned);
+      });
+      return changed ? next : value;
+    }
+    if (!isObject(value)) return value;
+    if (looksActivation(value, sourceKey) && badActivationName(value)) return null;
+    let changed = false;
+    const next = { ...value };
+    Object.keys(next).forEach(key => {
+      const cleaned = cleanValue(next[key], `${sourceKey} ${key}`);
+      if (cleaned !== next[key]) changed = true;
+      if (cleaned == null) delete next[key];
+      else next[key] = cleaned;
+    });
+    return changed ? next : value;
+  };
+  const saveRemote = async (key, value) => {
+    try {
+      await fetch(`/api/state/${encodeURIComponent(key)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value })
+      });
+    } catch (_error) {}
+  };
+  const cleanLocal = () => {
+    let changed = false;
+    try {
+      for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+        const key = localStorage.key(index) || "";
+        if (retiredKey(key)) { localStorage.removeItem(key); changed = true; continue; }
+        if (!activationKey(key)) continue;
+        const value = parse(localStorage.getItem(key));
+        if (value == null) continue;
+        const cleaned = cleanValue(value, key);
+        if (stringify(cleaned) !== stringify(value)) {
+          localStorage.setItem(key, stringify(cleaned));
+          changed = true;
+        }
+      }
+    } catch (_error) {}
+    return changed;
+  };
+  const cleanRemote = async () => {
+    let changed = false;
+    try {
+      const response = await fetch(`/api/state?t=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) return false;
+      const payload = await response.json();
+      const values = payload.values || {};
+      for (const [key, value] of Object.entries(values)) {
+        if (retiredKey(key)) continue;
+        if (!activationKey(key)) continue;
+        const cleaned = cleanValue(value, key);
+        if (stringify(cleaned) !== stringify(value)) {
+          await saveRemote(key, cleaned);
+          try { localStorage.setItem(key, stringify(cleaned)); } catch (_error) {}
+          changed = true;
+        }
+      }
+    } catch (_error) {}
+    return changed;
+  };
+  const hideVisibleGarbage = () => {
+    try {
+      document.querySelectorAll("body *").forEach(node => {
+        if (node.children.length > 6) return;
+        const text = normalize(node.textContent || "");
+        if (text.includes("sin nombre") && /fecha calendario|planificada|flyers|activacion/.test(text)) node.style.display = "none";
+      });
+    } catch (_error) {}
+  };
+  const run = async () => {
+    const localChanged = cleanLocal();
+    const remoteChanged = await cleanRemote();
+    hideVisibleGarbage();
+    if (localChanged || remoteChanged) {
+      window.dispatchEvent(new CustomEvent("yango:activations-cleaned"));
+      window.dispatchEvent(new Event("storage"));
+    }
+  };
+  [80, 900, 2500].forEach(delay => setTimeout(run, delay));
+  window.addEventListener("focus", run);
+  window.addEventListener("yango:shared-state-hydrated", run);
+})();
+
+(() => {
   if (typeof window === "undefined") return;
-  const FLAG = "__yangoBtlMapFallbackPinsV3";
+  const FLAG = "__yangoBtlMapFallbackPinsV4";
   if (window[FLAG]) return;
   window[FLAG] = true;
 
   const BOUNDS = { north: 10.595, south: 10.355, west: -67.115, east: -66.690 };
+  const TILE_ZOOM = 12;
+  const TILE_URLS = [
+    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+    "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+    "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+  ];
   const LOCATION_COORDS = {
     petare:[10.4768,-66.8067], paloverde:[10.4805,-66.7938], ladolorita:[10.474,-66.785],
     centro:[10.5061,-66.9146], centrodecaracas:[10.5061,-66.9146], lahoyada:[10.5027,-66.9155], bellasartes:[10.4998,-66.9038], parquecentral:[10.4987,-66.9032], plazavenezuela:[10.4915,-66.889], lossimbolos:[10.4758,-66.8902], estacion5dejulio:[10.5008,-66.9189],
@@ -23,6 +151,10 @@
   const nice = value => String(value || '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\s+/g, ' ').trim();
   const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
   const parse = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
+  const badName = item => {
+    const name = normalize(item && (item.name || item.nombre || item.title || item.titulo));
+    return !name || name === 'sinnombre' || name === 'undefined' || name === 'null' || name === 'nan';
+  };
 
   const injectCss = () => {
     if (document.getElementById('yango-btl-map-fallback-css')) return;
@@ -30,7 +162,9 @@
     style.id = 'yango-btl-map-fallback-css';
     style.textContent = `
       .leaflet-container{min-height:560px!important;height:min(70vh,720px)!important;width:100%!important;border-radius:16px!important;background:#eef2f5!important;position:relative!important;overflow:hidden!important;}
-      .leaflet-tile-pane{filter:saturate(.78) contrast(.98) brightness(1.03)}
+      .leaflet-tile-pane,.leaflet-tile-container,.leaflet-tile,.leaflet-layer{opacity:1!important;visibility:visible!important;filter:none!important;mix-blend-mode:normal!important;}
+      .yango-btl-static-tiles{position:absolute;inset:0;z-index:2;pointer-events:none;background:#eef2f5;overflow:hidden;}
+      .yango-btl-static-tiles img{position:absolute;display:block;max-width:none!important;opacity:1!important;visibility:visible!important;filter:saturate(.82) contrast(.98) brightness(1.04);}
       .yango-btl-pins-layer{position:absolute;inset:0;z-index:660;pointer-events:none;}
       .yango-btl-pin{position:absolute;width:20px;height:20px;border:3px solid #fff;border-radius:999px;box-shadow:0 8px 22px rgba(15,23,42,.36);transform:translate(-50%,-50%);pointer-events:auto;cursor:pointer;}
       .yango-btl-pin:hover{transform:translate(-50%,-50%) scale(1.18);z-index:3;}
@@ -57,7 +191,7 @@
   };
 
   const looksLikeActivation = (item, sourceKey = '') => {
-    if (!isObject(item)) return false;
+    if (!isObject(item) || badName(item)) return false;
     const text = normalize(`${sourceKey} ${itemText(item)} ${itemType(item)} ${itemDate(item)}`);
     if (!coordsFor(item)) return false;
     if (/influencer|samsung|rifa|branding|stickers|cascos|chalecos|longsleeves|mediaooh/.test(text)) return false;
@@ -113,10 +247,59 @@
     });
   };
 
+  const mercatorPoint = (lat, lng, zoom = TILE_ZOOM) => {
+    const sin = Math.sin((lat * Math.PI) / 180);
+    const scale = 256 * Math.pow(2, zoom);
+    return {
+      x: ((lng + 180) / 360) * scale,
+      y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale
+    };
+  };
+  const nw = () => mercatorPoint(BOUNDS.north, BOUNDS.west);
+  const se = () => mercatorPoint(BOUNDS.south, BOUNDS.east);
   const project = ([lat,lng]) => {
-    const x = ((lng - BOUNDS.west) / (BOUNDS.east - BOUNDS.west)) * 100;
-    const y = ((BOUNDS.north - lat) / (BOUNDS.north - BOUNDS.south)) * 100;
-    return [Math.max(3, Math.min(97, x)), Math.max(4, Math.min(96, y))];
+    const a = nw();
+    const b = se();
+    const p = mercatorPoint(lat, lng);
+    const x = ((p.x - a.x) / (b.x - a.x)) * 100;
+    const y = ((p.y - a.y) / (b.y - a.y)) * 100;
+    return [Math.max(2, Math.min(98, x)), Math.max(3, Math.min(97, y))];
+  };
+
+  const tileUrl = (z, x, y) => TILE_URLS[Math.abs(x + y) % TILE_URLS.length].replace('{z}', z).replace('{x}', x).replace('{y}', y);
+  const renderStaticTiles = container => {
+    let tiles = container.querySelector('.yango-btl-static-tiles');
+    if (!tiles) {
+      tiles = document.createElement('div');
+      tiles.className = 'yango-btl-static-tiles';
+      container.insertBefore(tiles, container.firstChild);
+    }
+    if (tiles.dataset.ready === '1') return;
+    tiles.innerHTML = '';
+    const a = nw();
+    const b = se();
+    const width = b.x - a.x;
+    const height = b.y - a.y;
+    const minX = Math.floor(a.x / 256) - 1;
+    const maxX = Math.floor(b.x / 256) + 1;
+    const minY = Math.floor(a.y / 256) - 1;
+    const maxY = Math.floor(b.y / 256) + 1;
+    for (let x = minX; x <= maxX; x += 1) {
+      for (let y = minY; y <= maxY; y += 1) {
+        const img = document.createElement('img');
+        img.alt = '';
+        img.decoding = 'async';
+        img.loading = 'eager';
+        img.referrerPolicy = 'no-referrer';
+        img.src = tileUrl(TILE_ZOOM, x, y);
+        img.style.left = `${((x * 256 - a.x) / width) * 100}%`;
+        img.style.top = `${((y * 256 - a.y) / height) * 100}%`;
+        img.style.width = `${(256 / width) * 100}%`;
+        img.style.height = `${(256 / height) * 100}%`;
+        tiles.appendChild(img);
+      }
+    }
+    tiles.dataset.ready = '1';
   };
 
   const findMapContainer = () => Array.from(document.querySelectorAll('.leaflet-container')).sort((a,b)=>(b.clientWidth*b.clientHeight)-(a.clientWidth*a.clientHeight))[0] || null;
@@ -126,6 +309,7 @@
     const container = findMapContainer();
     if (!container) return;
     container.style.position = 'relative';
+    renderStaticTiles(container);
     let layer = container.querySelector('.yango-btl-pins-layer');
     if (!layer) {
       layer = document.createElement('div');
@@ -170,7 +354,7 @@
       reload.type = 'button';
       reload.className = 'yango-btl-map-reload';
       reload.textContent = 'Actualizar mapa';
-      reload.onclick = event => { event.preventDefault(); render(); };
+      reload.onclick = event => { event.preventDefault(); const t = container.querySelector('.yango-btl-static-tiles'); if (t) t.dataset.ready = '0'; render(); };
       container.appendChild(reload);
     }
   };
@@ -180,6 +364,7 @@
   window.addEventListener('focus', schedule);
   window.addEventListener('resize', schedule);
   window.addEventListener('storage', schedule);
+  window.addEventListener('yango:activations-cleaned', schedule);
   document.addEventListener('click', event => {
     const text = String(event.target?.textContent || '').toLowerCase();
     if (/mapa|activaciones|calendario|cargar|resultados|actualizar/.test(text)) schedule();
