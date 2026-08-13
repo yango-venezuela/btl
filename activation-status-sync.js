@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoSharedStateSyncV13) return;
-  window.__yangoSharedStateSyncV13 = true;
+  if (typeof window === "undefined" || window.__yangoSharedStateSyncV14) return;
+  window.__yangoSharedStateSyncV14 = true;
 
   const pending = new Map();
   const lastSeen = new Map();
@@ -55,39 +55,14 @@
 
   const isUnnamed = item => {
     const name = normalize(item && (item.name || item.nombre || item.title || item.titulo));
-    return !name || name === "sin nombre" || compact(name) === "sinnombre" || ["undefined", "null", "nan"].includes(name);
-  };
-
-  const isJanuaryDate = value => {
-    const iso = normalizeDate(value);
-    const raw = normalize(value);
-    if (/^2026-01-\d{2}/.test(iso)) return true;
-    if (/^2026\/01\/\d{1,2}/.test(raw)) return true;
-    if (/(^|\D)1\s*ene\.?($|\D)/.test(raw)) return true;
-    if (/(^|\D)1\s*enero($|\D)/.test(raw)) return true;
-    return false;
-  };
-
-  const activationIsUnnamedJanuary = item => {
-    if (!isObject(item) || !isUnnamed(item)) return false;
-    const dateCandidates = [
-      item.date,
-      item.fecha,
-      item.calendarDate,
-      item.activationDate,
-      item.createdAt,
-      item.updatedAt,
-      item.fechaCalendario,
-      item.calendar_date
-    ];
-    return dateCandidates.some(isJanuaryDate) || /fecha calendario:\s*1\s*ene/i.test(stringify(item));
+    return !name || name === "sin nombre" || compact(name) === "sinnombre" || ["undefined", "null", "nan", "-"].includes(name);
   };
 
   const sanitizeActivations = value => {
     if (!Array.isArray(value)) return value;
     const seen = new Set();
     return value
-      .filter(item => !activationIsUnnamedJanuary(item))
+      .filter(item => !(isObject(item) && isUnnamed(item)))
       .filter(item => {
         if (!isObject(item)) return true;
         const id = [
@@ -298,7 +273,7 @@
           localEntries().filter(entry => entry.type === type && entry.key !== target).forEach(entry => writeLocal(entry.key, remoteValue || []));
         }
       });
-      rescue.forEach(entry => queueDirect(entry.key, entry.target, entry.type, entry.value, "remove-unnamed-january-activations"));
+      rescue.forEach(entry => queueDirect(entry.key, entry.target, entry.type, entry.value, "remove-unnamed-activations"));
       window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { protected: true } }));
     } catch (error) {
       console.warn("No pude hidratar datos compartidos:", error);
@@ -377,12 +352,12 @@
 })();
 
 (() => {
-  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV8) return;
-  window.__yangoBtlMapPolishLoaderInstalledV8 = true;
+  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV9) return;
+  window.__yangoBtlMapPolishLoaderInstalledV9 = true;
   const load = () => {
     if (document.querySelector('script[src^="/btl-map-polish.js"]')) return;
     const script = document.createElement("script");
-    script.src = `/btl-map-polish.js?v=20260813e-${Date.now()}`;
+    script.src = `/btl-map-polish.js?v=20260813f-${Date.now()}`;
     script.defer = true;
     document.head.appendChild(script);
   };
