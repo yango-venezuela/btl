@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV11) return;
-  window.__yangoPrebootStateGuardV11 = true;
+  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV12) return;
+  window.__yangoPrebootStateGuardV12 = true;
 
   const RETIRED_KEY = /samsung|raffle|rifa/i;
   const RETIRED_TEXT = /rifa samsung|samsung raffle|raffle samsung|\brifa\b|samsung/i;
@@ -19,6 +19,20 @@
     { key: "yango_mystery_shopper_h1", hint: /mystery|shopper/i },
     { key: "yango_budgets_h1", hint: /budget|presupuesto/i },
     { key: "yango_users_h1", hint: /users|usuarios|access|acceso/i }
+  ];
+
+  // Lists the React app commonly reads with .map/.filter/.reduce. If any of
+  // these arrive from a stale browser cache or Postgres as an object/string, we
+  // normalize them before React boots instead of letting the whole panel crash.
+  const ARRAY_STATE_DEFS = [
+    { key: "yango_influencers_h1", hint: /influ/i },
+    { key: "yango_agency_submissions_h1", hint: /agency|agencia|submission|proof|evidencia|foto|photo/i },
+    { key: "yango_media_ooh_h1", hint: /media|ooh|valla|parada|banderola/i },
+    { key: "yango_mystery_shopper_h1", hint: /mystery|shopper/i },
+    { key: "yango_users_h1", hint: /users|usuarios|access|acceso/i },
+    { key: "yango_btl_activations_h1", hint: /activ|activation|activacion|activaciones|calendar|calendario|\bacts\b/i },
+    { key: "yango_btl_calendar_h1", hint: /calendar|calendario/i },
+    { key: "yango_btl_results_h1", hint: /results|resultados|adjust|qr|promo/i }
   ];
 
   const text = value => String(value == null ? "" : value);
@@ -51,6 +65,25 @@
   function protectedDefForKey(key) {
     const raw = text(key);
     return PROTECTED_STATE_DEFS.find(def => def.key === raw || def.hint.test(raw));
+  }
+
+  function arrayDefForKey(key) {
+    const raw = text(key);
+    if (!raw || RETIRED_KEY.test(raw)) return null;
+    return ARRAY_STATE_DEFS.find(def => def.key === raw || def.hint.test(raw));
+  }
+
+  function normalizeArrayLike(value) {
+    const parsed = parseRaw(value);
+    if (Array.isArray(parsed)) return parsed;
+    if (!parsed || typeof parsed !== "object") return [];
+    const likelyKeys = ["items", "rows", "data", "values", "activations", "activationes", "calendar", "calendario", "reports", "submissions", "records", "list", "entries"];
+    for (const key of likelyKeys) {
+      if (Array.isArray(parsed[key])) return parsed[key];
+    }
+    const vals = Object.values(parsed);
+    if (vals.length && vals.every(item => item && typeof item === "object" && !Array.isArray(item))) return vals;
+    return [];
   }
 
   function readLocal(key) {
@@ -125,7 +158,14 @@
         queueCloudRepair(def.key, localValue, originalFetch);
       });
       Object.keys(payload.values).forEach(key => {
-        if (RETIRED_KEY.test(key)) delete payload.values[key];
+        if (RETIRED_KEY.test(key)) {
+          delete payload.values[key];
+          return;
+        }
+        if (!arrayDefForKey(key)) return;
+        const normalized = normalizeArrayLike(payload.values[key]);
+        payload.values[key] = normalized;
+        try { localStorage.setItem(key, safeStringify(normalized)); } catch (_error) {}
       });
     }
 
@@ -140,6 +180,7 @@
           queueCloudRepair(def.key, localValue, originalFetch);
         }
       }
+      if (arrayDefForKey(requestedKey)) payload.value = normalizeArrayLike(payload.value);
     }
 
     return payload;
@@ -151,6 +192,13 @@
       if (meaningful(direct)) return;
       const localValue = bestLocalFor(def);
       if (meaningful(localValue)) writeLocal(def.key, localValue);
+    });
+    storageKeys().forEach(key => {
+      if (!arrayDefForKey(key)) return;
+      const current = parseRaw(localStorage.getItem(key));
+      if (Array.isArray(current)) return;
+      const normalized = normalizeArrayLike(current);
+      try { localStorage.setItem(key, safeStringify(normalized)); } catch (_error) {}
     });
   }
 
@@ -203,26 +251,42 @@
   }
 
   try {
+    const originalGetItem = Storage && Storage.prototype && Storage.prototype.getItem;
     const originalSetItem = Storage && Storage.prototype && Storage.prototype.setItem;
     const originalRemoveItem = Storage && Storage.prototype && Storage.prototype.removeItem;
-    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV11) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV11", { value: true, configurable: true });
+    if (originalGetItem && !Storage.prototype.__yangoSafeGetItemV12) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeGetItemV12", { value: true, configurable: true });
+      Storage.prototype.getItem = function safeGetItem(key) {
+        const raw = originalGetItem.call(this, key);
+        if (!arrayDefForKey(key)) return raw;
+        const parsed = parseRaw(raw);
+        if (Array.isArray(parsed)) return raw;
+        const normalized = normalizeArrayLike(parsed);
+        const next = safeStringify(normalized);
+        try { originalSetItem && originalSetItem.call(this, key, next); } catch (_error) {}
+        return next;
+      };
+    }
+    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV12) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV12", { value: true, configurable: true });
       Storage.prototype.setItem = function safeSetItem(key, value) {
         if (RETIRED_KEY.test(text(key))) return originalSetItem.call(this, key, "[]");
+        if (arrayDefForKey(key)) return originalSetItem.call(this, key, safeStringify(normalizeArrayLike(value)));
         const def = protectedDefForKey(key);
         if (def) {
           const incoming = parseRaw(value);
-          const existing = parseRaw(this.getItem(key));
+          const existing = parseRaw(originalGetItem ? originalGetItem.call(this, key) : this.getItem(key));
           if (!meaningful(incoming) && meaningful(existing)) return;
         }
         return originalSetItem.call(this, key, value);
       };
     }
-    if (originalRemoveItem && !Storage.prototype.__yangoSafeRemoveItemV11) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeRemoveItemV11", { value: true, configurable: true });
+    if (originalRemoveItem && !Storage.prototype.__yangoSafeRemoveItemV12) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeRemoveItemV12", { value: true, configurable: true });
       Storage.prototype.removeItem = function safeRemoveItem(key) {
         const def = protectedDefForKey(key);
-        if (def && meaningful(parseRaw(this.getItem(key)))) return;
+        const existing = parseRaw(originalGetItem ? originalGetItem.call(this, key) : this.getItem(key));
+        if (def && meaningful(existing)) return;
         return originalRemoveItem.call(this, key);
       };
     }
@@ -230,8 +294,8 @@
 
   try {
     const originalFetch = window.fetch && window.fetch.bind(window);
-    if (originalFetch && !window.__yangoSafeFetchV11) {
-      window.__yangoSafeFetchV11 = true;
+    if (originalFetch && !window.__yangoSafeFetchV12) {
+      window.__yangoSafeFetchV12 = true;
       window.fetch = async (...args) => {
         const response = await originalFetch(...args);
         try {
@@ -254,10 +318,10 @@
       hideRetiredUi();
       const body = document.body && document.body.innerText ? document.body.innerText : "";
       if (!/Algo salió mal/i.test(body)) return;
-      if (!/qr\.reduce|reading 'reduce'|reading 'bg'|\bbg\b|localeCompare|date|undefined|null/i.test(body)) return;
-      const attempts = Number(sessionStorage.getItem("yango_preboot_recovery_attempts_v11") || "0");
+      if (!/load\([^)]*\)\.map|\.map is not a function|qr\.reduce|reading 'reduce'|reading 'bg'|\bbg\b|localeCompare|date|undefined|null/i.test(body)) return;
+      const attempts = Number(sessionStorage.getItem("yango_preboot_recovery_attempts_v12") || "0");
       if (attempts >= 2) return;
-      sessionStorage.setItem("yango_preboot_recovery_attempts_v11", String(attempts + 1));
+      sessionStorage.setItem("yango_preboot_recovery_attempts_v12", String(attempts + 1));
       seedProtectedCanonicals();
       setTimeout(() => window.location.reload(), 350);
     } catch (_error) {}
