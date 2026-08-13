@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoSharedStateSyncV15) return;
-  window.__yangoSharedStateSyncV15 = true;
+  if (typeof window === "undefined" || window.__yangoSharedStateSyncV16) return;
+  window.__yangoSharedStateSyncV16 = true;
 
   const canonicalKeys = {
     agency: "yango_agency_submissions_h1",
@@ -34,7 +34,9 @@
   const parseJson = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
   const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
+  const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
   const blockedKey = key => /migration|backup|respaldo|token|password|pass|secret|hydrated|debug|devtools|theme|tooltip|toast|mapbox|leaflet|samsung|raffle|rifa/i.test(String(key || ""));
+  const staleCopyKey = key => /backup|respaldo|snapshot|migration|seed|rescue|old|tmp|debug|copy|bak/i.test(String(key || ""));
 
   function showStatus(ok, message) {
     try {
@@ -271,26 +273,50 @@
     return entries;
   }
 
+  function copyTypeLocally(type, value) {
+    const target = canonicalKeys[type];
+    if (!target) return;
+    writeLocal(target, value);
+    localEntries()
+      .filter(entry => entry.type === type && entry.key !== target && !staleCopyKey(entry.key))
+      .forEach(entry => writeLocal(entry.key, value));
+  }
+
   function queueDirect(key, target, type, value, reason) {
     if (!target || hydrating) return;
     const clean = sanitizeValue(type, value);
-    if (protectedTypes.has(type) && !hasData(clean)) return;
+    if (protectedTypes.has(type) && !replaceTypes.has(type) && !hasData(clean)) return;
     const raw = stringify(clean);
     if (lastSeen.get(String(key)) === raw && lastSeen.get(String(target)) === raw) return;
-    pending.set(`${key}->${target}`, { key, target, type, value: clean, reason });
+    pending.set(`${target}`, { key: target, target, type, value: clean, reason });
     clearTimeout(flushTimer);
     flushTimer = setTimeout(flush, 700);
     showStatus(true, "Guardando cambios en la nube...");
   }
 
-  function queue(key, rawValue, reason) {
+  function queue(key, rawValue, reason, oldRawValue) {
     if (hydrating || !sharedKey(key)) return;
     const parsed = typeof rawValue === "string" ? parseJson(rawValue) : rawValue;
     if (parsed == null) return;
     const type = typeOf(key, parsed);
     const target = canonicalKeys[type];
     if (!target) return;
-    queueDirect(key, target, type, parsed, reason);
+
+    const clean = sanitizeValue(type, parsed);
+    if (replaceTypes.has(type)) {
+      if (key !== target) {
+        if (staleCopyKey(key)) return;
+        const oldValue = sanitizeValue(type, typeof oldRawValue === "string" ? parseJson(oldRawValue) : oldRawValue);
+        const changed = stringify(oldValue) !== stringify(clean);
+        const userWrite = /Storage\.prototype\.setItem|click|change|input|submit|beforeunload/i.test(reason || "");
+        if (!changed || !userWrite) return;
+      }
+      copyTypeLocally(type, clean);
+      queueDirect(target, target, type, clean, reason);
+      return;
+    }
+
+    queueDirect(key, target, type, clean, reason);
   }
 
   async function hydrate() {
@@ -299,13 +325,19 @@
     try {
       const remote = await fetchRemote();
       Object.entries(canonicalKeys).forEach(([type, target]) => {
+        const remoteHasTarget = hasOwn(remote, target);
         const remoteValue = sanitizeValue(type, remote[target]);
-        if (hasData(remoteValue) || type === "acts") {
+        if (remoteHasTarget && (hasData(remoteValue) || type === "acts" || replaceTypes.has(type))) {
           writeLocal(target, remoteValue || []);
-          localEntries().filter(entry => entry.type === type && entry.key !== target).forEach(entry => writeLocal(entry.key, remoteValue || []));
+          localEntries()
+            .filter(entry => entry.type === type && entry.key !== target && !staleCopyKey(entry.key))
+            .forEach(entry => writeLocal(entry.key, remoteValue || []));
+        } else if (!remoteHasTarget) {
+          const localValue = sanitizeValue(type, readLocal(target));
+          if (hasData(localValue)) queueDirect(target, target, type, localValue, "seed-remote");
         }
       });
-      window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { source: "universal-sync" } }));
+      window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { source: "universal-sync-v16" } }));
       showStatus(true, "Guardado en la nube OK");
     } catch (error) {
       console.warn("No pude hidratar datos compartidos:", error);
@@ -328,13 +360,12 @@
         const incoming = sanitizeValue(entry.type, entry.value);
         let next = replaceTypes.has(entry.type) ? incoming : mergeObjects(current, incoming);
         next = sanitizeValue(entry.type, next);
-        if (protectedTypes.has(entry.type) && !hasData(next)) continue;
+        if (protectedTypes.has(entry.type) && !replaceTypes.has(entry.type) && !hasData(next)) continue;
         remote[entry.target] = next;
         await putRemote(entry.target, next);
-        writeLocal(entry.target, next);
-        writeLocal(entry.key, next);
+        copyTypeLocally(entry.type, next);
       }
-      window.dispatchEvent(new CustomEvent("yango:shared-state-synced", { detail: { source: "universal-sync" } }));
+      window.dispatchEvent(new CustomEvent("yango:shared-state-synced", { detail: { source: "universal-sync-v16" } }));
       showStatus(true, "Guardado en la nube OK");
     } catch (error) {
       console.warn("No pude sincronizar cambios del panel:", error);
@@ -349,16 +380,18 @@
   function scan(reason) {
     if (hydrating) return;
     localEntries().forEach(entry => {
+      if (replaceTypes.has(entry.type) && entry.key !== entry.target) return;
       const raw = stringify(entry.value);
       if (lastSeen.get(String(entry.key)) !== raw) queueDirect(entry.key, entry.target, entry.type, entry.value, reason);
     });
   }
 
-  if (proto && !proto.__yangoSharedStateStoragePatchV15) {
-    Object.defineProperty(proto, "__yangoSharedStateStoragePatchV15", { value: true, configurable: true });
+  if (proto && !proto.__yangoSharedStateStoragePatchV16) {
+    Object.defineProperty(proto, "__yangoSharedStateStoragePatchV16", { value: true, configurable: true });
     proto.setItem = function yangoSharedSetItem(key, value) {
+      const oldValue = this === localStorage ? localStorage.getItem(key) : null;
       const result = nativeSetItem.call(this, key, value);
-      if (this === localStorage) queue(key, value, "Storage.prototype.setItem");
+      if (this === localStorage) queue(key, value, "Storage.prototype.setItem", oldValue);
       return result;
     };
     proto.removeItem = function yangoSharedRemoveItem(key) {
@@ -366,7 +399,12 @@
       const result = nativeRemoveItem.call(this, key);
       if (this === localStorage) {
         const type = typeOf(key, oldValue);
-        if (!protectedTypes.has(type)) queue(key, "[]", "Storage.prototype.removeItem");
+        const target = canonicalKeys[type];
+        if (replaceTypes.has(type) && key === target) {
+          queueDirect(target, target, type, [], "Storage.prototype.removeItem");
+        } else if (!protectedTypes.has(type)) {
+          queue(key, "[]", "Storage.prototype.removeItem", oldValue);
+        }
       }
       return result;
     };
@@ -387,12 +425,12 @@
 })();
 
 (() => {
-  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV10) return;
-  window.__yangoBtlMapPolishLoaderInstalledV10 = true;
+  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV11) return;
+  window.__yangoBtlMapPolishLoaderInstalledV11 = true;
   const load = () => {
     if (document.querySelector('script[src^="/btl-map-polish.js"]')) return;
     const script = document.createElement("script");
-    script.src = `/btl-map-polish.js?v=20260813g-${Date.now()}`;
+    script.src = `/btl-map-polish.js?v=20260813h-${Date.now()}`;
     script.defer = true;
     document.head.appendChild(script);
   };
