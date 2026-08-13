@@ -177,19 +177,7 @@ function activationStateKey(key) {
 }
 function activationIsUnnamed(item) {
   const name = cleanText(item && (item.name || item.nombre || item.title || item.titulo));
-  return !name || name === "sin nombre" || compact(name) === "sinnombre" || ["undefined", "null", "nan"].includes(name);
-}
-function activationIsJanuary(item) {
-  const fields = [item && item.date, item && item.fecha, item && item.calendarDate, item && item.activationDate, item && item.createdAt, item && item.updatedAt, item && item.fechaCalendario, item && item.calendar_date];
-  const raw = safeStringify(item);
-  return fields.some(value => {
-    const iso = normalizeDate(value);
-    const text = cleanText(value);
-    return /^2026-01-\d{2}/.test(iso) || /^2026\/01\/\d{1,2}/.test(text) || /(^|\D)1\s*ene\.?($|\D)/.test(text) || /(^|\D)1\s*enero($|\D)/.test(text);
-  }) || /fecha calendario:\s*1\s*ene/i.test(raw);
-}
-function activationIsUnnamedJanuary(item) {
-  return item && typeof item === "object" && activationIsUnnamed(item) && activationIsJanuary(item);
+  return !name || name === "sin nombre" || compact(name) === "sinnombre" || ["undefined", "null", "nan", "-"].includes(name);
 }
 
 function activationStableKey(item) {
@@ -207,9 +195,9 @@ function sanitizeActivations(value) {
   const map = new Map();
   value.forEach(rawItem => {
     if (!rawItem || typeof rawItem !== "object") return;
-    if (activationIsUnnamedJanuary(rawItem)) return;
+    if (activationIsUnnamed(rawItem)) return;
     const item = sanitizeDated(rawItem, true);
-    if (activationIsUnnamedJanuary(item)) return;
+    if (activationIsUnnamed(item)) return;
     const key = activationStableKey(item) || safeStringify(item);
     if (!map.has(key)) map.set(key, item);
     else map.set(key, { ...map.get(key), ...item });
