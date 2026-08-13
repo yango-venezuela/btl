@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV12) return;
-  window.__yangoPrebootStateGuardV12 = true;
+  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV13) return;
+  window.__yangoPrebootStateGuardV13 = true;
 
   const RETIRED_KEY = /samsung|raffle|rifa/i;
   const RETIRED_TEXT = /rifa samsung|samsung raffle|raffle samsung|\brifa\b|samsung/i;
@@ -84,6 +84,44 @@
     const vals = Object.values(parsed);
     if (vals.length && vals.every(item => item && typeof item === "object" && !Array.isArray(item))) return vals;
     return [];
+  }
+
+  // Emergency compatibility layer: a few old corrupted browser/cloud states can
+  // return objects where React expects arrays and then call load(...).map. This
+  // keeps the dashboard alive long enough for the normal sanitizers to persist
+  // clean arrays back to storage/cloud. The methods are non-enumerable so normal
+  // object iteration is not affected.
+  function installCollectionAirbag() {
+    try {
+      const toList = value => {
+        if (Array.isArray(value)) return value;
+        if (!value || value === window || value === document || typeof value === "function") return [];
+        if (typeof value === "string") return [];
+        if (typeof value.length === "number" && value.length >= 0 && value.length < 100000) {
+          try { return Array.prototype.slice.call(value); } catch (_error) {}
+        }
+        if (typeof value === "object") return Object.values(value).filter(item => item != null);
+        return [];
+      };
+      const methods = {
+        map(callback, thisArg) { return toList(this).map(callback, thisArg); },
+        filter(callback, thisArg) { return toList(this).filter(callback, thisArg); },
+        forEach(callback, thisArg) { return toList(this).forEach(callback, thisArg); },
+        reduce(callback, initialValue) {
+          const list = toList(this);
+          return arguments.length > 1 ? list.reduce(callback, initialValue) : list.reduce(callback);
+        }
+      };
+      Object.keys(methods).forEach(name => {
+        if (Object.prototype[name]) return;
+        Object.defineProperty(Object.prototype, name, {
+          value: methods[name],
+          configurable: true,
+          writable: true,
+          enumerable: false
+        });
+      });
+    } catch (_error) {}
   }
 
   function readLocal(key) {
@@ -254,8 +292,8 @@
     const originalGetItem = Storage && Storage.prototype && Storage.prototype.getItem;
     const originalSetItem = Storage && Storage.prototype && Storage.prototype.setItem;
     const originalRemoveItem = Storage && Storage.prototype && Storage.prototype.removeItem;
-    if (originalGetItem && !Storage.prototype.__yangoSafeGetItemV12) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeGetItemV12", { value: true, configurable: true });
+    if (originalGetItem && !Storage.prototype.__yangoSafeGetItemV13) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeGetItemV13", { value: true, configurable: true });
       Storage.prototype.getItem = function safeGetItem(key) {
         const raw = originalGetItem.call(this, key);
         if (!arrayDefForKey(key)) return raw;
@@ -267,8 +305,8 @@
         return next;
       };
     }
-    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV12) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV12", { value: true, configurable: true });
+    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV13) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV13", { value: true, configurable: true });
       Storage.prototype.setItem = function safeSetItem(key, value) {
         if (RETIRED_KEY.test(text(key))) return originalSetItem.call(this, key, "[]");
         if (arrayDefForKey(key)) return originalSetItem.call(this, key, safeStringify(normalizeArrayLike(value)));
@@ -281,8 +319,8 @@
         return originalSetItem.call(this, key, value);
       };
     }
-    if (originalRemoveItem && !Storage.prototype.__yangoSafeRemoveItemV12) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeRemoveItemV12", { value: true, configurable: true });
+    if (originalRemoveItem && !Storage.prototype.__yangoSafeRemoveItemV13) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeRemoveItemV13", { value: true, configurable: true });
       Storage.prototype.removeItem = function safeRemoveItem(key) {
         const def = protectedDefForKey(key);
         const existing = parseRaw(originalGetItem ? originalGetItem.call(this, key) : this.getItem(key));
@@ -294,8 +332,8 @@
 
   try {
     const originalFetch = window.fetch && window.fetch.bind(window);
-    if (originalFetch && !window.__yangoSafeFetchV12) {
-      window.__yangoSafeFetchV12 = true;
+    if (originalFetch && !window.__yangoSafeFetchV13) {
+      window.__yangoSafeFetchV13 = true;
       window.fetch = async (...args) => {
         const response = await originalFetch(...args);
         try {
@@ -318,15 +356,17 @@
       hideRetiredUi();
       const body = document.body && document.body.innerText ? document.body.innerText : "";
       if (!/Algo salió mal/i.test(body)) return;
-      if (!/load\([^)]*\)\.map|\.map is not a function|qr\.reduce|reading 'reduce'|reading 'bg'|\bbg\b|localeCompare|date|undefined|null/i.test(body)) return;
-      const attempts = Number(sessionStorage.getItem("yango_preboot_recovery_attempts_v12") || "0");
+      if (!/load\([^)]*\)\.map|\.map is not a function|map is not a function|qr\.reduce|reading 'reduce'|reading 'bg'|\bbg\b|localeCompare|date|undefined|null/i.test(body)) return;
+      const attempts = Number(sessionStorage.getItem("yango_preboot_recovery_attempts_v13") || "0");
       if (attempts >= 2) return;
-      sessionStorage.setItem("yango_preboot_recovery_attempts_v12", String(attempts + 1));
+      sessionStorage.setItem("yango_preboot_recovery_attempts_v13", String(attempts + 1));
+      installCollectionAirbag();
       seedProtectedCanonicals();
       setTimeout(() => window.location.reload(), 350);
     } catch (_error) {}
   }
 
+  installCollectionAirbag();
   seedProtectedCanonicals();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", recoverFromErrorScreen);
   else recoverFromErrorScreen();
