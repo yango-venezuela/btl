@@ -6,7 +6,7 @@ const { Pool } = require("pg");
 const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
-const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260813b";
+const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260813c";
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
@@ -175,6 +175,20 @@ function sanitizeDated(value, force = false) {
 function activationStateKey(key) {
   return /yango_activations|\bacts\b|activation|activacion|activaciones|calendar|calendario/i.test(String(key || ""));
 }
+function arrayStateKey(key) {
+  return /yango_influencers_h1|yango_agency_submissions_h1|yango_media_ooh_h1|yango_mystery_shopper_h1|yango_users_h1|yango_btl_activations_h1|yango_btl_calendar_h1|yango_btl_results_h1/i.test(String(key || "")) || activationStateKey(key);
+}
+function normalizeArrayState(value) {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+  const likelyKeys = ["items", "rows", "data", "values", "activations", "activationes", "calendar", "calendario", "reports", "submissions", "records", "list", "entries"];
+  for (const key of likelyKeys) {
+    if (Array.isArray(value[key])) return value[key];
+  }
+  const vals = Object.values(value);
+  if (vals.length && vals.every(item => item && typeof item === "object" && !Array.isArray(item))) return vals;
+  return [];
+}
 function activationIsUnnamed(item) {
   const name = cleanText(item && (item.name || item.nombre || item.title || item.titulo));
   return !name || name === "sin nombre" || compact(name) === "sinnombre" || ["undefined", "null", "nan", "-"].includes(name);
@@ -191,9 +205,9 @@ function activationStableKey(item) {
 }
 
 function sanitizeActivations(value) {
-  if (!Array.isArray(value)) return sanitizeDated(value, true);
+  const list = normalizeArrayState(value);
   const map = new Map();
-  value.forEach(rawItem => {
+  list.forEach(rawItem => {
     if (!rawItem || typeof rawItem !== "object") return;
     if (activationIsUnnamed(rawItem)) return;
     const item = sanitizeDated(rawItem, true);
@@ -228,9 +242,9 @@ function influencerKey(item) {
   return name || handle ? `${name}|${handle}` : "";
 }
 function sanitizeInfluencers(value) {
-  if (!Array.isArray(value)) return value;
+  const list = normalizeArrayState(value);
   const map = new Map();
-  value.forEach(item => {
+  list.forEach(item => {
     const key = influencerKey(item);
     if (!key || /^carlos rides\|/.test(key) || key === "carlos rides|") return;
     const next = item && typeof item === "object" ? { ...item, deliverables: sanitizeDeliverables(item.deliverables || item.entregables) } : item;
@@ -241,8 +255,9 @@ function sanitizeInfluencers(value) {
 
 function sanitizeStateValue(key, value) {
   if (/samsung|raffle|rifa/i.test(String(key || ""))) return [];
-  if (activationStateKey(key) && Array.isArray(value)) return sanitizeActivations(value);
+  if (activationStateKey(key)) return sanitizeActivations(value);
   if (key === "yango_influencers_h1") return sanitizeInfluencers(value);
+  if (arrayStateKey(key)) return normalizeArrayState(value);
   if (key === "yango_social_report_h1" && value && typeof value === "object" && Array.isArray(value.months)) return { ...value, months: [...new Set(value.months.filter(Boolean))] };
   return looksLikeDashboardState(key, value) ? sanitizeDated(value, true) : value;
 }
