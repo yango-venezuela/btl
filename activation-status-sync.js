@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoSharedStateSyncV16) return;
-  window.__yangoSharedStateSyncV16 = true;
+  if (typeof window === "undefined" || window.__yangoSharedStateSyncV17) return;
+  window.__yangoSharedStateSyncV17 = true;
 
   const canonicalKeys = {
     agency: "yango_agency_submissions_h1",
@@ -24,17 +24,12 @@
   let flushing = false;
   let flushTimer = null;
 
-  const normalize = value => String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-  const compact = value => normalize(value).replace(/[^a-z0-9]+/g, "");
   const parseJson = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
   const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
   const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
+  const normalize = value => String(value == null ? "" : value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  const compact = value => normalize(value).replace(/[^a-z0-9]+/g, "");
   const blockedKey = key => /migration|backup|respaldo|token|password|pass|secret|hydrated|debug|devtools|theme|tooltip|toast|mapbox|leaflet|samsung|raffle|rifa/i.test(String(key || ""));
   const staleCopyKey = key => /backup|respaldo|snapshot|migration|seed|rescue|old|tmp|debug|copy|bak/i.test(String(key || ""));
 
@@ -50,6 +45,12 @@
     } catch (_error) {}
   }
 
+  function hasData(value) {
+    if (Array.isArray(value)) return value.length > 0;
+    if (isObject(value)) return Object.values(value).some(hasData);
+    return value !== undefined && value !== null && String(value).trim() !== "";
+  }
+
   function normalizeDate(value) {
     const raw = String(value || "").trim();
     if (!raw) return "";
@@ -60,37 +61,42 @@
     return raw;
   }
 
-  function hasData(value) {
-    if (Array.isArray(value)) return value.length > 0;
-    if (isObject(value)) return Object.values(value).some(hasData);
-    return value !== undefined && value !== null && String(value).trim() !== "";
+  function normalizeArray(value) {
+    if (Array.isArray(value)) return value;
+    if (!isObject(value)) return [];
+    for (const key of ["items", "rows", "data", "values", "records", "list", "entries", "activations", "calendar", "calendario", "submissions", "reports"]) {
+      if (Array.isArray(value[key])) return value[key];
+    }
+    const values = Object.values(value);
+    if (values.length && values.every(item => isObject(item))) return values;
+    return [];
+  }
+
+  function activationName(item) {
+    return item && (item.name || item.nombre || item.title || item.titulo || "");
   }
 
   function isUnnamedActivation(item) {
-    if (!isObject(item)) return false;
-    const name = normalize(item.name || item.nombre || item.title || item.titulo);
+    const name = normalize(activationName(item));
     return !name || name === "sin nombre" || compact(name) === "sinnombre" || ["undefined", "null", "nan", "-"].includes(name);
   }
 
-  function activationStableId(item) {
+  function activationKey(item) {
     if (!isObject(item)) return "";
-    const explicit = item.id || item.activationId || item.actId || item.uuid || item.key;
-    if (explicit) return String(explicit);
-    return [
+    return String(item.id || item.activationId || item.actId || item.uuid || item.key || [
       normalizeDate(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt),
-      normalize(item.name || item.nombre || item.title || item.titulo),
+      normalize(activationName(item)),
       normalize(item.location || item.ubicacion || item.zone || item.zona || item.area),
       normalize(item.type || item.tipo || item.activationType || item.tipoActivacion),
       normalize(item.status || item.estado || item.activationStatus || "")
-    ].join("|");
+    ].join("|")).trim();
   }
 
   function sanitizeActivations(value) {
-    const list = Array.isArray(value) ? value : [];
     const seen = new Set();
-    return list.filter(item => {
-      if (isObject(item) && isUnnamedActivation(item)) return false;
-      const id = activationStableId(item);
+    return normalizeArray(value).filter(item => {
+      if (!isObject(item) || isUnnamedActivation(item)) return false;
+      const id = activationKey(item);
       if (!id || !id.replace(/\|/g, "")) return true;
       if (seen.has(id)) return false;
       seen.add(id);
@@ -106,7 +112,7 @@
       const cleaned = String(item || "").trim();
       if (!cleaned) return;
       const canonical = allowed.get(cleaned.toLowerCase()) || cleaned;
-      if (!out.some(existing => existing.toLowerCase() === canonical.toLowerCase())) out.push(canonical);
+      if (!out.some(existing => String(existing).toLowerCase() === canonical.toLowerCase())) out.push(canonical);
     });
     return out;
   }
@@ -119,9 +125,8 @@
   }
 
   function sanitizeInfluencers(value) {
-    const list = Array.isArray(value) ? value : [];
     const map = new Map();
-    list.forEach(item => {
+    normalizeArray(value).forEach(item => {
       const key = influencerKey(item);
       if (!key || /^carlos rides\|/.test(key) || key === "carlos rides|") return;
       const next = isObject(item) ? { ...item, deliverables: sanitizeDeliverables(item.deliverables || item.entregables) } : item;
@@ -133,10 +138,7 @@
   function sanitizeValue(type, value) {
     if (type === "acts") return sanitizeActivations(value);
     if (type === "influencers") return sanitizeInfluencers(value);
-    if (["agency", "media", "mystery", "users", "qr"].includes(type) && !Array.isArray(value) && value && typeof value === "object") {
-      const likely = value.items || value.rows || value.data || value.values || value.records || value.list || value.entries;
-      if (Array.isArray(likely)) return likely;
-    }
+    if (["agency", "media", "mystery", "users", "qr"].includes(type)) return normalizeArray(value);
     return value;
   }
 
@@ -185,11 +187,7 @@
 
   function stableId(item) {
     if (!isObject(item)) return "";
-    return String(
-      item.id || item.activationId || item.actId || item.uuid || item.key || item.responseId ||
-      item.name || item.nombre || item.username || item.handle || item.igUsername || item.instagram || item.tiktokUsername ||
-      [item.title || item.titulo || "", item.date || item.fecha || item.calendarDate || "", item.location || item.ubicacion || item.zone || item.zona || "", item.type || item.tipo || ""].join("|")
-    ).trim();
+    return String(item.id || item.activationId || item.actId || item.uuid || item.key || item.responseId || item.name || item.nombre || item.username || item.handle || item.igUsername || item.instagram || item.tiktokUsername || [item.title || item.titulo || "", item.date || item.fecha || item.calendarDate || "", item.location || item.ubicacion || item.zone || item.zona || "", item.type || item.tipo || ""].join("|")).trim();
   }
 
   function mergeArrays(remoteValue, localValue) {
@@ -205,12 +203,8 @@
     });
     local.forEach(item => {
       const id = stableId(item);
-      if (id && indexById.has(id)) {
-        const index = indexById.get(id);
-        merged[index] = isObject(merged[index]) && isObject(item) ? { ...merged[index], ...item } : item;
-      } else {
-        merged.push(item);
-      }
+      if (id && indexById.has(id)) merged[indexById.get(id)] = isObject(merged[indexById.get(id)]) && isObject(item) ? { ...merged[indexById.get(id)], ...item } : item;
+      else merged.push(item);
     });
     return merged;
   }
@@ -248,14 +242,14 @@
     lastSeen.set(String(key), stringify(value));
   }
 
+  function readLocal(key) {
+    return parseJson(localStorage.getItem(key));
+  }
+
   function writeLocal(key, value) {
     const serialized = stringify(value);
     if (localStorage.getItem(key) !== serialized) nativeSetItem.call(localStorage, key, serialized);
     remember(key, value);
-  }
-
-  function readLocal(key) {
-    return parseJson(localStorage.getItem(key));
   }
 
   function localEntries() {
@@ -273,24 +267,22 @@
     return entries;
   }
 
-  function copyTypeLocally(type, value) {
+  function syncLocalCopies(type, value) {
     const target = canonicalKeys[type];
     if (!target) return;
     writeLocal(target, value);
-    localEntries()
-      .filter(entry => entry.type === type && entry.key !== target && !staleCopyKey(entry.key))
-      .forEach(entry => writeLocal(entry.key, value));
+    localEntries().filter(entry => entry.type === type && entry.key !== target && !staleCopyKey(entry.key)).forEach(entry => writeLocal(entry.key, value));
   }
 
-  function queueDirect(key, target, type, value, reason) {
+  function queueDirect(target, type, value, reason) {
     if (!target || hydrating) return;
     const clean = sanitizeValue(type, value);
     if (protectedTypes.has(type) && !replaceTypes.has(type) && !hasData(clean)) return;
     const raw = stringify(clean);
-    if (lastSeen.get(String(key)) === raw && lastSeen.get(String(target)) === raw) return;
-    pending.set(`${target}`, { key: target, target, type, value: clean, reason });
+    if (!replaceTypes.has(type) && lastSeen.get(String(target)) === raw) return;
+    pending.set(target, { target, type, value: clean, reason });
     clearTimeout(flushTimer);
-    flushTimer = setTimeout(flush, 700);
+    flushTimer = setTimeout(flush, 650);
     showStatus(true, "Guardando cambios en la nube...");
   }
 
@@ -301,8 +293,8 @@
     const type = typeOf(key, parsed);
     const target = canonicalKeys[type];
     if (!target) return;
-
     const clean = sanitizeValue(type, parsed);
+
     if (replaceTypes.has(type)) {
       if (key !== target) {
         if (staleCopyKey(key)) return;
@@ -311,12 +303,12 @@
         const userWrite = /Storage\.prototype\.setItem|click|change|input|submit|beforeunload/i.test(reason || "");
         if (!changed || !userWrite) return;
       }
-      copyTypeLocally(type, clean);
-      queueDirect(target, target, type, clean, reason);
+      queueDirect(target, type, clean, reason);
+      syncLocalCopies(type, clean);
       return;
     }
 
-    queueDirect(key, target, type, clean, reason);
+    queueDirect(target, type, clean, reason);
   }
 
   async function hydrate() {
@@ -325,19 +317,17 @@
     try {
       const remote = await fetchRemote();
       Object.entries(canonicalKeys).forEach(([type, target]) => {
+        if (pending.has(target)) return;
         const remoteHasTarget = hasOwn(remote, target);
         const remoteValue = sanitizeValue(type, remote[target]);
         if (remoteHasTarget && (hasData(remoteValue) || type === "acts" || replaceTypes.has(type))) {
-          writeLocal(target, remoteValue || []);
-          localEntries()
-            .filter(entry => entry.type === type && entry.key !== target && !staleCopyKey(entry.key))
-            .forEach(entry => writeLocal(entry.key, remoteValue || []));
+          syncLocalCopies(type, remoteValue || []);
         } else if (!remoteHasTarget) {
           const localValue = sanitizeValue(type, readLocal(target));
-          if (hasData(localValue)) queueDirect(target, target, type, localValue, "seed-remote");
+          if (hasData(localValue)) queueDirect(target, type, localValue, "seed-remote");
         }
       });
-      window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { source: "universal-sync-v16" } }));
+      window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { source: "universal-sync-v17" } }));
       showStatus(true, "Guardado en la nube OK");
     } catch (error) {
       console.warn("No pude hidratar datos compartidos:", error);
@@ -363,9 +353,9 @@
         if (protectedTypes.has(entry.type) && !replaceTypes.has(entry.type) && !hasData(next)) continue;
         remote[entry.target] = next;
         await putRemote(entry.target, next);
-        copyTypeLocally(entry.type, next);
+        syncLocalCopies(entry.type, next);
       }
-      window.dispatchEvent(new CustomEvent("yango:shared-state-synced", { detail: { source: "universal-sync-v16" } }));
+      window.dispatchEvent(new CustomEvent("yango:shared-state-synced", { detail: { source: "universal-sync-v17" } }));
       showStatus(true, "Guardado en la nube OK");
     } catch (error) {
       console.warn("No pude sincronizar cambios del panel:", error);
@@ -382,12 +372,12 @@
     localEntries().forEach(entry => {
       if (replaceTypes.has(entry.type) && entry.key !== entry.target) return;
       const raw = stringify(entry.value);
-      if (lastSeen.get(String(entry.key)) !== raw) queueDirect(entry.key, entry.target, entry.type, entry.value, reason);
+      if (lastSeen.get(String(entry.key)) !== raw) queueDirect(entry.target, entry.type, entry.value, reason);
     });
   }
 
-  if (proto && !proto.__yangoSharedStateStoragePatchV16) {
-    Object.defineProperty(proto, "__yangoSharedStateStoragePatchV16", { value: true, configurable: true });
+  if (proto && !proto.__yangoSharedStateStoragePatchV17) {
+    Object.defineProperty(proto, "__yangoSharedStateStoragePatchV17", { value: true, configurable: true });
     proto.setItem = function yangoSharedSetItem(key, value) {
       const oldValue = this === localStorage ? localStorage.getItem(key) : null;
       const result = nativeSetItem.call(this, key, value);
@@ -400,11 +390,8 @@
       if (this === localStorage) {
         const type = typeOf(key, oldValue);
         const target = canonicalKeys[type];
-        if (replaceTypes.has(type) && key === target) {
-          queueDirect(target, target, type, [], "Storage.prototype.removeItem");
-        } else if (!protectedTypes.has(type)) {
-          queue(key, "[]", "Storage.prototype.removeItem", oldValue);
-        }
+        if (replaceTypes.has(type) && key === target) queueDirect(target, type, [], "Storage.prototype.removeItem");
+        else if (!protectedTypes.has(type)) queue(key, "[]", "Storage.prototype.removeItem", oldValue);
       }
       return result;
     };
@@ -425,12 +412,12 @@
 })();
 
 (() => {
-  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV11) return;
-  window.__yangoBtlMapPolishLoaderInstalledV11 = true;
+  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV12) return;
+  window.__yangoBtlMapPolishLoaderInstalledV12 = true;
   const load = () => {
     if (document.querySelector('script[src^="/btl-map-polish.js"]')) return;
     const script = document.createElement("script");
-    script.src = `/btl-map-polish.js?v=20260813h-${Date.now()}`;
+    script.src = `/btl-map-polish.js?v=20260813i-${Date.now()}`;
     script.defer = true;
     document.head.appendChild(script);
   };
