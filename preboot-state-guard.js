@@ -1,13 +1,11 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV9) return;
-  window.__yangoPrebootStateGuardV9 = true;
+  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV10) return;
+  window.__yangoPrebootStateGuardV10 = true;
 
+  const ACTIVATION_KEY = /yango_activations|\bacts\b|activation|activacion|activaciones|calendar|calendario/i;
+  const DASHBOARD_HINT = /yango|btl|mkt|agency|agencia|proof|photo|foto|evidencia|promotor|flyer|activ|calendar|calendario|acts|qr|promo|code|result|resultado/i;
   const COLLECTION_KEY = /(^|[_:\-\s])(qr|qrs|promo|promos|promoCodes|code|codes|result|results|resultado|resultados|activation|activations|activacion|activaciones|calendar|calendario|agency|agencia|proof|proofs|photo|photos|foto|fotos|evidencia|evidencias|report|reports|reporte|reportes|items|rows)([_:\-\s]|$)/i;
   const COLLECTION_HINT = /(qr|promo|result|resultado|activation|activacion|calendar|calendario|agency|agencia|proof|photo|foto|evidencia|report|reporte)/i;
-  const DASHBOARD_HINT = /yango|btl|mkt|agency|agencia|proof|photo|foto|evidencia|promotor|flyer|activ|calendar|calendario|acts|qr|promo|code|result|resultado/i;
-  const ACTIVATION_KEY = /yango_activations|\bacts\b|activation|activacion|activaciones|calendar|calendario/i;
-  const DATE_FIELDS = ["date", "fecha", "calendarDate", "activationDate", "createdAt", "updatedAt"];
-  const FALLBACK_DATE = "2026-01-01";
   const RETIRED_KEY = /samsung|raffle|rifa/i;
   const RETIRED_TEXT = /rifa samsung|samsung raffle|raffle samsung|\brifa\b|samsung/i;
   const PANEL_HINT = /(?:[?&](?:panel|usuario|user|role|rol)=|\/)(luis|giselle|gise|agency|agencia|panel|usuario|user|role|rol)(?:[/?&#]|$)/i;
@@ -18,13 +16,13 @@
   ]);
 
   const text = value => String(value == null ? "" : value);
-  const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
   const parseRaw = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
+  const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
   const clean = value => text(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
   const compact = value => clean(value).replace(/[^a-z0-9]+/g, "");
-  const isCollectionKey = key => COLLECTION_KEY.test(text(key)) || COLLECTION_HINT.test(text(key));
   const isActivationKey = key => ACTIVATION_KEY.test(text(key));
+  const isCollectionKey = key => COLLECTION_KEY.test(text(key)) || COLLECTION_HINT.test(text(key));
   const isCollaboratorPanel = () => PANEL_HINT.test(window.location.href || "");
 
   function normalizeDate(value) {
@@ -36,323 +34,347 @@
     if (match) return `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
     match = raw.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/);
     if (match) return `${match[3]}-${String(match[2]).padStart(2, "0")}-${String(match[1]).padStart(2, "0")}`;
+    match = raw.match(/(?:^|\D)(\d{1,2})[-/.](\d{1,2})(?:\D|$)/);
+    if (match) return `2026-${String(match[2]).padStart(2, "0")}-${String(match[1]).padStart(2, "0")}`;
     const parsed = new Date(raw);
     return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
   }
 
   function normalizeType(value) {
-    return TYPE_MAP.get(clean(value)) || TYPE_MAP.get(compact(value)) || "Flyers";
+    const key = compact(value);
+    if (!key) return "Flyers";
+    return TYPE_MAP.get(key) || TYPE_MAP.get(clean(value)) || text(value).trim();
   }
 
   function normalizeStatus(value) {
     const status = clean(value);
-    if (/no se dio|no realizada|cancel|missed|paus|pausa/.test(status)) return "missed";
-    if (/se dio|hecha|realizada|done|complete|completed|aprob|valid/.test(status)) return "done";
-    if (["done", "planned", "pending"].includes(status)) return status;
-    return "planned";
+    if (/no se dio|cancel|rechaz|fall|missed/.test(status)) return "missed";
+    if (/se dio|done|aprob|valid|complet|ejecut/.test(status)) return "done";
+    return text(value || "Planificada");
+  }
+
+  function activationRawText(item) {
+    if (!isObject(item)) return text(item);
+    return [
+      item.name, item.title, item.nombre, item.activationName, item.location, item.ubicacion, item.zone, item.zona,
+      item.date, item.fecha, item.calendarDate, item.activationDate, item.createdAt, item.updatedAt, item.status, item.estado
+    ].map(text).join(" ");
+  }
+
+  function activationDate(item) {
+    if (!isObject(item)) return normalizeDate(item);
+    const fields = [item.date, item.fecha, item.calendarDate, item.activationDate, item.createdAt, item.updatedAt];
+    for (const field of fields) {
+      const date = normalizeDate(field);
+      if (date) return date;
+    }
+    return normalizeDate(activationRawText(item));
+  }
+
+  function activationIsJanuary(item) {
+    const raw = clean(activationRawText(item));
+    const date = activationDate(item);
+    return /^\d{4}-01-/.test(date) || /(^|\s)(ene|enero|jan|january)\.?($|\s)/i.test(raw) || /(^|\D)\d{1,2}[\/.\-]0?1(?:[\/.\-]\d{2,4})?(?=\D|$)/.test(raw);
   }
 
   function hasRealActivationName(item) {
-    const name = clean(item && (item.name || item.nombre || item.title || item.titulo));
-    return !!name && name !== "sin nombre" && compact(name) !== "sinnombre" && !["undefined", "null", "nan"].includes(name);
+    if (!isObject(item)) return false;
+    const name = clean(item.name || item.title || item.nombre || item.activationName || "");
+    const location = clean(item.location || item.ubicacion || item.zone || item.zona || "");
+    if (!name || /^(sin nombre|undefined|null|nan|n\/a|na|-)$/.test(name)) return false;
+    if (BROAD_ZONES.has(name) && (!location || name === location || BROAD_ZONES.has(location))) return false;
+    if (name === "activacion btl" || name === "activación btl") return false;
+    return true;
   }
 
   function activationIsMissed(item) {
-    return normalizeStatus(item && (item.status || item.estado || item.activationStatus || item.validacion || item.validation)) === "missed";
+    if (!isObject(item)) return false;
+    const status = clean(item.status || item.estado || item.result || item.validation || "");
+    return /no se dio|cancel|rechaz|fall|missed/.test(status);
   }
 
   function activationIsGeneratedPlaceholder(item) {
-    const date = normalizeDate(item && (item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt));
-    const name = clean(item && (item.name || item.nombre || item.title || item.titulo));
-    const location = clean(item && (item.location || item.ubicacion || item.zone || item.zona || item.area));
-    const status = normalizeStatus(item && (item.status || item.estado));
-    return status === "planned" && (date === FALLBACK_DATE || !date) && BROAD_ZONES.has(name) && (!location || location === name || BROAD_ZONES.has(location));
+    if (!isObject(item)) return false;
+    if (activationIsJanuary(item)) return true;
+    const name = clean(item.name || item.title || item.nombre || item.activationName || "");
+    const location = clean(item.location || item.ubicacion || item.zone || item.zona || "");
+    const type = clean(item.type || item.tipo || "");
+    const status = clean(item.status || item.estado || "");
+    return (!hasRealActivationName(item) && BROAD_ZONES.has(location) && (!type || type === "flyers") && (!status || /planific/.test(status)));
   }
 
   function normalizeActivation(item) {
     if (!isObject(item)) return null;
-    if (!hasRealActivationName(item) || activationIsMissed(item) || activationIsGeneratedPlaceholder(item)) return null;
-    const date = normalizeDate(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt) || "";
-    const name = text(item.name || item.nombre || item.title || item.titulo).trim();
-    const location = text(item.location || item.ubicacion || item.zone || item.zona || item.area || "").trim();
-    const status = normalizeStatus(item.status || item.estado);
-    return {
-      ...item,
-      name,
-      nombre: text(item.nombre || name),
-      title: text(item.title || item.titulo || name),
-      titulo: text(item.titulo || item.title || name),
-      date: text(item.date || date),
-      fecha: text(item.fecha || date),
-      calendarDate: text(item.calendarDate || date),
-      activationDate: text(item.activationDate || date),
-      location,
-      ubicacion: text(item.ubicacion || location),
-      zone: text(item.zone || item.zona || location),
-      zona: text(item.zona || item.zone || location),
-      type: normalizeType(item.type || item.tipo || item.activationType || item.tipoActivacion),
-      tipo: normalizeType(item.tipo || item.type || item.activationType || item.tipoActivacion),
-      status,
-      estado: text(item.estado || status)
-    };
+    if (!hasRealActivationName(item) || activationIsMissed(item) || activationIsJanuary(item) || activationIsGeneratedPlaceholder(item)) return null;
+    const next = { ...item };
+    const date = activationDate(next);
+    const type = normalizeType(next.type || next.tipo);
+    const status = normalizeStatus(next.status || next.estado);
+    next.name = text(next.name || next.title || next.nombre || next.activationName).trim();
+    if (!next.title) next.title = next.name;
+    if (date) {
+      next.date = date;
+      next.fecha = date;
+      next.calendarDate = date;
+    }
+    next.type = type;
+    next.tipo = type;
+    next.status = status;
+    next.estado = status;
+    return next;
+  }
+
+  function looksLikeActivationList(value) {
+    if (!Array.isArray(value) || !value.length) return false;
+    const sample = value.find(isObject);
+    if (!sample) return false;
+    const keys = Object.keys(sample).join(" ");
+    return /activ|calendar|calendario|ubicacion|location|zona|zone|flyer|promot|fecha|date|status|estado/i.test(keys);
   }
 
   function sanitizeActivationList(value) {
     if (!Array.isArray(value)) return value;
     const seen = new Set();
-    const out = [];
-    value.forEach(item => {
-      const next = normalizeActivation(item);
-      if (!next) return;
-      const id = [normalizeDate(next.date || next.fecha), clean(next.name || next.nombre), clean(next.location || next.ubicacion), clean(next.type || next.tipo)].join("|");
-      if (seen.has(id)) return;
-      seen.add(id);
-      out.push(next);
+    return value.map(normalizeActivation).filter(item => {
+      if (!item) return false;
+      const signature = [clean(item.name), clean(item.location || item.ubicacion || item.zone || item.zona), item.date || "", clean(item.type || item.tipo)].join("|");
+      if (seen.has(signature)) return false;
+      seen.add(signature);
+      return true;
     });
-    return out;
-  }
-
-  function looksActivationList(value, key = "") {
-    if (!Array.isArray(value)) return false;
-    if (isActivationKey(key)) return true;
-    const sample = stringify(value.slice(0, 8));
-    return /activaci|activation|calendario|calendar|fecha calendario|sabana|petare|altamira|chacaito|flyers/i.test(sample);
   }
 
   function normalizeCollections(value, key = "") {
-    if (value == null) return isCollectionKey(key) ? [] : value;
+    if (RETIRED_KEY.test(text(key))) return undefined;
     if (Array.isArray(value)) {
-      if (looksActivationList(value, key)) return sanitizeActivationList(value);
-      return value.map(item => normalizeCollections(item));
+      if (isActivationKey(key) || looksLikeActivationList(value)) return sanitizeActivationList(value);
+      return value.map((item, index) => normalizeCollections(item, `${key}.${index}`)).filter(item => item !== undefined);
     }
     if (!isObject(value)) return value;
-    const next = { ...value };
-    Object.keys(next).forEach(childKey => {
-      if (next[childKey] == null && isCollectionKey(childKey)) next[childKey] = [];
-      else next[childKey] = normalizeCollections(next[childKey], childKey);
+    const next = {};
+    Object.entries(value).forEach(([childKey, childValue]) => {
+      if (RETIRED_KEY.test(childKey)) return;
+      const normalized = normalizeCollections(childValue, childKey);
+      if (normalized !== undefined) next[childKey] = normalized;
     });
-    if (DASHBOARD_HINT.test(stringify(next).slice(0, 6000))) {
-      const date = normalizeDate(next.date || next.fecha || next.calendarDate || next.activationDate || next.createdAt || next.updatedAt);
-      if (date) {
-        next.date = text(next.date || date) || date;
-        next.fecha = text(next.fecha || date) || date;
-        next.calendarDate = text(next.calendarDate || date) || date;
-        next.activationDate = text(next.activationDate || date) || date;
-        next.createdAt = text(next.createdAt || date) || date;
-        next.updatedAt = text(next.updatedAt || date) || date;
-      }
-    }
     return next;
   }
 
-  function parse(value, key = "") {
+  function sanitizeStoredString(key, value) {
+    if (typeof value !== "string") return value;
+    if (RETIRED_KEY.test(text(key)) || RETIRED_TEXT.test(value)) return JSON.stringify([]);
+    if (!DASHBOARD_HINT.test(text(key)) && !DASHBOARD_HINT.test(value)) return value;
     const parsed = parseRaw(value);
-    return parsed == null ? null : normalizeCollections(parsed, key);
+    if (parsed == null) return value;
+    const normalized = normalizeCollections(parsed, key);
+    const next = stringify(normalized);
+    return next === undefined ? value : next;
   }
 
-  function sanitizeStoredString(key, raw) {
-    if (RETIRED_KEY.test(text(key))) return "[]";
-    if (!DASHBOARD_HINT.test(text(key)) && !isCollectionKey(key)) return raw;
-    if (raw == null || raw === "null" || raw === "undefined") return isCollectionKey(key) ? "[]" : raw;
-    const parsed = parse(raw, key);
-    if (parsed == null) return raw;
-    return stringify(parsed);
+  const storageProto = (() => {
+    try { return window.Storage && window.Storage.prototype; } catch (_error) { return null; }
+  })();
+  const rawGetItem = storageProto && storageProto.getItem;
+  const rawSetItem = storageProto && storageProto.setItem;
+  const rawRemoveItem = storageProto && storageProto.removeItem;
+
+  function getStored(storage, key) {
+    try { return rawGetItem ? rawGetItem.call(storage, key) : storage.getItem(key); } catch (_error) { return null; }
   }
 
-  function storageKeys() {
-    const keys = [];
-    try {
-      for (let index = 0; index < localStorage.length; index += 1) keys.push(localStorage.key(index));
-    } catch (_error) {}
-    return keys.filter(Boolean);
+  function setStored(storage, key, value) {
+    try { return rawSetItem ? rawSetItem.call(storage, key, value) : storage.setItem(key, value); } catch (_error) { return undefined; }
   }
 
-  function cleanRetiredStorage() {
-    try { storageKeys().forEach(key => { if (RETIRED_KEY.test(key)) localStorage.removeItem(key); }); } catch (_error) {}
+  function removeStored(storage, key) {
+    try { return rawRemoveItem ? rawRemoveItem.call(storage, key) : storage.removeItem(key); } catch (_error) { return undefined; }
   }
 
   function sanitizeLocalStorage() {
     try {
-      storageKeys().forEach(key => {
-        if (RETIRED_KEY.test(key)) {
-          localStorage.removeItem(key);
-          return;
+      const storage = window.localStorage;
+      if (!storage) return 0;
+      let changed = 0;
+      for (let index = storage.length - 1; index >= 0; index -= 1) {
+        const key = storage.key(index);
+        if (!key) continue;
+        const value = getStored(storage, key);
+        if (RETIRED_KEY.test(key) || RETIRED_TEXT.test(value || "")) {
+          removeStored(storage, key);
+          changed += 1;
+          continue;
         }
-        const raw = localStorage.getItem(key);
-        const cleanValue = sanitizeStoredString(key, raw);
-        if (cleanValue !== raw && cleanValue != null) localStorage.setItem(key, cleanValue);
-      });
-    } catch (_error) {}
+        const next = sanitizeStoredString(key, value);
+        if (next !== value) {
+          setStored(storage, key, next);
+          changed += 1;
+        }
+      }
+      return changed;
+    } catch (_error) {
+      return 0;
+    }
   }
 
-  function hideRetiredUi() {
+  if (storageProto && rawGetItem && rawSetItem) {
+    storageProto.getItem = function patchedGetItem(key) {
+      const value = rawGetItem.call(this, key);
+      return sanitizeStoredString(key, value);
+    };
+    storageProto.setItem = function patchedSetItem(key, value) {
+      const next = sanitizeStoredString(key, text(value));
+      return rawSetItem.call(this, key, next);
+    };
+  }
+
+  const rawParse = JSON.parse;
+  JSON.parse = function patchedParse(value, reviver) {
+    const parsed = rawParse.call(JSON, value, reviver);
+    if (typeof value === "string" && DASHBOARD_HINT.test(value)) return normalizeCollections(parsed);
+    return parsed;
+  };
+
+  const rawFetch = window.fetch && window.fetch.bind(window);
+  function stateEndpoint(input) {
+    const url = typeof input === "string" ? input : input && input.url;
+    return typeof url === "string" && /\/api\/state(?:\?|$)/.test(url);
+  }
+
+  if (rawFetch) {
+    window.fetch = async function patchedFetch(input, init) {
+      const response = await rawFetch(input, init);
+      if (!stateEndpoint(input)) return response;
+      try {
+        const clone = response.clone();
+        const payload = await clone.json();
+        const normalized = normalizeCollections(payload);
+        return new Response(JSON.stringify(normalized), {
+          status: response.status,
+          statusText: response.statusText,
+          headers: { "content-type": "application/json; charset=utf-8" }
+        });
+      } catch (_error) {
+        return response;
+      }
+    };
+  }
+
+  async function purgeRemoteActivationKeys() {
+    if (!rawFetch || window.__yangoJanuaryRemotePurgeDone) return;
+    window.__yangoJanuaryRemotePurgeDone = true;
     try {
-      const nodes = Array.from(document.querySelectorAll("button,a,[role='button'],li,nav div,aside div,section,h1,h2,h3,h4,span,p"));
-      nodes.forEach(node => {
-        const label = text(node.textContent).replace(/\s+/g, " ").trim();
-        if (!label || !RETIRED_TEXT.test(label)) return;
-        const target = node.closest("button,a,li,[role='button'],section") || node;
-        target.style.setProperty("display", "none", "important");
-        target.setAttribute("aria-hidden", "true");
-      });
-    } catch (_error) {}
-  }
-
-  function dispatchSharedEvents(keys, changed) {
-    try { window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { keys, mirror: true, changed } })); } catch (_error) {}
-    try { window.dispatchEvent(new CustomEvent("yango:collaborator-mirror-hydrated", { detail: { keys, changed } })); } catch (_error) {}
-    keys.forEach(key => {
-      try { window.dispatchEvent(new StorageEvent("storage", { key, newValue: localStorage.getItem(key), storageArea: localStorage })); } catch (_error) {}
-    });
+      const response = await rawFetch(`/api/state?janPurge=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const rows = Array.isArray(payload?.items) ? payload.items : [];
+      await Promise.all(rows.map(async row => {
+        const key = row?.key || row?.id || row?.name;
+        if (!key || RETIRED_KEY.test(key)) return;
+        let value = row.value;
+        if (typeof value === "string") value = parseRaw(value);
+        if (!isActivationKey(key) && !looksLikeActivationList(value)) return;
+        const cleaned = sanitizeActivationList(Array.isArray(value) ? value : []);
+        if (stringify(cleaned) === stringify(value)) return;
+        await rawFetch("/api/state", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ key, value: cleaned })
+        });
+      }));
+    } catch (_error) {
+      // La app debe seguir cargando aunque Railway esté lento.
+    }
   }
 
   async function hydrateCollaboratorMirror() {
-    if (!isCollaboratorPanel() || !window.fetch || window.location.protocol === "file:") return;
-    if (window.__yangoCollaboratorMirrorRunning) return;
-    window.__yangoCollaboratorMirrorRunning = true;
-    window.__yangoCollaboratorMirrorPending = true;
+    if (!rawFetch || !isCollaboratorPanel() || window.__yangoMirrorHydratedV4) return;
+    window.__yangoMirrorHydratedV4 = true;
     try {
-      cleanRetiredStorage();
-      const response = await window.fetch(`/api/state?mirror=1&t=${Date.now()}`, { cache: "no-store" });
+      const response = await window.fetch(`/api/state?mirror=${Date.now()}`, { cache: "no-store" });
       if (!response.ok) return;
       const payload = await response.json();
-      const values = payload && payload.values && typeof payload.values === "object" ? payload.values : {};
-      const keys = Object.keys(values).filter(key => !RETIRED_KEY.test(key));
-      let changed = false;
-      keys.forEach(key => {
-        const value = normalizeCollections(values[key], key);
-        const next = stringify(value);
-        if (localStorage.getItem(key) !== next) {
-          localStorage.setItem(key, next);
-          changed = true;
+      const rows = Array.isArray(payload?.items) ? payload.items : [];
+      let changed = 0;
+      rows.forEach(row => {
+        const key = row?.key || row?.id || row?.name;
+        if (!key || RETIRED_KEY.test(key)) return;
+        const value = normalizeCollections(row.value, key);
+        const serialized = stringify(value);
+        const current = getStored(window.localStorage, key);
+        if (serialized && current !== serialized) {
+          setStored(window.localStorage, key, serialized);
+          changed += 1;
         }
       });
-      cleanRetiredStorage();
-      dispatchSharedEvents(keys, changed);
-      if (changed && !sessionStorage.getItem("yango_collaborator_mirror_reloaded")) {
-        sessionStorage.setItem("yango_collaborator_mirror_reloaded", "1");
-        setTimeout(() => window.location.reload(), 80);
+      if (changed && !sessionStorage.getItem("yangoMirrorReloadedV4")) {
+        sessionStorage.setItem("yangoMirrorReloadedV4", "1");
+        setTimeout(() => window.location.reload(), 250);
       }
     } catch (_error) {
-      // The normal sync script retries after boot.
-    } finally {
-      window.__yangoCollaboratorMirrorPending = false;
-      window.__yangoCollaboratorMirrorRunning = false;
+      // noop
     }
   }
 
-  try {
-    const originalGetItem = Storage && Storage.prototype && Storage.prototype.getItem;
-    const originalSetItem = Storage && Storage.prototype && Storage.prototype.setItem;
-    if (originalGetItem && !Storage.prototype.__yangoSafeGetItemV9) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeGetItemV9", { value: true, configurable: true });
-      Storage.prototype.getItem = function safeGetItem(key) {
-        const raw = originalGetItem.call(this, key);
-        return sanitizeStoredString(key, raw);
-      };
+  function removeRetiredUi() {
+    const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_ELEMENT);
+    const remove = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const label = clean(node.textContent || node.getAttribute?.("aria-label") || "");
+      if (/rifa samsung|samsung raffle/.test(label)) remove.push(node.closest?.("button,a,li,.nav-item,.sidebar-item,section,div") || node);
     }
-    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV9) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV9", { value: true, configurable: true });
-      Storage.prototype.setItem = function safeSetItem(key, value) {
-        if (RETIRED_KEY.test(text(key))) return originalSetItem.call(this, key, "[]");
-        return originalSetItem.call(this, key, sanitizeStoredString(key, value));
-      };
-    }
-  } catch (_error) {}
+    remove.forEach(node => { try { node.remove(); } catch (_error) {} });
+  }
 
-  try {
-    const originalParse = JSON.parse;
-    if (originalParse && !JSON.__yangoSafeParseV9) {
-      Object.defineProperty(JSON, "__yangoSafeParseV9", { value: true, configurable: true });
-      JSON.parse = function safeJsonParse(value, reviver) {
-        return normalizeCollections(originalParse.call(JSON, value, reviver));
-      };
-    }
-  } catch (_error) {}
-
-  const comparable = item => {
-    const obj = isObject(item) ? normalizeCollections(item) : {};
-    const date = DATE_FIELDS.map(field => normalizeDate(obj[field])).find(Boolean) || FALLBACK_DATE;
-    const name = text(obj.name || obj.nombre || obj.title || obj.titulo || obj.location || obj.ubicacion || "");
-    return { date, name };
-  };
-
-  try {
-    const originalSort = Array.prototype.sort;
-    if (originalSort && !Array.prototype.__yangoSafeSortV9) {
-      Object.defineProperty(Array.prototype, "__yangoSafeSortV9", { value: true, configurable: true });
-      Array.prototype.sort = function safeSort(compareFn) {
-        try { return originalSort.call(this, compareFn); }
+  function safeDateSortPatch() {
+    const rawSort = Array.prototype.sort;
+    Array.prototype.sort = function patchedSort(compareFn) {
+      if (typeof compareFn !== "function") return rawSort.call(this, compareFn);
+      return rawSort.call(this, (a, b) => {
+        try { return compareFn(a, b); }
         catch (error) {
-          const message = text(error && error.message);
-          if (!/localeCompare|date|undefined|null/i.test(message)) throw error;
-          for (let index = 0; index < this.length; index += 1) this[index] = normalizeCollections(this[index]);
-          return originalSort.call(this, (a, b) => {
-            const aa = comparable(a), bb = comparable(b);
-            return bb.date.localeCompare(aa.date) || aa.name.localeCompare(bb.name);
-          });
-        }
-      };
-    }
-  } catch (_error) {}
-
-  try {
-    const originalFetch = window.fetch && window.fetch.bind(window);
-    if (originalFetch && !window.__yangoSafeFetchV9) {
-      window.__yangoSafeFetchV9 = true;
-      window.fetch = async (...args) => {
-        const response = await originalFetch(...args);
-        try {
-          const url = text(args[0] && args[0].url || args[0]);
-          if (!/\/api\/state(?:\?|$|\/)/.test(url)) return response;
-          const payload = await response.clone().json();
-          if (payload && typeof payload === "object") {
-            if (payload.values && typeof payload.values === "object") {
-              Object.keys(payload.values).forEach(key => {
-                if (RETIRED_KEY.test(key)) delete payload.values[key];
-                else payload.values[key] = normalizeCollections(payload.values[key], key);
-              });
-            }
-            if (Object.prototype.hasOwnProperty.call(payload, "value")) payload.value = normalizeCollections(payload.value, "value");
-            return new Response(JSON.stringify(payload), { status: response.status, statusText: response.statusText, headers: response.headers });
+          if (/localeCompare|bg|undefined|null/i.test(text(error && error.message))) {
+            const ad = text(a?.date || a?.fecha || a?.calendarDate || a?.activationDate || "0000-00-00");
+            const bd = text(b?.date || b?.fecha || b?.calendarDate || b?.activationDate || "0000-00-00");
+            return bd.localeCompare(ad);
           }
-        } catch (_error) {}
-        return response;
-      };
-    }
-  } catch (_error) {}
+          throw error;
+        }
+      });
+    };
+  }
 
   function recoverFromErrorScreen() {
-    try {
-      hideRetiredUi();
-      const body = document.body && document.body.innerText ? document.body.innerText : "";
-      if (!/Algo salió mal/i.test(body)) return;
-      if (!/qr\.reduce|reading 'reduce'|reading 'bg'|\bbg\b|localeCompare|date|undefined|null/i.test(body)) return;
-      const attempts = Number(sessionStorage.getItem("yango_preboot_recovery_attempts_v9") || "0");
-      if (attempts >= 3) return;
-      sessionStorage.setItem("yango_preboot_recovery_attempts_v9", String(attempts + 1));
-      sanitizeLocalStorage();
-      if (isCollaboratorPanel()) hydrateCollaboratorMirror();
-      setTimeout(() => window.location.reload(), 350);
-    } catch (_error) {}
+    const body = clean(document.body?.innerText || "");
+    if (!/algo salio mal|algo salió mal/.test(body)) return;
+    if (!/bg|localecompare|qr\.reduce|undefined|null/.test(body)) return;
+    const tries = Number(sessionStorage.getItem("yangoRecoveryTriesV10") || 0);
+    if (tries >= 3) return;
+    sessionStorage.setItem("yangoRecoveryTriesV10", String(tries + 1));
+    sanitizeLocalStorage();
+    purgeRemoteActivationKeys().finally(() => setTimeout(() => window.location.reload(), 400));
   }
 
-  cleanRetiredStorage();
+  safeDateSortPatch();
   sanitizeLocalStorage();
-  if (isCollaboratorPanel()) {
-    window.__yangoCollaboratorPanel = true;
-    hydrateCollaboratorMirror();
-  }
+  purgeRemoteActivationKeys();
+  hydrateCollaboratorMirror();
+
+  document.addEventListener("DOMContentLoaded", () => {
+    sanitizeLocalStorage();
+    removeRetiredUi();
+    recoverFromErrorScreen();
+    setTimeout(removeRetiredUi, 800);
+    setTimeout(recoverFromErrorScreen, 1200);
+  });
+
+  window.addEventListener("storage", event => {
+    if (!event.key || RETIRED_KEY.test(event.key) || !DASHBOARD_HINT.test(event.key)) return;
+    sanitizeLocalStorage();
+  });
+
   window.addEventListener("error", event => {
-    if (/qr\.reduce|reading 'reduce'|reading 'bg'|\bbg\b|localeCompare|date|undefined|null/i.test(text(event && event.message))) sanitizeLocalStorage();
-  }, true);
-  window.addEventListener("unhandledrejection", event => {
-    const reason = event && event.reason;
-    if (/qr\.reduce|reading 'reduce'|reading 'bg'|\bbg\b|localeCompare|date|undefined|null/i.test(text(reason && reason.message || reason))) sanitizeLocalStorage();
-  }, true);
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", recoverFromErrorScreen);
-  else recoverFromErrorScreen();
-  try { new MutationObserver(() => { hideRetiredUi(); recoverFromErrorScreen(); }).observe(document.documentElement, { childList: true, subtree: true }); } catch (_error) {}
-  setTimeout(hideRetiredUi, 300);
-  setTimeout(hideRetiredUi, 1500);
+    const message = text(event?.error?.message || event?.message || "");
+    if (/bg|localeCompare|qr\.reduce|undefined|null/i.test(message)) setTimeout(recoverFromErrorScreen, 100);
+  });
 })();
