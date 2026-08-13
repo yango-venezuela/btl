@@ -1,13 +1,12 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoSharedStateSyncV10) return;
-  window.__yangoSharedStateSyncV10 = true;
+  if (typeof window === "undefined" || window.__yangoSharedStateSyncV12) return;
+  window.__yangoSharedStateSyncV12 = true;
 
   const pending = new Map();
   const lastSeen = new Map();
-  const lastValue = new Map();
   let timer = null;
-  let flushing = false;
   let hydrating = false;
+  let flushing = false;
 
   const canonicalKeys = {
     agency: "yango_agency_submissions_h1",
@@ -22,6 +21,9 @@
     social: "yango_social_report_h1",
     users: "yango_users_h1"
   };
+
+  const protectedTypes = new Set(["agency", "media", "pop", "branding", "influencers", "mystery", "budgets", "social", "users"]);
+  const replaceTypes = new Set(["influencers", "acts", "branding", "pop", "media", "social", "users"]);
 
   const normalize = value => String(value || "")
     .normalize("NFD")
@@ -45,6 +47,12 @@
     match = raw.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/);
     if (match) return `${match[3]}-${String(match[2]).padStart(2, "0")}-${String(match[1]).padStart(2, "0")}`;
     return raw;
+  };
+
+  const hasMeaningfulData = value => {
+    if (Array.isArray(value)) return value.length > 0;
+    if (isObject(value)) return Object.values(value).some(hasMeaningfulData);
+    return value !== undefined && value !== null && String(value).trim() !== "";
   };
 
   const activationHasRealName = item => {
@@ -79,18 +87,8 @@
       return true;
     });
   };
-  const sanitizeValue = (type, value) => type === "acts" ? sanitizeActivations(value) : value;
 
-  const waitForCollaboratorMirror = () => new Promise(resolve => {
-    if (!window.__yangoCollaboratorMirrorPending) return resolve();
-    let elapsed = 0;
-    const tick = () => {
-      if (!window.__yangoCollaboratorMirrorPending || elapsed >= 2500) return resolve();
-      elapsed += 100;
-      setTimeout(tick, 100);
-    };
-    tick();
-  });
+  const sanitizeValue = (type, value) => type === "acts" ? sanitizeActivations(value) : value;
 
   const typeFromKey = key => {
     const k = String(key || "").toLowerCase();
@@ -144,22 +142,12 @@
     ).trim();
   };
 
-  const mergeArrays = (remoteValue, localValue, baselineValue) => {
+  const mergeArrays = (remoteValue, localValue) => {
     const remote = Array.isArray(remoteValue) ? remoteValue : [];
     const local = Array.isArray(localValue) ? localValue : [];
-    const baseline = Array.isArray(baselineValue) ? baselineValue : null;
-    const localIds = new Set(local.map(stableId).filter(Boolean));
-    const deletedIds = new Set();
-    if (baseline) {
-      baseline.forEach(item => {
-        const id = stableId(item);
-        if (id && !localIds.has(id)) deletedIds.add(id);
-      });
-    }
-    const merged = remote.filter(item => {
-      const id = stableId(item);
-      return !id || !deletedIds.has(id);
-    });
+    if (!remote.length) return local;
+    if (!local.length) return remote;
+    const merged = remote.slice();
     const indexById = new Map();
     merged.forEach((item, index) => {
       const id = stableId(item);
@@ -177,16 +165,13 @@
     return merged;
   };
 
-  const merge = (remoteValue, localValue, baselineValue) => {
-    if (Array.isArray(remoteValue) || Array.isArray(localValue)) return mergeArrays(remoteValue, localValue, baselineValue);
-    if (!isObject(remoteValue)) return localValue === undefined || localValue === null ? remoteValue : localValue;
+  const mergeObjects = (remoteValue, localValue) => {
+    if (Array.isArray(remoteValue) || Array.isArray(localValue)) return mergeArrays(remoteValue, localValue);
+    if (!isObject(remoteValue)) return hasMeaningfulData(localValue) ? localValue : remoteValue;
     if (!isObject(localValue)) return remoteValue;
     const next = { ...remoteValue };
     Object.keys(localValue).forEach(key => {
-      const base = isObject(baselineValue) || Array.isArray(baselineValue) ? baselineValue[key] : undefined;
-      if (Array.isArray(remoteValue[key]) || Array.isArray(localValue[key])) next[key] = mergeArrays(remoteValue[key], localValue[key], base);
-      else if (isObject(remoteValue[key]) || isObject(localValue[key])) next[key] = merge(remoteValue[key], localValue[key], base);
-      else next[key] = localValue[key] !== undefined && localValue[key] !== null ? localValue[key] : remoteValue[key];
+      next[key] = mergeObjects(remoteValue[key], localValue[key]);
     });
     return next;
   };
@@ -208,60 +193,76 @@
   };
 
   const originalSetItem = localStorage.setItem.bind(localStorage);
+  const originalRemoveItem = localStorage.removeItem.bind(localStorage);
 
   const remember = (key, value) => {
-    const text = stringify(value);
-    lastSeen.set(key, text);
-    lastValue.set(key, clone(value));
+    lastSeen.set(key, stringify(value));
   };
 
   const writeLocal = (key, value) => {
-    const text = stringify(value);
-    if (localStorage.getItem(key) !== text) originalSetItem(key, text);
+    const serialized = stringify(value);
+    if (localStorage.getItem(key) !== serialized) originalSetItem(key, serialized);
     remember(key, value);
   };
+
+  const readLocal = key => parseJson(localStorage.getItem(key));
 
   const localEntries = () => {
     const entries = [];
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
       if (!sharedKey(key)) continue;
-      const raw = localStorage.getItem(key);
-      const parsed = parseJson(raw);
+      const parsed = readLocal(key);
       if (parsed == null) continue;
       const type = typeOf(key, parsed);
       const target = canonicalKeys[type];
       if (!target) continue;
       const value = sanitizeValue(type, parsed);
-      entries.push({ key, type, target, raw: stringify(value), value });
+      entries.push({ key, type, target, value });
     }
     return entries;
   };
 
+  const bestLocalForType = type => {
+    const target = canonicalKeys[type];
+    const candidates = localEntries().filter(entry => entry.type === type || entry.target === target);
+    const meaningful = candidates.filter(entry => hasMeaningfulData(entry.value));
+    if (!meaningful.length) return null;
+    meaningful.sort((a, b) => stringify(b.value).length - stringify(a.value).length);
+    return meaningful[0];
+  };
+
+  const queueDirect = (key, target, type, value, reason) => {
+    const cleanValue = sanitizeValue(type, value);
+    if (protectedTypes.has(type) && !hasMeaningfulData(cleanValue)) return;
+    const raw = stringify(cleanValue);
+    if (lastSeen.get(key) === raw && lastSeen.get(target) === raw) return;
+    pending.set(`${key}->${target}`, { key, target, type, value: cleanValue, reason });
+    clearTimeout(timer);
+    timer = setTimeout(flush, 550);
+  };
+
   const hydrate = async () => {
     if (hydrating || !window.fetch || window.location.protocol === "file:") return;
-    await waitForCollaboratorMirror();
     hydrating = true;
     try {
       const remote = await fetchRemote();
-      let changed = false;
-      Object.entries(remote).forEach(([key, remoteValue]) => {
-        if (!sharedKey(key)) return;
-        const type = typeOf(key, remoteValue);
-        const cleanRemote = sanitizeValue(type, remoteValue);
-        const before = localStorage.getItem(key);
-        writeLocal(key, cleanRemote);
-        if (before !== stringify(cleanRemote)) changed = true;
+      const rescue = [];
+      Object.entries(canonicalKeys).forEach(([type, target]) => {
+        const remoteValue = sanitizeValue(type, remote[target]);
+        const localBest = bestLocalForType(type);
+        if (protectedTypes.has(type) && !hasMeaningfulData(remoteValue) && localBest && hasMeaningfulData(localBest.value)) {
+          writeLocal(target, localBest.value);
+          rescue.push({ key: localBest.key, target, type, value: localBest.value });
+          return;
+        }
+        if (hasMeaningfulData(remoteValue)) {
+          writeLocal(target, remoteValue);
+          localEntries().filter(entry => entry.type === type && entry.key !== target).forEach(entry => writeLocal(entry.key, remoteValue));
+        }
       });
-      localEntries().forEach(entry => {
-        const remoteValue = remote[entry.target];
-        if (remoteValue === undefined || entry.key === entry.target) return;
-        const cleanRemote = sanitizeValue(entry.type, remoteValue);
-        const before = localStorage.getItem(entry.key);
-        writeLocal(entry.key, cleanRemote);
-        if (before !== stringify(cleanRemote)) changed = true;
-      });
-      if (changed) window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { keys: Object.keys(remote).filter(sharedKey) } }));
+      rescue.forEach(entry => queueDirect(entry.key, entry.target, entry.type, entry.value, "rescue-local-from-empty-remote"));
+      window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { protected: true } }));
     } catch (error) {
       console.warn("No pude hidratar datos compartidos:", error);
     } finally {
@@ -269,65 +270,59 @@
     }
   };
 
-  const queue = (key, rawValue, reason) => {
-    if (window.__yangoCollaboratorMirrorPending) return;
+  function queue(key, rawValue, reason) {
     if (hydrating || !sharedKey(key)) return;
     const parsed = typeof rawValue === "string" ? parseJson(rawValue) : rawValue;
     if (parsed == null) return;
     const type = typeOf(key, parsed);
     const target = canonicalKeys[type];
     if (!target) return;
-    const value = sanitizeValue(type, parsed);
-    const raw = stringify(value);
-    const baseline = lastValue.has(key) ? clone(lastValue.get(key)) : undefined;
-    if (lastSeen.get(key) === raw) return;
-    pending.set(`${key}->${target}`, { key, target, type, value, baseline, reason });
-    clearTimeout(timer);
-    timer = setTimeout(flush, 650);
-    setTimeout(flush, 2200);
-  };
+    queueDirect(key, target, type, parsed, reason);
+  }
 
-  const flush = async () => {
-    if (window.__yangoCollaboratorMirrorPending) {
-      setTimeout(flush, 450);
-      return;
-    }
+  async function flush() {
     if (flushing || !pending.size || !window.fetch || window.location.protocol === "file:") return;
     flushing = true;
     try {
       const remote = await fetchRemote();
       const entries = Array.from(pending.values());
       pending.clear();
-      const synced = [];
       for (const entry of entries) {
         const current = sanitizeValue(entry.type, remote[entry.target]);
-        const shouldReplace = entry.target === canonicalKeys.influencers || entry.target === canonicalKeys.acts;
-        const merged = sanitizeValue(entry.type, shouldReplace ? entry.value : merge(current, entry.value, entry.baseline));
-        remote[entry.target] = merged;
-        await putRemote(entry.target, merged);
-        writeLocal(entry.target, merged);
-        writeLocal(entry.key, merged);
-        synced.push(`${entry.key}->${entry.target}`);
+        let next;
+        if (replaceTypes.has(entry.type)) {
+          next = sanitizeValue(entry.type, entry.value);
+        } else {
+          next = sanitizeValue(entry.type, mergeObjects(current, entry.value));
+        }
+        if (protectedTypes.has(entry.type) && !hasMeaningfulData(next)) continue;
+        remote[entry.target] = next;
+        await putRemote(entry.target, next);
+        writeLocal(entry.target, next);
+        writeLocal(entry.key, next);
       }
-      if (synced.length) window.dispatchEvent(new CustomEvent("yango:shared-state-synced", { detail: { synced } }));
+      window.dispatchEvent(new CustomEvent("yango:shared-state-synced", { detail: { protected: true } }));
     } catch (error) {
       console.warn("No pude sincronizar cambios del panel:", error);
     } finally {
       flushing = false;
     }
-  };
+  }
 
   const scanSoon = reason => {
-    if (window.__yangoCollaboratorMirrorPending) return;
-    setTimeout(() => {
-      if (window.__yangoCollaboratorMirrorPending) return;
-      localEntries().forEach(entry => queue(entry.key, entry.value, reason));
-    }, 350);
+    setTimeout(() => localEntries().forEach(entry => queueDirect(entry.key, entry.target, entry.type, entry.value, reason)), 350);
   };
 
   localStorage.setItem = function patchedSetItem(key, value) {
     originalSetItem(key, value);
     queue(key, value, "localStorage.setItem");
+  };
+  localStorage.removeItem = function patchedRemoveItem(key) {
+    const oldValue = readLocal(key);
+    originalRemoveItem(key);
+    const type = typeOf(key, oldValue);
+    if (protectedTypes.has(type)) return;
+    queue(key, "[]", "localStorage.removeItem");
   };
 
   document.addEventListener("click", () => scanSoon("click"), true);
@@ -344,12 +339,12 @@
 })();
 
 (() => {
-  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV5) return;
-  window.__yangoBtlMapPolishLoaderInstalledV5 = true;
+  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV7) return;
+  window.__yangoBtlMapPolishLoaderInstalledV7 = true;
   const load = () => {
     if (document.querySelector('script[src^="/btl-map-polish.js"]')) return;
     const script = document.createElement("script");
-    script.src = `/btl-map-polish.js?v=20260813b-${Date.now()}`;
+    script.src = `/btl-map-polish.js?v=20260813d-${Date.now()}`;
     script.defer = true;
     document.head.appendChild(script);
   };
