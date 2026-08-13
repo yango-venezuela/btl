@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoBtlCanonicalMapV1) return;
-  window.__yangoBtlCanonicalMapV1 = true;
+  if (typeof window === "undefined" || window.__yangoBtlCanonicalMapV2) return;
+  window.__yangoBtlCanonicalMapV2 = true;
 
   const CANONICAL_KEY = "yango_activations_h1";
   const BROAD_ZONES = new Set(["petare", "centro", "este", "sureste", "universidades", "oeste", "sur", "norte", "satelites", "satélites", "sabana grande"]);
@@ -113,8 +113,8 @@
     if (changed) {
       window.dispatchEvent(new Event("storage"));
       window.dispatchEvent(new CustomEvent("yango:activations-cleaned", { detail: { total: canonical.length } }));
-      if (!sessionStorage.getItem("yango_btl_purged_reloaded_v1")) {
-        sessionStorage.setItem("yango_btl_purged_reloaded_v1", "1");
+      if (!sessionStorage.getItem("yango_btl_purged_reloaded_v2")) {
+        sessionStorage.setItem("yango_btl_purged_reloaded_v2", "1");
         setTimeout(() => location.reload(), 350);
       }
     }
@@ -146,8 +146,10 @@
     style.textContent = `
       .leaflet-container,.yango-btl-map-shell{min-height:520px!important;height:min(62vh,660px)!important;width:100%!important;border-radius:16px!important;background:#eef2f5!important;position:relative!important;overflow:hidden!important;}
       .yango-btl-map-shell{border:1px solid rgba(15,23,42,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.7);}
-      .yango-btl-lite-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(100,116,139,.14) 1px,transparent 1px),linear-gradient(90deg,rgba(100,116,139,.14) 1px,transparent 1px);background-size:72px 72px;opacity:.42;}
-      .yango-btl-lite-label{position:absolute;color:rgba(71,85,105,.34);font:800 11px/1 system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;}
+      .yango-btl-tile-layer{position:absolute;inset:0;background:#eef2f5;overflow:hidden;}
+      .yango-btl-tile-layer img{position:absolute;width:auto;height:auto;image-rendering:auto;filter:saturate(.72) contrast(.98) brightness(1.04);opacity:.96;}
+      .yango-btl-lite-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(100,116,139,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(100,116,139,.08) 1px,transparent 1px);background-size:72px 72px;opacity:.24;pointer-events:none;}
+      .yango-btl-lite-label{position:absolute;color:rgba(15,23,42,.42);font:900 11px/1 system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;text-shadow:0 1px 0 rgba(255,255,255,.65);}
       .yango-btl-pin{position:absolute;width:18px;height:18px;border:3px solid #fff;border-radius:999px;box-shadow:0 7px 18px rgba(15,23,42,.32);transform:translate(-50%,-50%);cursor:pointer;z-index:3;}
       .yango-btl-popup{position:absolute;z-index:4;min-width:190px;background:white;border:1px solid rgba(15,23,42,.12);border-radius:14px;padding:10px 12px;box-shadow:0 14px 36px rgba(15,23,42,.18);font:12px/1.35 system-ui,sans-serif;color:#0f172a;transform:translate(-50%, calc(-100% - 18px));pointer-events:none;}
       .yango-btl-map-counter,.yango-btl-map-reload{position:absolute;z-index:5;background:rgba(255,255,255,.96);border:1px solid rgba(15,23,42,.12);box-shadow:0 8px 24px rgba(15,23,42,.12);font:800 12px/1 system-ui,sans-serif;color:#0f172a;border-radius:999px;padding:10px 12px;}
@@ -156,7 +158,9 @@
     document.head.appendChild(style);
   };
 
+  const isBtlMapPage = () => /Mapa de activaciones en Caracas|MAPA DE ACTIVACIONES/i.test(document.body?.textContent || "");
   const findOrCreateMap = () => {
+    if (!isBtlMapPage()) return null;
     const existing = Array.from(document.querySelectorAll('.leaflet-container,.yango-btl-map-shell')).sort((a,b)=>(b.clientWidth*b.clientHeight)-(a.clientWidth*a.clientHeight))[0];
     if (existing) return existing;
     const cards = Array.from(document.querySelectorAll('section,article,div')).filter(el => /Mapa de activaciones en Caracas/i.test(el.textContent || ""));
@@ -168,13 +172,48 @@
     return shell;
   };
 
+  const tilePoint = (lat, lng, zoom) => {
+    const sin = Math.sin(lat * Math.PI / 180);
+    const scale = 2 ** zoom;
+    return {
+      x: ((lng + 180) / 360) * scale,
+      y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale
+    };
+  };
+  const drawTiles = container => {
+    const layer = container.querySelector('.yango-btl-tile-layer');
+    if (!layer) return;
+    const zoom = 12;
+    const nw = tilePoint(BOUNDS.north, BOUNDS.west, zoom);
+    const se = tilePoint(BOUNDS.south, BOUNDS.east, zoom);
+    const minX = Math.floor(nw.x), maxX = Math.ceil(se.x);
+    const minY = Math.floor(nw.y), maxY = Math.ceil(se.y);
+    const width = se.x - nw.x;
+    const height = se.y - nw.y;
+    for (let x = minX; x <= maxX; x += 1) {
+      for (let y = minY; y <= maxY; y += 1) {
+        const img = document.createElement('img');
+        img.loading = 'lazy';
+        img.alt = '';
+        img.src = `https://a.basemaps.cartocdn.com/light_all/${zoom}/${x}/${y}.png`;
+        img.style.left = `${((x - nw.x) / width) * 100}%`;
+        img.style.top = `${((y - nw.y) / height) * 100}%`;
+        img.style.width = `${(1 / width) * 100}%`;
+        img.style.height = `${(1 / height) * 100}%`;
+        img.onerror = () => { img.style.display = 'none'; };
+        layer.appendChild(img);
+      }
+    }
+  };
+
   const render = async () => {
     injectCss();
+    const list = await purgeEverywhere();
     const container = findOrCreateMap();
     if (!container) return;
     container.classList.add('yango-btl-map-shell');
-    container.innerHTML = '<div class="yango-btl-lite-grid"></div><span class="yango-btl-lite-label" style="left:18%;top:20%">Oeste</span><span class="yango-btl-lite-label" style="left:46%;top:24%">Caracas</span><span class="yango-btl-lite-label" style="left:70%;top:28%">Este</span><button class="yango-btl-map-reload" type="button">Actualizar mapa</button><div class="yango-btl-map-counter">Cargando...</div>';
-    const list = await purgeEverywhere();
+    container.innerHTML = '<div class="yango-btl-tile-layer"></div><div class="yango-btl-lite-grid"></div><span class="yango-btl-lite-label" style="left:18%;top:20%">Oeste</span><span class="yango-btl-lite-label" style="left:46%;top:24%">Caracas</span><span class="yango-btl-lite-label" style="left:70%;top:28%">Este</span><button class="yango-btl-map-reload" type="button">Actualizar mapa</button><div class="yango-btl-map-counter">Cargando...</div>';
+    drawTiles(container);
     const points = list.filter(coordsFor);
     points.forEach((item, index) => {
       const [lat, lng] = coordsFor(item);
@@ -214,18 +253,4 @@
     const text = String(event.target?.textContent || '').toLowerCase();
     if (/mapa|activaciones|calendario|actualizar/.test(text)) schedule();
   }, true);
-})();
-
-(() => {
-  if (typeof window === "undefined" || window.__yangoManualRescueBundleLoaderV1) return;
-  window.__yangoManualRescueBundleLoaderV1 = true;
-  const load = () => {
-    if (document.querySelector('script[src^="/manual-rescue-bundle-sync.js"]')) return;
-    const script = document.createElement("script");
-    script.src = `/manual-rescue-bundle-sync.js?v=20260804c-${Date.now()}`;
-    script.defer = true;
-    document.head.appendChild(script);
-  };
-  setTimeout(load, 150);
-  setTimeout(load, 1800);
 })();
