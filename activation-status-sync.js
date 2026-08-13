@@ -1,12 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoSharedStateSyncV14) return;
-  window.__yangoSharedStateSyncV14 = true;
-
-  const pending = new Map();
-  const lastSeen = new Map();
-  let timer = null;
-  let hydrating = false;
-  let flushing = false;
+  if (typeof window === "undefined" || window.__yangoSharedStateSyncV15) return;
+  window.__yangoSharedStateSyncV15 = true;
 
   const canonicalKeys = {
     agency: "yango_agency_submissions_h1",
@@ -23,7 +17,12 @@
   };
 
   const protectedTypes = new Set(["agency", "media", "pop", "branding", "influencers", "mystery", "budgets", "social", "users"]);
-  const replaceTypes = new Set(["influencers", "acts", "branding", "pop", "media", "social", "users"]);
+  const replaceTypes = new Set(["influencers", "acts", "branding", "pop", "media", "social", "users", "budgets", "mystery"]);
+  const pending = new Map();
+  const lastSeen = new Map();
+  let hydrating = false;
+  let flushing = false;
+  let flushTimer = null;
 
   const normalize = value => String(value || "")
     .normalize("NFD")
@@ -35,9 +34,21 @@
   const parseJson = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
   const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
-  const blockedKey = key => /migration|backup|respaldo|token|password|pass|secret|hydrated|debug|devtools|theme|tooltip|toast|mapbox|leaflet/i.test(String(key || ""));
+  const blockedKey = key => /migration|backup|respaldo|token|password|pass|secret|hydrated|debug|devtools|theme|tooltip|toast|mapbox|leaflet|samsung|raffle|rifa/i.test(String(key || ""));
 
-  const normalizeDate = value => {
+  function showStatus(ok, message) {
+    try {
+      window.dispatchEvent(new CustomEvent("yango:cloud-save-status", { detail: { ok, message } }));
+      const badge = document.getElementById("yango-cloud-save-status");
+      if (badge) {
+        badge.className = ok ? "ok" : "bad";
+        badge.innerHTML = `<span class="dot"></span><span>${String(message || "")}</span>`;
+      }
+      document.body && document.body.classList.toggle("yango-cloud-save-offline", !ok);
+    } catch (_error) {}
+  }
+
+  function normalizeDate(value) {
     const raw = String(value || "").trim();
     if (!raw) return "";
     let match = raw.match(/(20\d{2}|19\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
@@ -45,60 +56,106 @@
     match = raw.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/);
     if (match) return `${match[3]}-${String(match[2]).padStart(2, "0")}-${String(match[1]).padStart(2, "0")}`;
     return raw;
-  };
+  }
 
-  const hasMeaningfulData = value => {
+  function hasData(value) {
     if (Array.isArray(value)) return value.length > 0;
-    if (isObject(value)) return Object.values(value).some(hasMeaningfulData);
+    if (isObject(value)) return Object.values(value).some(hasData);
     return value !== undefined && value !== null && String(value).trim() !== "";
-  };
+  }
 
-  const isUnnamed = item => {
-    const name = normalize(item && (item.name || item.nombre || item.title || item.titulo));
+  function isUnnamedActivation(item) {
+    if (!isObject(item)) return false;
+    const name = normalize(item.name || item.nombre || item.title || item.titulo);
     return !name || name === "sin nombre" || compact(name) === "sinnombre" || ["undefined", "null", "nan", "-"].includes(name);
-  };
+  }
 
-  const sanitizeActivations = value => {
-    if (!Array.isArray(value)) return value;
+  function activationStableId(item) {
+    if (!isObject(item)) return "";
+    const explicit = item.id || item.activationId || item.actId || item.uuid || item.key;
+    if (explicit) return String(explicit);
+    return [
+      normalizeDate(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt),
+      normalize(item.name || item.nombre || item.title || item.titulo),
+      normalize(item.location || item.ubicacion || item.zone || item.zona || item.area),
+      normalize(item.type || item.tipo || item.activationType || item.tipoActivacion),
+      normalize(item.status || item.estado || item.activationStatus || "")
+    ].join("|");
+  }
+
+  function sanitizeActivations(value) {
+    const list = Array.isArray(value) ? value : [];
     const seen = new Set();
-    return value
-      .filter(item => !(isObject(item) && isUnnamed(item)))
-      .filter(item => {
-        if (!isObject(item)) return true;
-        const id = [
-          normalizeDate(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt),
-          normalize(item.name || item.nombre || item.title || item.titulo),
-          normalize(item.location || item.ubicacion || item.zone || item.zona || item.area),
-          normalize(item.type || item.tipo || item.activationType || item.tipoActivacion),
-          normalize(item.status || item.estado || item.activationStatus || "")
-        ].join("|");
-        if (!id.replace(/\|/g, "")) return true;
-        if (seen.has(id)) return false;
-        seen.add(id);
-        return true;
-      });
-  };
+    return list.filter(item => {
+      if (isObject(item) && isUnnamedActivation(item)) return false;
+      const id = activationStableId(item);
+      if (!id || !id.replace(/\|/g, "")) return true;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }
 
-  const sanitizeValue = (type, value) => type === "acts" ? sanitizeActivations(value) : value;
+  function sanitizeDeliverables(value) {
+    const raw = Array.isArray(value) ? value : String(value || "").split("+");
+    const allowed = new Map(["Stories", "Reel", "Post", "TikTok", "Live"].map(item => [item.toLowerCase(), item]));
+    const out = [];
+    raw.forEach(item => {
+      const cleaned = String(item || "").trim();
+      if (!cleaned) return;
+      const canonical = allowed.get(cleaned.toLowerCase()) || cleaned;
+      if (!out.some(existing => existing.toLowerCase() === canonical.toLowerCase())) out.push(canonical);
+    });
+    return out;
+  }
 
-  const typeFromKey = key => {
+  function influencerKey(item) {
+    if (!isObject(item)) return "";
+    const name = normalize(item.name || item.nombre);
+    const handle = normalize(item.handle || item.igUsername || item.instagram || item.tiktokUsername || item.tiktok);
+    return name || handle ? `${name}|${handle}` : "";
+  }
+
+  function sanitizeInfluencers(value) {
+    const list = Array.isArray(value) ? value : [];
+    const map = new Map();
+    list.forEach(item => {
+      const key = influencerKey(item);
+      if (!key || /^carlos rides\|/.test(key) || key === "carlos rides|") return;
+      const next = isObject(item) ? { ...item, deliverables: sanitizeDeliverables(item.deliverables || item.entregables) } : item;
+      map.set(key, next);
+    });
+    return [...map.values()];
+  }
+
+  function sanitizeValue(type, value) {
+    if (type === "acts") return sanitizeActivations(value);
+    if (type === "influencers") return sanitizeInfluencers(value);
+    if (["agency", "media", "mystery", "users", "qr"].includes(type) && !Array.isArray(value) && value && typeof value === "object") {
+      const likely = value.items || value.rows || value.data || value.values || value.records || value.list || value.entries;
+      if (Array.isArray(likely)) return likely;
+    }
+    return value;
+  }
+
+  function typeFromKey(key) {
     const k = String(key || "").toLowerCase();
     if (/agency|agencia|proof|photo|foto|evidencia|promotor/.test(k)) return "agency";
-    if (/acts|activation|activacion|calendar|calendario/.test(k)) return "acts";
+    if (/acts|activation|activacion|activaciones|calendar|calendario/.test(k)) return "acts";
     if (/adjust|qr|result|resultado/.test(k)) return "qr";
     if (/influ/.test(k)) return "influencers";
     if (/branding/.test(k)) return "branding";
     if (/pop|material/.test(k)) return "pop";
-    if (/media|ooh/.test(k)) return "media";
+    if (/media|ooh|valla|banderola|parada/.test(k)) return "media";
     if (/mystery|shopper/.test(k)) return "mystery";
     if (/budget|presupuesto/.test(k)) return "budgets";
     if (/social|instagram|tiktok/.test(k)) return "social";
     if (/user|usuario/.test(k)) return "users";
     return "unknown";
-  };
+  }
 
-  const typeFromValue = value => {
-    const sample = stringify(value).slice(0, 18000).toLowerCase();
+  function typeFromValue(value) {
+    const sample = stringify(value).slice(0, 20000).toLowerCase();
     if (/promotora|promotoras|evidencia|proof|flyers entreg|cantidad de flyers|agencia/.test(sample)) return "agency";
     if (/activaci|activation|calendario|calendar|sabana|petare|centro de caracas|altamira|chacaito|fecha calendario|sin nombre/.test(sample)) return "acts";
     if (/adjust|installs|clicks|registration|success_first_order|primer viaje|first order/.test(sample)) return "qr";
@@ -111,29 +168,29 @@
     if (/presupuesto|budget|mtd|actuals/.test(sample)) return "budgets";
     if (/usuario|user|luis|giselle|agency/.test(sample)) return "users";
     return "unknown";
-  };
+  }
 
-  const sharedKey = key => {
+  function sharedKey(key) {
     const k = String(key || "");
-    if (!k || blockedKey(k) || /samsung|raffle|rifa/i.test(k)) return false;
+    if (!k || blockedKey(k)) return false;
     return /^(yango_|mkt_|btl_)/i.test(k) || /agency|agencia|proof|photo|foto|evidencia|flyer|promotor|acts|activation|activacion|calendar|calendario|adjust|qr|result|resultado|budget|presupuesto|influ|branding|pop|material|media|ooh|mystery|shopper|social|tiktok|instagram|users|usuarios/i.test(k);
-  };
+  }
 
-  const typeOf = (key, value) => {
-    const fromKey = typeFromKey(key);
-    return fromKey !== "unknown" ? fromKey : typeFromValue(value);
-  };
+  function typeOf(key, value) {
+    const byKey = typeFromKey(key);
+    return byKey !== "unknown" ? byKey : typeFromValue(value);
+  }
 
-  const stableId = item => {
+  function stableId(item) {
     if (!isObject(item)) return "";
     return String(
       item.id || item.activationId || item.actId || item.uuid || item.key || item.responseId ||
       item.name || item.nombre || item.username || item.handle || item.igUsername || item.instagram || item.tiktokUsername ||
       [item.title || item.titulo || "", item.date || item.fecha || item.calendarDate || "", item.location || item.ubicacion || item.zone || item.zona || "", item.type || item.tipo || ""].join("|")
     ).trim();
-  };
+  }
 
-  const mergeArrays = (remoteValue, localValue) => {
+  function mergeArrays(remoteValue, localValue) {
     const remote = Array.isArray(remoteValue) ? remoteValue : [];
     const local = Array.isArray(localValue) ? localValue : [];
     if (!remote.length) return local;
@@ -154,51 +211,52 @@
       }
     });
     return merged;
-  };
+  }
 
-  const mergeObjects = (remoteValue, localValue) => {
+  function mergeObjects(remoteValue, localValue) {
     if (Array.isArray(remoteValue) || Array.isArray(localValue)) return mergeArrays(remoteValue, localValue);
-    if (!isObject(remoteValue)) return hasMeaningfulData(localValue) ? localValue : remoteValue;
+    if (!isObject(remoteValue)) return hasData(localValue) ? localValue : remoteValue;
     if (!isObject(localValue)) return remoteValue;
     const next = { ...remoteValue };
-    Object.keys(localValue).forEach(key => {
-      next[key] = mergeObjects(remoteValue[key], localValue[key]);
-    });
+    Object.keys(localValue).forEach(key => { next[key] = mergeObjects(remoteValue[key], localValue[key]); });
     return next;
-  };
+  }
 
-  const fetchRemote = async () => {
+  async function fetchRemote() {
     const response = await fetch(`/api/state?t=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`API ${response.status}`);
     const payload = await response.json();
-    return payload.values || {};
-  };
+    return payload && payload.values && typeof payload.values === "object" ? payload.values : {};
+  }
 
-  const putRemote = async (key, value) => {
+  async function putRemote(key, value) {
     const response = await fetch(`/api/state/${encodeURIComponent(key)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value })
     });
     if (!response.ok) throw new Error(`API ${response.status}`);
-  };
+  }
 
-  const originalSetItem = localStorage.setItem.bind(localStorage);
-  const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+  const proto = window.Storage && window.Storage.prototype;
+  const nativeSetItem = proto && proto.setItem ? proto.setItem : localStorage.setItem;
+  const nativeRemoveItem = proto && proto.removeItem ? proto.removeItem : localStorage.removeItem;
 
-  const remember = (key, value) => {
-    lastSeen.set(key, stringify(value));
-  };
+  function remember(key, value) {
+    lastSeen.set(String(key), stringify(value));
+  }
 
-  const writeLocal = (key, value) => {
+  function writeLocal(key, value) {
     const serialized = stringify(value);
-    if (localStorage.getItem(key) !== serialized) originalSetItem(key, serialized);
+    if (localStorage.getItem(key) !== serialized) nativeSetItem.call(localStorage, key, serialized);
     remember(key, value);
-  };
+  }
 
-  const readLocal = key => parseJson(localStorage.getItem(key));
+  function readLocal(key) {
+    return parseJson(localStorage.getItem(key));
+  }
 
-  const localEntries = () => {
+  function localEntries() {
     const entries = [];
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
@@ -208,79 +266,22 @@
       const type = typeOf(key, parsed);
       const target = canonicalKeys[type];
       if (!target) continue;
-      const value = sanitizeValue(type, parsed);
-      entries.push({ key, type, target, value });
+      entries.push({ key, type, target, value: sanitizeValue(type, parsed) });
     }
     return entries;
-  };
+  }
 
-  const bestLocalForType = type => {
-    const target = canonicalKeys[type];
-    const candidates = localEntries().filter(entry => entry.type === type || entry.target === target);
-    const meaningful = candidates.filter(entry => hasMeaningfulData(entry.value));
-    if (!meaningful.length) return null;
-    meaningful.sort((a, b) => stringify(b.value).length - stringify(a.value).length);
-    return meaningful[0];
-  };
-
-  const queueDirect = (key, target, type, value, reason) => {
-    const cleanValue = sanitizeValue(type, value);
-    if (protectedTypes.has(type) && !hasMeaningfulData(cleanValue)) return;
-    const raw = stringify(cleanValue);
-    if (lastSeen.get(key) === raw && lastSeen.get(target) === raw) return;
-    pending.set(`${key}->${target}`, { key, target, type, value: cleanValue, reason });
-    clearTimeout(timer);
-    timer = setTimeout(flush, 550);
-  };
-
-  const sanitizeRemoteActivationKeys = remote => {
-    const cleaned = [];
-    Object.keys(remote || {}).forEach(key => {
-      const value = remote[key];
-      if (typeOf(key, value) !== "acts") return;
-      const next = sanitizeActivations(value);
-      if (stringify(next) === stringify(value)) return;
-      remote[key] = next;
-      writeLocal(key, next);
-      cleaned.push({ key, target: key, type: "acts", value: next });
-      if (key !== canonicalKeys.acts) cleaned.push({ key, target: canonicalKeys.acts, type: "acts", value: next });
-    });
-    return cleaned;
-  };
-
-  const hydrate = async () => {
-    if (hydrating || !window.fetch || window.location.protocol === "file:") return;
-    hydrating = true;
-    try {
-      const remote = await fetchRemote();
-      const rescue = sanitizeRemoteActivationKeys(remote);
-      Object.entries(canonicalKeys).forEach(([type, target]) => {
-        const originalRemoteValue = remote[target];
-        const remoteValue = sanitizeValue(type, originalRemoteValue);
-        if (type === "acts" && stringify(remoteValue) !== stringify(originalRemoteValue)) {
-          writeLocal(target, remoteValue);
-          rescue.push({ key: target, target, type, value: remoteValue });
-          return;
-        }
-        const localBest = bestLocalForType(type);
-        if (protectedTypes.has(type) && !hasMeaningfulData(remoteValue) && localBest && hasMeaningfulData(localBest.value)) {
-          writeLocal(target, localBest.value);
-          rescue.push({ key: localBest.key, target, type, value: localBest.value });
-          return;
-        }
-        if (hasMeaningfulData(remoteValue) || type === "acts") {
-          writeLocal(target, remoteValue || []);
-          localEntries().filter(entry => entry.type === type && entry.key !== target).forEach(entry => writeLocal(entry.key, remoteValue || []));
-        }
-      });
-      rescue.forEach(entry => queueDirect(entry.key, entry.target, entry.type, entry.value, "remove-unnamed-activations"));
-      window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { protected: true } }));
-    } catch (error) {
-      console.warn("No pude hidratar datos compartidos:", error);
-    } finally {
-      hydrating = false;
-    }
-  };
+  function queueDirect(key, target, type, value, reason) {
+    if (!target || hydrating) return;
+    const clean = sanitizeValue(type, value);
+    if (protectedTypes.has(type) && !hasData(clean)) return;
+    const raw = stringify(clean);
+    if (lastSeen.get(String(key)) === raw && lastSeen.get(String(target)) === raw) return;
+    pending.set(`${key}->${target}`, { key, target, type, value: clean, reason });
+    clearTimeout(flushTimer);
+    flushTimer = setTimeout(flush, 700);
+    showStatus(true, "Guardando cambios en la nube...");
+  }
 
   function queue(key, rawValue, reason) {
     if (hydrating || !sharedKey(key)) return;
@@ -292,72 +293,106 @@
     queueDirect(key, target, type, parsed, reason);
   }
 
+  async function hydrate() {
+    if (hydrating || !window.fetch || window.location.protocol === "file:") return;
+    hydrating = true;
+    try {
+      const remote = await fetchRemote();
+      Object.entries(canonicalKeys).forEach(([type, target]) => {
+        const remoteValue = sanitizeValue(type, remote[target]);
+        if (hasData(remoteValue) || type === "acts") {
+          writeLocal(target, remoteValue || []);
+          localEntries().filter(entry => entry.type === type && entry.key !== target).forEach(entry => writeLocal(entry.key, remoteValue || []));
+        }
+      });
+      window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { source: "universal-sync" } }));
+      showStatus(true, "Guardado en la nube OK");
+    } catch (error) {
+      console.warn("No pude hidratar datos compartidos:", error);
+      showStatus(false, `No se pudo leer la nube: ${String(error.message || error).slice(0, 80)}`);
+    } finally {
+      hydrating = false;
+      localEntries().forEach(entry => remember(entry.key, entry.value));
+    }
+  }
+
   async function flush() {
     if (flushing || !pending.size || !window.fetch || window.location.protocol === "file:") return;
     flushing = true;
     try {
       const remote = await fetchRemote();
-      sanitizeRemoteActivationKeys(remote).forEach(entry => pending.set(`${entry.key}->${entry.target}`, entry));
       const entries = Array.from(pending.values());
       pending.clear();
       for (const entry of entries) {
         const current = sanitizeValue(entry.type, remote[entry.target]);
-        let next;
-        if (replaceTypes.has(entry.type)) {
-          next = sanitizeValue(entry.type, entry.value);
-        } else {
-          next = sanitizeValue(entry.type, mergeObjects(current, entry.value));
-        }
-        if (protectedTypes.has(entry.type) && !hasMeaningfulData(next)) continue;
+        const incoming = sanitizeValue(entry.type, entry.value);
+        let next = replaceTypes.has(entry.type) ? incoming : mergeObjects(current, incoming);
+        next = sanitizeValue(entry.type, next);
+        if (protectedTypes.has(entry.type) && !hasData(next)) continue;
         remote[entry.target] = next;
         await putRemote(entry.target, next);
         writeLocal(entry.target, next);
         writeLocal(entry.key, next);
       }
-      window.dispatchEvent(new CustomEvent("yango:shared-state-synced", { detail: { protected: true } }));
+      window.dispatchEvent(new CustomEvent("yango:shared-state-synced", { detail: { source: "universal-sync" } }));
+      showStatus(true, "Guardado en la nube OK");
     } catch (error) {
       console.warn("No pude sincronizar cambios del panel:", error);
+      showStatus(false, `No se guardó en la nube: ${String(error.message || error).slice(0, 80)}`);
+      clearTimeout(flushTimer);
+      flushTimer = setTimeout(flush, 2500);
     } finally {
       flushing = false;
     }
   }
 
-  const scanSoon = reason => {
-    setTimeout(() => localEntries().forEach(entry => queueDirect(entry.key, entry.target, entry.type, entry.value, reason)), 350);
-  };
+  function scan(reason) {
+    if (hydrating) return;
+    localEntries().forEach(entry => {
+      const raw = stringify(entry.value);
+      if (lastSeen.get(String(entry.key)) !== raw) queueDirect(entry.key, entry.target, entry.type, entry.value, reason);
+    });
+  }
 
-  localStorage.setItem = function patchedSetItem(key, value) {
-    originalSetItem(key, value);
-    queue(key, value, "localStorage.setItem");
-  };
-  localStorage.removeItem = function patchedRemoveItem(key) {
-    const oldValue = readLocal(key);
-    originalRemoveItem(key);
-    const type = typeOf(key, oldValue);
-    if (protectedTypes.has(type)) return;
-    queue(key, "[]", "localStorage.removeItem");
-  };
+  if (proto && !proto.__yangoSharedStateStoragePatchV15) {
+    Object.defineProperty(proto, "__yangoSharedStateStoragePatchV15", { value: true, configurable: true });
+    proto.setItem = function yangoSharedSetItem(key, value) {
+      const result = nativeSetItem.call(this, key, value);
+      if (this === localStorage) queue(key, value, "Storage.prototype.setItem");
+      return result;
+    };
+    proto.removeItem = function yangoSharedRemoveItem(key) {
+      const oldValue = this === localStorage ? readLocal(key) : null;
+      const result = nativeRemoveItem.call(this, key);
+      if (this === localStorage) {
+        const type = typeOf(key, oldValue);
+        if (!protectedTypes.has(type)) queue(key, "[]", "Storage.prototype.removeItem");
+      }
+      return result;
+    };
+  }
 
-  document.addEventListener("click", () => scanSoon("click"), true);
-  document.addEventListener("change", () => scanSoon("change"), true);
-  document.addEventListener("input", () => scanSoon("input"), true);
-  document.addEventListener("submit", () => scanSoon("submit"), true);
-  window.addEventListener("focus", () => { hydrate(); scanSoon("focus"); });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) hydrate(); });
-  window.addEventListener("beforeunload", () => { scanSoon("beforeunload"); flush(); });
+  document.addEventListener("click", () => setTimeout(() => scan("click"), 450), true);
+  document.addEventListener("change", () => setTimeout(() => scan("change"), 450), true);
+  document.addEventListener("input", () => setTimeout(() => scan("input"), 650), true);
+  document.addEventListener("submit", () => setTimeout(() => scan("submit"), 450), true);
+  window.addEventListener("focus", () => { hydrate(); setTimeout(() => scan("focus"), 900); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { hydrate(); setTimeout(() => scan("visible"), 900); } });
+  window.addEventListener("beforeunload", () => { scan("beforeunload"); flush(); });
 
-  setTimeout(hydrate, 150);
-  setTimeout(() => { hydrate(); scanSoon("startup"); }, 1800);
+  setTimeout(hydrate, 120);
+  setTimeout(() => scan("startup"), 2200);
+  setInterval(() => scan("interval"), 5000);
   setInterval(hydrate, 30000);
 })();
 
 (() => {
-  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV9) return;
-  window.__yangoBtlMapPolishLoaderInstalledV9 = true;
+  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV10) return;
+  window.__yangoBtlMapPolishLoaderInstalledV10 = true;
   const load = () => {
     if (document.querySelector('script[src^="/btl-map-polish.js"]')) return;
     const script = document.createElement("script");
-    script.src = `/btl-map-polish.js?v=20260813f-${Date.now()}`;
+    script.src = `/btl-map-polish.js?v=20260813g-${Date.now()}`;
     script.defer = true;
     document.head.appendChild(script);
   };
