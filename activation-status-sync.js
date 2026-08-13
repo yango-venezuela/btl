@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoSharedStateSyncV9) return;
-  window.__yangoSharedStateSyncV9 = true;
+  if (typeof window === "undefined" || window.__yangoSharedStateSyncV10) return;
+  window.__yangoSharedStateSyncV10 = true;
 
   const pending = new Map();
   const lastSeen = new Map();
@@ -22,7 +22,6 @@
     social: "yango_social_report_h1",
     users: "yango_users_h1"
   };
-  const canonicalSet = new Set(Object.values(canonicalKeys));
 
   const normalize = value => String(value || "")
     .normalize("NFD")
@@ -30,11 +29,57 @@
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+  const compact = value => normalize(value).replace(/[^a-z0-9]+/g, "");
   const parseJson = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
   const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
   const clone = value => parseJson(stringify(value));
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
   const blockedKey = key => /migration|backup|respaldo|token|password|pass|secret|hydrated|debug|devtools|theme|tooltip|toast|mapbox|leaflet/i.test(String(key || ""));
+  const broadActivationZones = new Set(["petare", "centro", "este", "sureste", "universidades", "oeste", "sur", "norte", "satelites", "satélites", "sabana grande"]);
+
+  const normalizeDate = value => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    let match = raw.match(/(20\d{2}|19\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (match) return `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
+    match = raw.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/);
+    if (match) return `${match[3]}-${String(match[2]).padStart(2, "0")}-${String(match[1]).padStart(2, "0")}`;
+    return raw;
+  };
+
+  const activationHasRealName = item => {
+    const name = normalize(item && (item.name || item.nombre || item.title || item.titulo));
+    return !!name && name !== "sin nombre" && compact(name) !== "sinnombre" && !["undefined", "null", "nan"].includes(name);
+  };
+  const activationStatus = item => normalize(item && (item.status || item.estado || item.activationStatus || item.validacion || item.validation));
+  const activationIsMissed = item => {
+    const status = activationStatus(item);
+    return status === "no se dio" || compact(status) === "nosedio" || ["missed", "cancelled", "canceled"].includes(status);
+  };
+  const activationIsGeneratedPlaceholder = item => {
+    const date = normalizeDate(item && (item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt));
+    const name = normalize(item && (item.name || item.nombre || item.title || item.titulo));
+    const location = normalize(item && (item.location || item.ubicacion || item.zone || item.zona || item.area));
+    const status = activationStatus(item);
+    const planned = !status || ["planned", "planificada", "pending"].includes(status);
+    return planned && (date === "2026-01-01" || /(^|\D)1\s*ene/.test(normalize(date))) && broadActivationZones.has(name) && (!location || location === name || broadActivationZones.has(location));
+  };
+  const sanitizeActivations = value => {
+    if (!Array.isArray(value)) return value;
+    const seen = new Set();
+    return value.filter(item => isObject(item) && activationHasRealName(item) && !activationIsMissed(item) && !activationIsGeneratedPlaceholder(item)).filter(item => {
+      const id = [
+        normalizeDate(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt),
+        normalize(item.name || item.nombre || item.title || item.titulo),
+        normalize(item.location || item.ubicacion || item.zone || item.zona || item.area),
+        normalize(item.type || item.tipo || item.activationType || item.tipoActivacion)
+      ].join("|");
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  };
+  const sanitizeValue = (type, value) => type === "acts" ? sanitizeActivations(value) : value;
 
   const waitForCollaboratorMirror = () => new Promise(resolve => {
     if (!window.__yangoCollaboratorMirrorPending) return resolve();
@@ -182,12 +227,13 @@
       const key = localStorage.key(index);
       if (!sharedKey(key)) continue;
       const raw = localStorage.getItem(key);
-      const value = parseJson(raw);
-      if (value == null) continue;
-      const type = typeOf(key, value);
+      const parsed = parseJson(raw);
+      if (parsed == null) continue;
+      const type = typeOf(key, parsed);
       const target = canonicalKeys[type];
       if (!target) continue;
-      entries.push({ key, type, target, raw, value });
+      const value = sanitizeValue(type, parsed);
+      entries.push({ key, type, target, raw: stringify(value), value });
     }
     return entries;
   };
@@ -201,16 +247,19 @@
       let changed = false;
       Object.entries(remote).forEach(([key, remoteValue]) => {
         if (!sharedKey(key)) return;
+        const type = typeOf(key, remoteValue);
+        const cleanRemote = sanitizeValue(type, remoteValue);
         const before = localStorage.getItem(key);
-        writeLocal(key, remoteValue);
-        if (before !== stringify(remoteValue)) changed = true;
+        writeLocal(key, cleanRemote);
+        if (before !== stringify(cleanRemote)) changed = true;
       });
       localEntries().forEach(entry => {
         const remoteValue = remote[entry.target];
         if (remoteValue === undefined || entry.key === entry.target) return;
+        const cleanRemote = sanitizeValue(entry.type, remoteValue);
         const before = localStorage.getItem(entry.key);
-        writeLocal(entry.key, remoteValue);
-        if (before !== stringify(remoteValue)) changed = true;
+        writeLocal(entry.key, cleanRemote);
+        if (before !== stringify(cleanRemote)) changed = true;
       });
       if (changed) window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { keys: Object.keys(remote).filter(sharedKey) } }));
     } catch (error) {
@@ -223,11 +272,12 @@
   const queue = (key, rawValue, reason) => {
     if (window.__yangoCollaboratorMirrorPending) return;
     if (hydrating || !sharedKey(key)) return;
-    const value = typeof rawValue === "string" ? parseJson(rawValue) : rawValue;
-    if (value == null) return;
-    const type = typeOf(key, value);
+    const parsed = typeof rawValue === "string" ? parseJson(rawValue) : rawValue;
+    if (parsed == null) return;
+    const type = typeOf(key, parsed);
     const target = canonicalKeys[type];
     if (!target) return;
+    const value = sanitizeValue(type, parsed);
     const raw = stringify(value);
     const baseline = lastValue.has(key) ? clone(lastValue.get(key)) : undefined;
     if (lastSeen.get(key) === raw) return;
@@ -250,9 +300,9 @@
       pending.clear();
       const synced = [];
       for (const entry of entries) {
-        const current = remote[entry.target];
-        const shouldReplace = entry.target === canonicalKeys.influencers;
-        const merged = shouldReplace ? entry.value : merge(current, entry.value, entry.baseline);
+        const current = sanitizeValue(entry.type, remote[entry.target]);
+        const shouldReplace = entry.target === canonicalKeys.influencers || entry.target === canonicalKeys.acts;
+        const merged = sanitizeValue(entry.type, shouldReplace ? entry.value : merge(current, entry.value, entry.baseline));
         remote[entry.target] = merged;
         await putRemote(entry.target, merged);
         writeLocal(entry.target, merged);
@@ -294,12 +344,12 @@
 })();
 
 (() => {
-  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV4) return;
-  window.__yangoBtlMapPolishLoaderInstalledV4 = true;
+  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV5) return;
+  window.__yangoBtlMapPolishLoaderInstalledV5 = true;
   const load = () => {
     if (document.querySelector('script[src^="/btl-map-polish.js"]')) return;
     const script = document.createElement("script");
-    script.src = `/btl-map-polish.js?v=20260810b-${Date.now()}`;
+    script.src = `/btl-map-polish.js?v=20260813b-${Date.now()}`;
     script.defer = true;
     document.head.appendChild(script);
   };
