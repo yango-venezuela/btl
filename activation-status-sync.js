@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoSharedStateSyncV12) return;
-  window.__yangoSharedStateSyncV12 = true;
+  if (typeof window === "undefined" || window.__yangoSharedStateSyncV13) return;
+  window.__yangoSharedStateSyncV13 = true;
 
   const pending = new Map();
   const lastSeen = new Map();
@@ -34,10 +34,8 @@
   const compact = value => normalize(value).replace(/[^a-z0-9]+/g, "");
   const parseJson = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
   const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
-  const clone = value => parseJson(stringify(value));
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
   const blockedKey = key => /migration|backup|respaldo|token|password|pass|secret|hydrated|debug|devtools|theme|tooltip|toast|mapbox|leaflet/i.test(String(key || ""));
-  const broadActivationZones = new Set(["petare", "centro", "este", "sureste", "universidades", "oeste", "sur", "norte", "satelites", "satélites", "sabana grande"]);
 
   const normalizeDate = value => {
     const raw = String(value || "").trim();
@@ -55,37 +53,55 @@
     return value !== undefined && value !== null && String(value).trim() !== "";
   };
 
-  const activationHasRealName = item => {
+  const isUnnamed = item => {
     const name = normalize(item && (item.name || item.nombre || item.title || item.titulo));
-    return !!name && name !== "sin nombre" && compact(name) !== "sinnombre" && !["undefined", "null", "nan"].includes(name);
+    return !name || name === "sin nombre" || compact(name) === "sinnombre" || ["undefined", "null", "nan"].includes(name);
   };
-  const activationStatus = item => normalize(item && (item.status || item.estado || item.activationStatus || item.validacion || item.validation));
-  const activationIsMissed = item => {
-    const status = activationStatus(item);
-    return status === "no se dio" || compact(status) === "nosedio" || ["missed", "cancelled", "canceled"].includes(status);
+
+  const isJanuaryDate = value => {
+    const iso = normalizeDate(value);
+    const raw = normalize(value);
+    if (/^2026-01-\d{2}/.test(iso)) return true;
+    if (/^2026\/01\/\d{1,2}/.test(raw)) return true;
+    if (/(^|\D)1\s*ene\.?($|\D)/.test(raw)) return true;
+    if (/(^|\D)1\s*enero($|\D)/.test(raw)) return true;
+    return false;
   };
-  const activationIsGeneratedPlaceholder = item => {
-    const date = normalizeDate(item && (item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt));
-    const name = normalize(item && (item.name || item.nombre || item.title || item.titulo));
-    const location = normalize(item && (item.location || item.ubicacion || item.zone || item.zona || item.area));
-    const status = activationStatus(item);
-    const planned = !status || ["planned", "planificada", "pending"].includes(status);
-    return planned && (date === "2026-01-01" || /(^|\D)1\s*ene/.test(normalize(date))) && broadActivationZones.has(name) && (!location || location === name || broadActivationZones.has(location));
+
+  const activationIsUnnamedJanuary = item => {
+    if (!isObject(item) || !isUnnamed(item)) return false;
+    const dateCandidates = [
+      item.date,
+      item.fecha,
+      item.calendarDate,
+      item.activationDate,
+      item.createdAt,
+      item.updatedAt,
+      item.fechaCalendario,
+      item.calendar_date
+    ];
+    return dateCandidates.some(isJanuaryDate) || /fecha calendario:\s*1\s*ene/i.test(stringify(item));
   };
+
   const sanitizeActivations = value => {
     if (!Array.isArray(value)) return value;
     const seen = new Set();
-    return value.filter(item => isObject(item) && activationHasRealName(item) && !activationIsMissed(item) && !activationIsGeneratedPlaceholder(item)).filter(item => {
-      const id = [
-        normalizeDate(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt),
-        normalize(item.name || item.nombre || item.title || item.titulo),
-        normalize(item.location || item.ubicacion || item.zone || item.zona || item.area),
-        normalize(item.type || item.tipo || item.activationType || item.tipoActivacion)
-      ].join("|");
-      if (seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
+    return value
+      .filter(item => !activationIsUnnamedJanuary(item))
+      .filter(item => {
+        if (!isObject(item)) return true;
+        const id = [
+          normalizeDate(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt),
+          normalize(item.name || item.nombre || item.title || item.titulo),
+          normalize(item.location || item.ubicacion || item.zone || item.zona || item.area),
+          normalize(item.type || item.tipo || item.activationType || item.tipoActivacion),
+          normalize(item.status || item.estado || item.activationStatus || "")
+        ].join("|");
+        if (!id.replace(/\|/g, "")) return true;
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
   };
 
   const sanitizeValue = (type, value) => type === "acts" ? sanitizeActivations(value) : value;
@@ -109,7 +125,7 @@
   const typeFromValue = value => {
     const sample = stringify(value).slice(0, 18000).toLowerCase();
     if (/promotora|promotoras|evidencia|proof|flyers entreg|cantidad de flyers|agencia/.test(sample)) return "agency";
-    if (/activaci|activation|calendario|calendar|sabana|petare|centro de caracas|altamira|chacaito|fecha calendario/.test(sample)) return "acts";
+    if (/activaci|activation|calendario|calendar|sabana|petare|centro de caracas|altamira|chacaito|fecha calendario|sin nombre/.test(sample)) return "acts";
     if (/adjust|installs|clicks|registration|success_first_order|primer viaje|first order/.test(sample)) return "qr";
     if (/instagram|tiktok|influencer|microinfluencer|reach|followers|entregable/.test(sample)) return "influencers";
     if (/ooh|banderola|parada bus|valla|reach estimado/.test(sample)) return "media";
@@ -242,26 +258,47 @@
     timer = setTimeout(flush, 550);
   };
 
+  const sanitizeRemoteActivationKeys = remote => {
+    const cleaned = [];
+    Object.keys(remote || {}).forEach(key => {
+      const value = remote[key];
+      if (typeOf(key, value) !== "acts") return;
+      const next = sanitizeActivations(value);
+      if (stringify(next) === stringify(value)) return;
+      remote[key] = next;
+      writeLocal(key, next);
+      cleaned.push({ key, target: key, type: "acts", value: next });
+      if (key !== canonicalKeys.acts) cleaned.push({ key, target: canonicalKeys.acts, type: "acts", value: next });
+    });
+    return cleaned;
+  };
+
   const hydrate = async () => {
     if (hydrating || !window.fetch || window.location.protocol === "file:") return;
     hydrating = true;
     try {
       const remote = await fetchRemote();
-      const rescue = [];
+      const rescue = sanitizeRemoteActivationKeys(remote);
       Object.entries(canonicalKeys).forEach(([type, target]) => {
-        const remoteValue = sanitizeValue(type, remote[target]);
+        const originalRemoteValue = remote[target];
+        const remoteValue = sanitizeValue(type, originalRemoteValue);
+        if (type === "acts" && stringify(remoteValue) !== stringify(originalRemoteValue)) {
+          writeLocal(target, remoteValue);
+          rescue.push({ key: target, target, type, value: remoteValue });
+          return;
+        }
         const localBest = bestLocalForType(type);
         if (protectedTypes.has(type) && !hasMeaningfulData(remoteValue) && localBest && hasMeaningfulData(localBest.value)) {
           writeLocal(target, localBest.value);
           rescue.push({ key: localBest.key, target, type, value: localBest.value });
           return;
         }
-        if (hasMeaningfulData(remoteValue)) {
-          writeLocal(target, remoteValue);
-          localEntries().filter(entry => entry.type === type && entry.key !== target).forEach(entry => writeLocal(entry.key, remoteValue));
+        if (hasMeaningfulData(remoteValue) || type === "acts") {
+          writeLocal(target, remoteValue || []);
+          localEntries().filter(entry => entry.type === type && entry.key !== target).forEach(entry => writeLocal(entry.key, remoteValue || []));
         }
       });
-      rescue.forEach(entry => queueDirect(entry.key, entry.target, entry.type, entry.value, "rescue-local-from-empty-remote"));
+      rescue.forEach(entry => queueDirect(entry.key, entry.target, entry.type, entry.value, "remove-unnamed-january-activations"));
       window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { protected: true } }));
     } catch (error) {
       console.warn("No pude hidratar datos compartidos:", error);
@@ -285,6 +322,7 @@
     flushing = true;
     try {
       const remote = await fetchRemote();
+      sanitizeRemoteActivationKeys(remote).forEach(entry => pending.set(`${entry.key}->${entry.target}`, entry));
       const entries = Array.from(pending.values());
       pending.clear();
       for (const entry of entries) {
@@ -339,12 +377,12 @@
 })();
 
 (() => {
-  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV7) return;
-  window.__yangoBtlMapPolishLoaderInstalledV7 = true;
+  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV8) return;
+  window.__yangoBtlMapPolishLoaderInstalledV8 = true;
   const load = () => {
     if (document.querySelector('script[src^="/btl-map-polish.js"]')) return;
     const script = document.createElement("script");
-    script.src = `/btl-map-polish.js?v=20260813d-${Date.now()}`;
+    script.src = `/btl-map-polish.js?v=20260813e-${Date.now()}`;
     script.defer = true;
     document.head.appendChild(script);
   };
