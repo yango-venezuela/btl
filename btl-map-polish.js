@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoActivationUnnamedCleanerV1) return;
-  window.__yangoActivationUnnamedCleanerV1 = true;
+  if (typeof window === "undefined" || window.__yangoActivationUnnamedCleanerV2) return;
+  window.__yangoActivationUnnamedCleanerV2 = true;
 
   const normalize = value => String(value || "")
     .normalize("NFD")
@@ -8,6 +8,7 @@
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+  const compact = value => normalize(value).replace(/[^a-z0-9]+/g, "");
   const parse = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
   const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
@@ -21,14 +22,19 @@
   };
   const badActivationName = item => {
     const name = normalize(item && (item.name || item.nombre || item.title || item.titulo));
-    return !name || name === "sin nombre" || name === "undefined" || name === "null" || name === "nan";
+    return !name || name === "sin nombre" || compact(name) === "sinnombre" || name === "undefined" || name === "null" || name === "nan";
   };
+  const badActivationStatus = item => {
+    const status = normalize(item && (item.status || item.estado || item.activationStatus || item.validacion || item.validation));
+    return status === "no se dio" || compact(status) === "nosedio" || status === "missed" || status === "cancelled" || status === "canceled";
+  };
+  const shouldDropActivation = (item, sourceKey = "") => looksActivation(item, sourceKey) && (badActivationName(item) || badActivationStatus(item));
   const cleanValue = (value, sourceKey = "") => {
     if (Array.isArray(value)) {
       let changed = false;
       const next = [];
       value.forEach(item => {
-        if (isObject(item) && looksActivation(item, sourceKey) && badActivationName(item)) {
+        if (isObject(item) && shouldDropActivation(item, sourceKey)) {
           changed = true;
           return;
         }
@@ -39,7 +45,7 @@
       return changed ? next : value;
     }
     if (!isObject(value)) return value;
-    if (looksActivation(value, sourceKey) && badActivationName(value)) return null;
+    if (shouldDropActivation(value, sourceKey)) return null;
     let changed = false;
     const next = { ...value };
     Object.keys(next).forEach(key => {
@@ -52,12 +58,13 @@
   };
   const saveRemote = async (key, value) => {
     try {
-      await fetch(`/api/state/${encodeURIComponent(key)}`, {
+      const response = await fetch(`/api/state/${encodeURIComponent(key)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ value })
       });
-    } catch (_error) {}
+      return response.ok;
+    } catch (_error) { return false; }
   };
   const cleanLocal = () => {
     let changed = false;
@@ -85,13 +92,14 @@
       const payload = await response.json();
       const values = payload.values || {};
       for (const [key, value] of Object.entries(values)) {
-        if (retiredKey(key)) continue;
-        if (!activationKey(key)) continue;
+        if (retiredKey(key) || !activationKey(key)) continue;
         const cleaned = cleanValue(value, key);
         if (stringify(cleaned) !== stringify(value)) {
-          await saveRemote(key, cleaned);
-          try { localStorage.setItem(key, stringify(cleaned)); } catch (_error) {}
-          changed = true;
+          const ok = await saveRemote(key, cleaned);
+          if (ok) {
+            try { localStorage.setItem(key, stringify(cleaned)); } catch (_error) {}
+            changed = true;
+          }
         }
       }
     } catch (_error) {}
@@ -100,9 +108,10 @@
   const hideVisibleGarbage = () => {
     try {
       document.querySelectorAll("body *").forEach(node => {
-        if (node.children.length > 6) return;
+        if (node.children.length > 8) return;
         const text = normalize(node.textContent || "");
-        if (text.includes("sin nombre") && /fecha calendario|planificada|flyers|activacion/.test(text)) node.style.display = "none";
+        const looksRow = /fecha calendario|planificada|flyers|activacion|\$\d/.test(text);
+        if (looksRow && (text.includes("sin nombre") || text.includes("no se dio"))) node.style.display = "none";
       });
     } catch (_error) {}
   };
@@ -115,14 +124,14 @@
       window.dispatchEvent(new Event("storage"));
     }
   };
-  [80, 900, 2500].forEach(delay => setTimeout(run, delay));
+  [80, 900, 2500, 6000].forEach(delay => setTimeout(run, delay));
   window.addEventListener("focus", run);
   window.addEventListener("yango:shared-state-hydrated", run);
 })();
 
 (() => {
   if (typeof window === "undefined") return;
-  const FLAG = "__yangoBtlMapFallbackPinsV4";
+  const FLAG = "__yangoBtlMapFallbackPinsV5";
   if (window[FLAG]) return;
   window[FLAG] = true;
 
@@ -154,6 +163,10 @@
   const badName = item => {
     const name = normalize(item && (item.name || item.nombre || item.title || item.titulo));
     return !name || name === 'sinnombre' || name === 'undefined' || name === 'null' || name === 'nan';
+  };
+  const badStatus = item => {
+    const status = normalize(item && (item.status || item.estado || item.activationStatus || item.validacion || item.validation));
+    return status === 'nosedio' || status === 'missed' || status === 'cancelled' || status === 'canceled';
   };
 
   const injectCss = () => {
@@ -191,7 +204,7 @@
   };
 
   const looksLikeActivation = (item, sourceKey = '') => {
-    if (!isObject(item) || badName(item)) return false;
+    if (!isObject(item) || badName(item) || badStatus(item)) return false;
     const text = normalize(`${sourceKey} ${itemText(item)} ${itemType(item)} ${itemDate(item)}`);
     if (!coordsFor(item)) return false;
     if (/influencer|samsung|rifa|branding|stickers|cascos|chalecos|longsleeves|mediaooh/.test(text)) return false;
