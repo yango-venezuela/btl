@@ -138,48 +138,58 @@ function sanitizeDated(value, force = false) {
     if (next[key] && typeof next[key] === "object") next[key] = sanitizeDated(next[key], relevant || /items|rows|data|activ|calendar|agencia|agency|reports|proofs/i.test(key));
   });
   if (!relevant) return next;
-  const date = normalizeDate(next.date || next.fecha || next.calendarDate || next.activationDate || next.createdAt || next.updatedAt) || "2026-01-01";
-  next.date = String(date);
-  next.fecha = String(next.fecha || date);
-  next.calendarDate = String(next.calendarDate || date);
-  next.activationDate = String(next.activationDate || date);
-  next.createdAt = String(next.createdAt || date);
-  next.updatedAt = String(next.updatedAt || date);
-  next.name = String(next.name || next.nombre || next.title || next.titulo || next.location || next.ubicacion || "Sin nombre");
-  next.nombre = String(next.nombre || next.name);
-  next.title = String(next.title || next.titulo || next.name);
-  next.titulo = String(next.titulo || next.title);
-  next.location = String(next.location || next.ubicacion || next.zone || next.zona || "");
-  next.ubicacion = String(next.ubicacion || next.location);
-  next.zone = String(next.zone || next.zona || next.location);
-  next.zona = String(next.zona || next.zone);
-  next.type = normalizeType(next.type || next.tipo || next.activationType || next.tipoActivacion);
-  next.tipo = normalizeType(next.tipo || next.type || next.activationType || next.tipoActivacion);
-  next.status = normalizeStatus(next.status || next.estado);
-  next.estado = String(next.estado || next.status);
+  const date = normalizeDate(next.date || next.fecha || next.calendarDate || next.activationDate || next.createdAt || next.updatedAt);
+  if (date) {
+    next.date = String(next.date || date);
+    next.fecha = String(next.fecha || date);
+    next.calendarDate = String(next.calendarDate || date);
+    next.activationDate = String(next.activationDate || date);
+    next.createdAt = String(next.createdAt || date);
+    next.updatedAt = String(next.updatedAt || date);
+  }
+  const name = String(next.name || next.nombre || next.title || next.titulo || "").trim();
+  if (name) {
+    next.name = String(next.name || name);
+    next.nombre = String(next.nombre || next.name);
+    next.title = String(next.title || next.titulo || next.name);
+    next.titulo = String(next.titulo || next.title);
+  }
+  const location = String(next.location || next.ubicacion || next.zone || next.zona || "").trim();
+  if (location) {
+    next.location = String(next.location || location);
+    next.ubicacion = String(next.ubicacion || next.location);
+    next.zone = String(next.zone || next.zona || next.location);
+    next.zona = String(next.zona || next.zone);
+  }
+  if (next.type || next.tipo || next.activationType || next.tipoActivacion) {
+    next.type = normalizeType(next.type || next.tipo || next.activationType || next.tipoActivacion);
+    next.tipo = normalizeType(next.tipo || next.type || next.activationType || next.tipoActivacion);
+  }
+  if (next.status || next.estado) {
+    next.status = normalizeStatus(next.status || next.estado);
+    next.estado = String(next.estado || next.status);
+  }
   return next;
 }
 
-const broadActivationZones = new Set(["petare", "centro", "este", "sureste", "universidades", "oeste", "sur", "norte", "satelites", "satelites", "sabana grande"]);
 function activationStateKey(key) {
   return /yango_activations|\bacts\b|activation|activacion|activaciones|calendar|calendario/i.test(String(key || ""));
 }
-function activationHasRealName(item) {
+function activationIsUnnamed(item) {
   const name = cleanText(item && (item.name || item.nombre || item.title || item.titulo));
-  return !!name && name !== "sin nombre" && compact(name) !== "sinnombre" && !["undefined", "null", "nan"].includes(name);
+  return !name || name === "sin nombre" || compact(name) === "sinnombre" || ["undefined", "null", "nan"].includes(name);
 }
-function activationIsMissed(item) {
-  const status = cleanText(item && (item.status || item.estado || item.activationStatus || item.validacion || item.validation));
-  return status === "no se dio" || compact(status) === "nosedio" || normalizeStatus(status) === "missed";
+function activationIsJanuary(item) {
+  const fields = [item && item.date, item && item.fecha, item && item.calendarDate, item && item.activationDate, item && item.createdAt, item && item.updatedAt, item && item.fechaCalendario, item && item.calendar_date];
+  const raw = safeStringify(item);
+  return fields.some(value => {
+    const iso = normalizeDate(value);
+    const text = cleanText(value);
+    return /^2026-01-\d{2}/.test(iso) || /^2026\/01\/\d{1,2}/.test(text) || /(^|\D)1\s*ene\.?($|\D)/.test(text) || /(^|\D)1\s*enero($|\D)/.test(text);
+  }) || /fecha calendario:\s*1\s*ene/i.test(raw);
 }
-function activationIsGeneratedPlaceholder(item) {
-  const date = normalizeDate(item && (item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt));
-  const name = cleanText(item && (item.name || item.nombre || item.title || item.titulo));
-  const location = cleanText(item && (item.location || item.ubicacion || item.zone || item.zona || item.area));
-  const status = normalizeStatus(item && (item.status || item.estado));
-  const broadName = broadActivationZones.has(name) || broadActivationZones.has(compact(name));
-  const broadLocation = !location || location === name || broadActivationZones.has(location) || broadActivationZones.has(compact(location));
-  return status === "planned" && (date === "2026-01-01" || !date) && broadName && broadLocation;
+function activationIsUnnamedJanuary(item) {
+  return item && typeof item === "object" && activationIsUnnamed(item) && activationIsJanuary(item);
 }
 
 function activationStableKey(item) {
@@ -187,8 +197,9 @@ function activationStableKey(item) {
   const name = cleanText(item.name || item.nombre || item.title || item.titulo);
   const location = cleanText(item.location || item.ubicacion || item.zone || item.zona);
   const type = cleanText(item.type || item.tipo || item.activationType || item.tipoActivacion);
+  const status = cleanText(item.status || item.estado || item.activationStatus || "");
   const date = normalizeDate(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt);
-  return [date, location || name, type, name].filter(Boolean).join("|");
+  return [date, location || name, type, name, status].filter(Boolean).join("|");
 }
 
 function sanitizeActivations(value) {
@@ -196,15 +207,10 @@ function sanitizeActivations(value) {
   const map = new Map();
   value.forEach(rawItem => {
     if (!rawItem || typeof rawItem !== "object") return;
-    if (!activationHasRealName(rawItem)) return;
-    if (activationIsMissed(rawItem)) return;
-    if (activationIsGeneratedPlaceholder(rawItem)) return;
+    if (activationIsUnnamedJanuary(rawItem)) return;
     const item = sanitizeDated(rawItem, true);
-    if (!activationHasRealName(item)) return;
-    if (activationIsMissed(item)) return;
-    if (activationIsGeneratedPlaceholder(item)) return;
-    const key = activationStableKey(item);
-    if (!key) return;
+    if (activationIsUnnamedJanuary(item)) return;
+    const key = activationStableKey(item) || safeStringify(item);
     if (!map.has(key)) map.set(key, item);
     else map.set(key, { ...map.get(key), ...item });
   });
