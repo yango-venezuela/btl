@@ -1,20 +1,30 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV8) return;
-  window.__yangoPrebootStateGuardV8 = true;
+  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV9) return;
+  window.__yangoPrebootStateGuardV9 = true;
 
   const COLLECTION_KEY = /(^|[_:\-\s])(qr|qrs|promo|promos|promoCodes|code|codes|result|results|resultado|resultados|activation|activations|activacion|activaciones|calendar|calendario|agency|agencia|proof|proofs|photo|photos|foto|fotos|evidencia|evidencias|report|reports|reporte|reportes|items|rows)([_:\-\s]|$)/i;
   const COLLECTION_HINT = /(qr|promo|result|resultado|activation|activacion|calendar|calendario|agency|agencia|proof|photo|foto|evidencia|report|reporte)/i;
   const DASHBOARD_HINT = /yango|btl|mkt|agency|agencia|proof|photo|foto|evidencia|promotor|flyer|activ|calendar|calendario|acts|qr|promo|code|result|resultado/i;
+  const ACTIVATION_KEY = /yango_activations|\bacts\b|activation|activacion|activaciones|calendar|calendario/i;
   const DATE_FIELDS = ["date", "fecha", "calendarDate", "activationDate", "createdAt", "updatedAt"];
   const FALLBACK_DATE = "2026-01-01";
   const RETIRED_KEY = /samsung|raffle|rifa/i;
   const RETIRED_TEXT = /rifa samsung|samsung raffle|raffle samsung|\brifa\b|samsung/i;
   const PANEL_HINT = /(?:[?&](?:panel|usuario|user|role|rol)=|\/)(luis|giselle|gise|agency|agencia|panel|usuario|user|role|rol)(?:[/?&#]|$)/i;
+  const BROAD_ZONES = new Set(["petare", "centro", "este", "sureste", "universidades", "oeste", "sur", "norte", "satelites", "satélites", "sabana grande"]);
+  const TYPE_MAP = new Map([
+    ["flyers", "Flyers"], ["flyer", "Flyers"], ["cafe", "Café"], ["café", "Café"], ["helados", "Helados"], ["helado", "Helados"],
+    ["materialpop", "Material POP"], ["material pop", "Material POP"], ["pop", "Material POP"], ["universidad", "Universidad"], ["universidades", "Universidad"], ["evento", "Evento"], ["eventos", "Evento"]
+  ]);
 
   const text = value => String(value == null ? "" : value);
   const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
+  const parseRaw = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
+  const clean = value => text(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  const compact = value => clean(value).replace(/[^a-z0-9]+/g, "");
   const isCollectionKey = key => COLLECTION_KEY.test(text(key)) || COLLECTION_HINT.test(text(key));
+  const isActivationKey = key => ACTIVATION_KEY.test(text(key));
   const isCollaboratorPanel = () => PANEL_HINT.test(window.location.href || "");
 
   function normalizeDate(value) {
@@ -30,9 +40,91 @@
     return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
   }
 
+  function normalizeType(value) {
+    return TYPE_MAP.get(clean(value)) || TYPE_MAP.get(compact(value)) || "Flyers";
+  }
+
+  function normalizeStatus(value) {
+    const status = clean(value);
+    if (/no se dio|no realizada|cancel|missed|paus|pausa/.test(status)) return "missed";
+    if (/se dio|hecha|realizada|done|complete|completed|aprob|valid/.test(status)) return "done";
+    if (["done", "planned", "pending"].includes(status)) return status;
+    return "planned";
+  }
+
+  function hasRealActivationName(item) {
+    const name = clean(item && (item.name || item.nombre || item.title || item.titulo));
+    return !!name && name !== "sin nombre" && compact(name) !== "sinnombre" && !["undefined", "null", "nan"].includes(name);
+  }
+
+  function activationIsMissed(item) {
+    return normalizeStatus(item && (item.status || item.estado || item.activationStatus || item.validacion || item.validation)) === "missed";
+  }
+
+  function activationIsGeneratedPlaceholder(item) {
+    const date = normalizeDate(item && (item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt));
+    const name = clean(item && (item.name || item.nombre || item.title || item.titulo));
+    const location = clean(item && (item.location || item.ubicacion || item.zone || item.zona || item.area));
+    const status = normalizeStatus(item && (item.status || item.estado));
+    return status === "planned" && (date === FALLBACK_DATE || !date) && BROAD_ZONES.has(name) && (!location || location === name || BROAD_ZONES.has(location));
+  }
+
+  function normalizeActivation(item) {
+    if (!isObject(item)) return null;
+    if (!hasRealActivationName(item) || activationIsMissed(item) || activationIsGeneratedPlaceholder(item)) return null;
+    const date = normalizeDate(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt) || "";
+    const name = text(item.name || item.nombre || item.title || item.titulo).trim();
+    const location = text(item.location || item.ubicacion || item.zone || item.zona || item.area || "").trim();
+    const status = normalizeStatus(item.status || item.estado);
+    return {
+      ...item,
+      name,
+      nombre: text(item.nombre || name),
+      title: text(item.title || item.titulo || name),
+      titulo: text(item.titulo || item.title || name),
+      date: text(item.date || date),
+      fecha: text(item.fecha || date),
+      calendarDate: text(item.calendarDate || date),
+      activationDate: text(item.activationDate || date),
+      location,
+      ubicacion: text(item.ubicacion || location),
+      zone: text(item.zone || item.zona || location),
+      zona: text(item.zona || item.zone || location),
+      type: normalizeType(item.type || item.tipo || item.activationType || item.tipoActivacion),
+      tipo: normalizeType(item.tipo || item.type || item.activationType || item.tipoActivacion),
+      status,
+      estado: text(item.estado || status)
+    };
+  }
+
+  function sanitizeActivationList(value) {
+    if (!Array.isArray(value)) return value;
+    const seen = new Set();
+    const out = [];
+    value.forEach(item => {
+      const next = normalizeActivation(item);
+      if (!next) return;
+      const id = [normalizeDate(next.date || next.fecha), clean(next.name || next.nombre), clean(next.location || next.ubicacion), clean(next.type || next.tipo)].join("|");
+      if (seen.has(id)) return;
+      seen.add(id);
+      out.push(next);
+    });
+    return out;
+  }
+
+  function looksActivationList(value, key = "") {
+    if (!Array.isArray(value)) return false;
+    if (isActivationKey(key)) return true;
+    const sample = stringify(value.slice(0, 8));
+    return /activaci|activation|calendario|calendar|fecha calendario|sabana|petare|altamira|chacaito|flyers/i.test(sample);
+  }
+
   function normalizeCollections(value, key = "") {
     if (value == null) return isCollectionKey(key) ? [] : value;
-    if (Array.isArray(value)) return value.map(item => normalizeCollections(item));
+    if (Array.isArray(value)) {
+      if (looksActivationList(value, key)) return sanitizeActivationList(value);
+      return value.map(item => normalizeCollections(item));
+    }
     if (!isObject(value)) return value;
     const next = { ...value };
     Object.keys(next).forEach(childKey => {
@@ -54,7 +146,8 @@
   }
 
   function parse(value, key = "") {
-    try { return normalizeCollections(JSON.parse(value), key); } catch (_error) { return null; }
+    const parsed = parseRaw(value);
+    return parsed == null ? null : normalizeCollections(parsed, key);
   }
 
   function sanitizeStoredString(key, raw) {
@@ -75,9 +168,7 @@
   }
 
   function cleanRetiredStorage() {
-    try {
-      storageKeys().forEach(key => { if (RETIRED_KEY.test(key)) localStorage.removeItem(key); });
-    } catch (_error) {}
+    try { storageKeys().forEach(key => { if (RETIRED_KEY.test(key)) localStorage.removeItem(key); }); } catch (_error) {}
   }
 
   function sanitizeLocalStorage() {
@@ -88,8 +179,8 @@
           return;
         }
         const raw = localStorage.getItem(key);
-        const clean = sanitizeStoredString(key, raw);
-        if (clean !== raw && clean != null) localStorage.setItem(key, clean);
+        const cleanValue = sanitizeStoredString(key, raw);
+        if (cleanValue !== raw && cleanValue != null) localStorage.setItem(key, cleanValue);
       });
     } catch (_error) {}
   }
@@ -143,7 +234,7 @@
         setTimeout(() => window.location.reload(), 80);
       }
     } catch (_error) {
-      // If the network is momentarily down, the normal sync script will retry after boot.
+      // The normal sync script retries after boot.
     } finally {
       window.__yangoCollaboratorMirrorPending = false;
       window.__yangoCollaboratorMirrorRunning = false;
@@ -153,15 +244,15 @@
   try {
     const originalGetItem = Storage && Storage.prototype && Storage.prototype.getItem;
     const originalSetItem = Storage && Storage.prototype && Storage.prototype.setItem;
-    if (originalGetItem && !Storage.prototype.__yangoSafeGetItemV8) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeGetItemV8", { value: true, configurable: true });
+    if (originalGetItem && !Storage.prototype.__yangoSafeGetItemV9) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeGetItemV9", { value: true, configurable: true });
       Storage.prototype.getItem = function safeGetItem(key) {
         const raw = originalGetItem.call(this, key);
         return sanitizeStoredString(key, raw);
       };
     }
-    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV8) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV8", { value: true, configurable: true });
+    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV9) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV9", { value: true, configurable: true });
       Storage.prototype.setItem = function safeSetItem(key, value) {
         if (RETIRED_KEY.test(text(key))) return originalSetItem.call(this, key, "[]");
         return originalSetItem.call(this, key, sanitizeStoredString(key, value));
@@ -171,8 +262,8 @@
 
   try {
     const originalParse = JSON.parse;
-    if (originalParse && !JSON.__yangoSafeParseV8) {
-      Object.defineProperty(JSON, "__yangoSafeParseV8", { value: true, configurable: true });
+    if (originalParse && !JSON.__yangoSafeParseV9) {
+      Object.defineProperty(JSON, "__yangoSafeParseV9", { value: true, configurable: true });
       JSON.parse = function safeJsonParse(value, reviver) {
         return normalizeCollections(originalParse.call(JSON, value, reviver));
       };
@@ -188,8 +279,8 @@
 
   try {
     const originalSort = Array.prototype.sort;
-    if (originalSort && !Array.prototype.__yangoSafeSortV8) {
-      Object.defineProperty(Array.prototype, "__yangoSafeSortV8", { value: true, configurable: true });
+    if (originalSort && !Array.prototype.__yangoSafeSortV9) {
+      Object.defineProperty(Array.prototype, "__yangoSafeSortV9", { value: true, configurable: true });
       Array.prototype.sort = function safeSort(compareFn) {
         try { return originalSort.call(this, compareFn); }
         catch (error) {
@@ -207,8 +298,8 @@
 
   try {
     const originalFetch = window.fetch && window.fetch.bind(window);
-    if (originalFetch && !window.__yangoSafeFetchV8) {
-      window.__yangoSafeFetchV8 = true;
+    if (originalFetch && !window.__yangoSafeFetchV9) {
+      window.__yangoSafeFetchV9 = true;
       window.fetch = async (...args) => {
         const response = await originalFetch(...args);
         try {
@@ -236,10 +327,10 @@
       hideRetiredUi();
       const body = document.body && document.body.innerText ? document.body.innerText : "";
       if (!/Algo salió mal/i.test(body)) return;
-      if (!/qr\.reduce|reading 'reduce'|localeCompare|date|undefined|null/i.test(body)) return;
-      const attempts = Number(sessionStorage.getItem("yango_preboot_recovery_attempts") || "0");
-      if (attempts >= 2) return;
-      sessionStorage.setItem("yango_preboot_recovery_attempts", String(attempts + 1));
+      if (!/qr\.reduce|reading 'reduce'|reading 'bg'|\bbg\b|localeCompare|date|undefined|null/i.test(body)) return;
+      const attempts = Number(sessionStorage.getItem("yango_preboot_recovery_attempts_v9") || "0");
+      if (attempts >= 3) return;
+      sessionStorage.setItem("yango_preboot_recovery_attempts_v9", String(attempts + 1));
       sanitizeLocalStorage();
       if (isCollaboratorPanel()) hydrateCollaboratorMirror();
       setTimeout(() => window.location.reload(), 350);
@@ -253,11 +344,11 @@
     hydrateCollaboratorMirror();
   }
   window.addEventListener("error", event => {
-    if (/qr\.reduce|reading 'reduce'|localeCompare|date|undefined|null/i.test(text(event && event.message))) sanitizeLocalStorage();
+    if (/qr\.reduce|reading 'reduce'|reading 'bg'|\bbg\b|localeCompare|date|undefined|null/i.test(text(event && event.message))) sanitizeLocalStorage();
   }, true);
   window.addEventListener("unhandledrejection", event => {
     const reason = event && event.reason;
-    if (/qr\.reduce|reading 'reduce'|localeCompare|date|undefined|null/i.test(text(reason && reason.message || reason))) sanitizeLocalStorage();
+    if (/qr\.reduce|reading 'reduce'|reading 'bg'|\bbg\b|localeCompare|date|undefined|null/i.test(text(reason && reason.message || reason))) sanitizeLocalStorage();
   }, true);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", recoverFromErrorScreen);
   else recoverFromErrorScreen();
