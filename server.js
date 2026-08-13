@@ -6,7 +6,7 @@ const { Pool } = require("pg");
 const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
-const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260812b";
+const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260813b";
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
@@ -117,9 +117,9 @@ const typeMap = new Map([
 function normalizeType(value) { return typeMap.get(cleanText(value)) || typeMap.get(compact(value)) || "Flyers"; }
 function normalizeStatus(value) {
   const t = cleanText(value);
+  if (/no se dio|no realizada|cancel|missed|paus|pausa/.test(t)) return "missed";
   if (["planned", "done", "missed", "cancelled", "canceled", "pending", "completed", "active", "paused"].includes(t)) return t;
   if (/se dio|hecha|realizada|done|complete|completed|aprob|valid/.test(t)) return "done";
-  if (/no se dio|cancel|missed|paus|pausa/.test(t)) return "missed";
   return "planned";
 }
 
@@ -160,27 +160,51 @@ function sanitizeDated(value, force = false) {
   return next;
 }
 
+const broadActivationZones = new Set(["petare", "centro", "este", "sureste", "universidades", "oeste", "sur", "norte", "satelites", "satelites", "sabana grande"]);
+function activationStateKey(key) {
+  return /yango_activations|\bacts\b|activation|activacion|activaciones|calendar|calendario/i.test(String(key || ""));
+}
+function activationHasRealName(item) {
+  const name = cleanText(item && (item.name || item.nombre || item.title || item.titulo));
+  return !!name && name !== "sin nombre" && compact(name) !== "sinnombre" && !["undefined", "null", "nan"].includes(name);
+}
+function activationIsMissed(item) {
+  const status = cleanText(item && (item.status || item.estado || item.activationStatus || item.validacion || item.validation));
+  return status === "no se dio" || compact(status) === "nosedio" || normalizeStatus(status) === "missed";
+}
+function activationIsGeneratedPlaceholder(item) {
+  const date = normalizeDate(item && (item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt));
+  const name = cleanText(item && (item.name || item.nombre || item.title || item.titulo));
+  const location = cleanText(item && (item.location || item.ubicacion || item.zone || item.zona || item.area));
+  const status = normalizeStatus(item && (item.status || item.estado));
+  const broadName = broadActivationZones.has(name) || broadActivationZones.has(compact(name));
+  const broadLocation = !location || location === name || broadActivationZones.has(location) || broadActivationZones.has(compact(location));
+  return status === "planned" && (date === "2026-01-01" || !date) && broadName && broadLocation;
+}
+
 function activationStableKey(item) {
   if (!item || typeof item !== "object") return "";
   const name = cleanText(item.name || item.nombre || item.title || item.titulo);
   const location = cleanText(item.location || item.ubicacion || item.zone || item.zona);
   const type = cleanText(item.type || item.tipo || item.activationType || item.tipoActivacion);
   const date = normalizeDate(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt);
-  return [date, location || name, type].filter(Boolean).join("|");
+  return [date, location || name, type, name].filter(Boolean).join("|");
 }
 
 function sanitizeActivations(value) {
-  const dated = sanitizeDated(value, true);
-  if (!Array.isArray(dated)) return dated;
+  if (!Array.isArray(value)) return sanitizeDated(value, true);
   const map = new Map();
-  dated.forEach(item => {
-    if (!item || typeof item !== "object") return;
-    const name = cleanText(item.name || item.nombre || item.title || item.titulo);
-    const location = cleanText(item.location || item.ubicacion || item.zone || item.zona);
+  value.forEach(rawItem => {
+    if (!rawItem || typeof rawItem !== "object") return;
+    if (!activationHasRealName(rawItem)) return;
+    if (activationIsMissed(rawItem)) return;
+    if (activationIsGeneratedPlaceholder(rawItem)) return;
+    const item = sanitizeDated(rawItem, true);
+    if (!activationHasRealName(item)) return;
+    if (activationIsMissed(item)) return;
+    if (activationIsGeneratedPlaceholder(item)) return;
     const key = activationStableKey(item);
     if (!key) return;
-    if (!location && (!name || name === "sin nombre" || name === "undefined" || name === "null")) return;
-    if (name === "sin nombre") return;
     if (!map.has(key)) map.set(key, item);
     else map.set(key, { ...map.get(key), ...item });
   });
@@ -223,7 +247,7 @@ function sanitizeInfluencers(value) {
 
 function sanitizeStateValue(key, value) {
   if (/samsung|raffle|rifa/i.test(String(key || ""))) return [];
-  if (key === "yango_activations_h1") return sanitizeActivations(value);
+  if (activationStateKey(key) && Array.isArray(value)) return sanitizeActivations(value);
   if (key === "yango_influencers_h1") return sanitizeInfluencers(value);
   if (key === "yango_social_report_h1" && value && typeof value === "object" && Array.isArray(value.months)) return { ...value, months: [...new Set(value.months.filter(Boolean))] };
   return looksLikeDashboardState(key, value) ? sanitizeDated(value, true) : value;
@@ -270,14 +294,14 @@ function sendDashboard(req, res) {
   if (isLuisPanel(req)) return sendDisabledUser(res);
   fs.readFile(path.join(__dirname, "index.html"), "utf8", (error, html) => {
     if (error) return res.status(500).send("No pude cargar el dashboard.");
-    const helperNames = ["preboot-state-guard", "summary-loop-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "authoritative-influencer-sync", "mystery-shopper-sheet-sync", "cloud-save-status", "yango-summary-dashboard", "yango-summary-standalone-fix"];
+    const helperNames = ["preboot-state-guard", "summary-loop-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "authoritative-influencer-sync", "mystery-shopper-sheet-sync", "cloud-save-status", "yango-summary-dashboard", "yango-summary-standalone-fix", "btl-map-polish"];
     const helperPattern = new RegExp(`<script\\s+[^>]*src=["']\\/(?:${helperNames.join("|")})\\.js(?:\\?[^"']*)?["'][^>]*><\\/script>`, "gi");
     const base = html.replace(helperPattern, "");
     const preboot = `<script src="/preboot-state-guard.js?v=${HELPER_VERSION}"></script>`;
     const withPreboot = base.includes("</head>") ? base.replace("</head>", `${preboot}</head>`) : `${preboot}${base}`;
     const isTeamPanel = isCollaboratorPanel(req);
-    const adminHelpers = ["summary-loop-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "authoritative-influencer-sync", "mystery-shopper-sheet-sync", "cloud-save-status", "yango-summary-dashboard", "yango-summary-standalone-fix"];
-    const collaboratorHelpers = ["activation-status-sync", "authoritative-influencer-sync", "cloud-save-status"];
+    const adminHelpers = ["summary-loop-guard", "influencer-payment-filter", "branding-inventory-cleanup", "activation-status-sync", "authoritative-influencer-sync", "mystery-shopper-sheet-sync", "cloud-save-status", "yango-summary-dashboard", "yango-summary-standalone-fix", "btl-map-polish"];
+    const collaboratorHelpers = ["activation-status-sync", "authoritative-influencer-sync", "cloud-save-status", "btl-map-polish"];
     const helpers = (isTeamPanel ? collaboratorHelpers : adminHelpers).map(name => `<script src="/${name}.js?v=${HELPER_VERSION}" defer></script>`).join("");
     const output = withPreboot.replace("</body>", `${helpers}</body>`);
     res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
