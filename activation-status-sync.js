@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoSharedStateSyncV10) return;
-  window.__yangoSharedStateSyncV10 = true;
+  if (typeof window === "undefined" || window.__yangoSharedStateSyncV11) return;
+  window.__yangoSharedStateSyncV11 = true;
 
   const pending = new Map();
   const lastSeen = new Map();
@@ -44,7 +44,23 @@
     if (match) return `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
     match = raw.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/);
     if (match) return `${match[3]}-${String(match[2]).padStart(2, "0")}-${String(match[1]).padStart(2, "0")}`;
+    match = raw.match(/(^|\D)(\d{1,2})[-/.](\d{1,2})(\D|$)/);
+    if (match) return `2026-${String(match[3]).padStart(2, "0")}-${String(match[2]).padStart(2, "0")}`;
     return raw;
+  };
+
+  const activationRawText = item => {
+    if (!isObject(item)) return String(item || "");
+    return [
+      item.name, item.nombre, item.title, item.titulo, item.location, item.ubicacion, item.zone, item.zona, item.area,
+      item.date, item.fecha, item.calendarDate, item.activationDate, item.createdAt, item.updatedAt, item.status, item.estado
+    ].map(value => String(value || "")).join(" ");
+  };
+  const activationDate = item => normalizeDate(item && (item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt || activationRawText(item)));
+  const activationIsJanuary = item => {
+    const raw = normalize(activationRawText(item));
+    const date = activationDate(item);
+    return /^\d{4}-01-/.test(date) || /(^|\s)(ene|enero|jan|january)\.?($|\s)/.test(raw) || /(^|\D)\d{1,2}[\/.\-]0?1(?:[\/.\-]\d{2,4})?(?=\D|$)/.test(raw);
   };
 
   const activationHasRealName = item => {
@@ -57,7 +73,7 @@
     return status === "no se dio" || compact(status) === "nosedio" || ["missed", "cancelled", "canceled"].includes(status);
   };
   const activationIsGeneratedPlaceholder = item => {
-    const date = normalizeDate(item && (item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt));
+    const date = activationDate(item);
     const name = normalize(item && (item.name || item.nombre || item.title || item.titulo));
     const location = normalize(item && (item.location || item.ubicacion || item.zone || item.zona || item.area));
     const status = activationStatus(item);
@@ -67,9 +83,9 @@
   const sanitizeActivations = value => {
     if (!Array.isArray(value)) return value;
     const seen = new Set();
-    return value.filter(item => isObject(item) && activationHasRealName(item) && !activationIsMissed(item) && !activationIsGeneratedPlaceholder(item)).filter(item => {
+    return value.filter(item => isObject(item) && activationHasRealName(item) && !activationIsMissed(item) && !activationIsJanuary(item) && !activationIsGeneratedPlaceholder(item)).filter(item => {
       const id = [
-        normalizeDate(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt),
+        activationDate(item),
         normalize(item.name || item.nombre || item.title || item.titulo),
         normalize(item.location || item.ubicacion || item.zone || item.zona || item.area),
         normalize(item.type || item.tipo || item.activationType || item.tipoActivacion)
@@ -344,12 +360,12 @@
 })();
 
 (() => {
-  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV5) return;
-  window.__yangoBtlMapPolishLoaderInstalledV5 = true;
+  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV6) return;
+  window.__yangoBtlMapPolishLoaderInstalledV6 = true;
   const load = () => {
     if (document.querySelector('script[src^="/btl-map-polish.js"]')) return;
     const script = document.createElement("script");
-    script.src = `/btl-map-polish.js?v=20260813b-${Date.now()}`;
+    script.src = `/btl-map-polish.js?v=20260813c-${Date.now()}`;
     script.defer = true;
     document.head.appendChild(script);
   };
