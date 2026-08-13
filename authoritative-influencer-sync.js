@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoAuthoritativeInfluencerSyncV2) return;
-  window.__yangoAuthoritativeInfluencerSyncV2 = true;
+  if (typeof window === "undefined" || window.__yangoAuthoritativeInfluencerSyncV3) return;
+  window.__yangoAuthoritativeInfluencerSyncV3 = true;
 
   const KEY = "yango_influencers_h1";
   let hydrating = false;
@@ -48,6 +48,14 @@
     return sanitize(parse(localStorage.getItem(KEY)));
   }
 
+  function localRaw() {
+    return stringify(localValue());
+  }
+
+  function hasUnsyncedLocalChange() {
+    return ready && localRaw() !== lastLocal;
+  }
+
   function setLocal(value) {
     const next = stringify(sanitize(value));
     if (localStorage.getItem(KEY) !== next) localStorage.setItem(KEY, next);
@@ -56,7 +64,7 @@
   }
 
   async function hydrate() {
-    if (!window.fetch || window.location.protocol === "file:" || hydrating || pushing) return;
+    if (!window.fetch || window.location.protocol === "file:" || hydrating || pushing || hasUnsyncedLocalChange()) return;
     hydrating = true;
     try {
       const response = await fetch(`/api/state?keys=${encodeURIComponent(KEY)}&t=${Date.now()}`, { cache: "no-store" });
@@ -97,12 +105,12 @@
   }
 
   function schedulePush(reason) {
-    const raw = stringify(localValue());
+    const raw = localRaw();
     if (raw === lastLocal) return;
-    lastLocal = raw;
     clearTimeout(timer);
-    timer = setTimeout(() => pushNow(reason), 800);
-    setTimeout(() => pushNow(reason), 2200);
+    timer = setTimeout(() => pushNow(reason), 500);
+    setTimeout(() => pushNow(reason), 1800);
+    setTimeout(() => pushNow(reason), 4200);
   }
 
   const previousSetItem = localStorage.setItem.bind(localStorage);
@@ -112,8 +120,16 @@
     if (key === KEY && oldValue !== value) schedulePush("localStorage.setItem");
   };
 
-  window.addEventListener("focus", hydrate);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) hydrate(); });
+  document.addEventListener("click", () => setTimeout(() => schedulePush("click"), 250), true);
+  document.addEventListener("change", () => setTimeout(() => schedulePush("change"), 250), true);
+  document.addEventListener("input", () => setTimeout(() => schedulePush("input"), 350), true);
+  window.addEventListener("focus", () => { hydrate(); setTimeout(() => schedulePush("focus-check"), 350); });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      hydrate();
+      setTimeout(() => schedulePush("visible-check"), 350);
+    }
+  });
 
   hydrate();
   setTimeout(hydrate, 1500);
