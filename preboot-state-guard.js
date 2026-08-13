@@ -1,162 +1,43 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV9) return;
-  window.__yangoPrebootStateGuardV9 = true;
+  if (typeof window === "undefined" || window.__yangoPrebootStateGuardV11) return;
+  window.__yangoPrebootStateGuardV11 = true;
 
-  const COLLECTION_KEY = /(^|[_:\-\s])(qr|qrs|promo|promos|promoCodes|code|codes|result|results|resultado|resultados|activation|activations|activacion|activaciones|calendar|calendario|agency|agencia|proof|proofs|photo|photos|foto|fotos|evidencia|evidencias|report|reports|reporte|reportes|items|rows)([_:\-\s]|$)/i;
-  const COLLECTION_HINT = /(qr|promo|result|resultado|activation|activacion|calendar|calendario|agency|agencia|proof|photo|foto|evidencia|report|reporte)/i;
-  const DASHBOARD_HINT = /yango|btl|mkt|agency|agencia|proof|photo|foto|evidencia|promotor|flyer|activ|calendar|calendario|acts|qr|promo|code|result|resultado/i;
-  const ACTIVATION_KEY = /yango_activations|\bacts\b|activation|activacion|activaciones|calendar|calendario/i;
-  const DATE_FIELDS = ["date", "fecha", "calendarDate", "activationDate", "createdAt", "updatedAt"];
-  const FALLBACK_DATE = "2026-01-01";
   const RETIRED_KEY = /samsung|raffle|rifa/i;
   const RETIRED_TEXT = /rifa samsung|samsung raffle|raffle samsung|\brifa\b|samsung/i;
   const PANEL_HINT = /(?:[?&](?:panel|usuario|user|role|rol)=|\/)(luis|giselle|gise|agency|agencia|panel|usuario|user|role|rol)(?:[/?&#]|$)/i;
-  const BROAD_ZONES = new Set(["petare", "centro", "este", "sureste", "universidades", "oeste", "sur", "norte", "satelites", "satélites", "sabana grande"]);
-  const TYPE_MAP = new Map([
-    ["flyers", "Flyers"], ["flyer", "Flyers"], ["cafe", "Café"], ["café", "Café"], ["helados", "Helados"], ["helado", "Helados"],
-    ["materialpop", "Material POP"], ["material pop", "Material POP"], ["pop", "Material POP"], ["universidad", "Universidad"], ["universidades", "Universidad"], ["evento", "Evento"], ["eventos", "Evento"]
-  ]);
+  const STATE_ENDPOINT = /\/api\/state(?:\?|$|\/)/;
+
+  // These datasets are user-entered operating data. They must never be replaced
+  // by an empty or stale cloud response during app boot.
+  const PROTECTED_STATE_DEFS = [
+    { key: "yango_influencers_h1", hint: /influ/i },
+    { key: "yango_social_report_h1", hint: /social|smm/i },
+    { key: "yango_agency_submissions_h1", hint: /agency|agencia|submission|proof|evidencia|foto|photo/i },
+    { key: "yango_media_ooh_h1", hint: /media|ooh|valla|parada|banderola/i },
+    { key: "yango_pop_inventory_h1", hint: /pop|material/i },
+    { key: "yango_branding_inventory_h1", hint: /branding|brand|casco|chaleco|chaqueta|longsleeve|sticker/i },
+    { key: "yango_mystery_shopper_h1", hint: /mystery|shopper/i },
+    { key: "yango_budgets_h1", hint: /budget|presupuesto/i },
+    { key: "yango_users_h1", hint: /users|usuarios|access|acceso/i }
+  ];
 
   const text = value => String(value == null ? "" : value);
-  const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
-  const parseRaw = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
+  const safeStringify = value => {
+    try { return JSON.stringify(value); } catch (_error) { return String(value); }
+  };
+  const parseRaw = value => {
+    if (value == null) return null;
+    if (typeof value !== "string") return value;
+    try { return JSON.parse(value); } catch (_error) { return null; }
+  };
   const isObject = value => value && typeof value === "object" && !Array.isArray(value);
-  const clean = value => text(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
-  const compact = value => clean(value).replace(/[^a-z0-9]+/g, "");
-  const isCollectionKey = key => COLLECTION_KEY.test(text(key)) || COLLECTION_HINT.test(text(key));
-  const isActivationKey = key => ACTIVATION_KEY.test(text(key));
-  const isCollaboratorPanel = () => PANEL_HINT.test(window.location.href || "");
 
-  function normalizeDate(value) {
-    if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
-    if (typeof value === "number" && Number.isFinite(value) && value > 20000 && value < 80000) return new Date(Date.UTC(1899, 11, 30 + value)).toISOString().slice(0, 10);
+  function meaningful(value) {
+    if (value == null) return false;
+    if (Array.isArray(value)) return value.length > 0;
+    if (isObject(value)) return Object.values(value).some(meaningful);
     const raw = text(value).trim();
-    if (!raw || /^(undefined|null|nan)$/i.test(raw)) return "";
-    let match = raw.match(/(20\d{2}|19\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/);
-    if (match) return `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
-    match = raw.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|19\d{2})/);
-    if (match) return `${match[3]}-${String(match[2]).padStart(2, "0")}-${String(match[1]).padStart(2, "0")}`;
-    const parsed = new Date(raw);
-    return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
-  }
-
-  function normalizeType(value) {
-    return TYPE_MAP.get(clean(value)) || TYPE_MAP.get(compact(value)) || "Flyers";
-  }
-
-  function normalizeStatus(value) {
-    const status = clean(value);
-    if (/no se dio|no realizada|cancel|missed|paus|pausa/.test(status)) return "missed";
-    if (/se dio|hecha|realizada|done|complete|completed|aprob|valid/.test(status)) return "done";
-    if (["done", "planned", "pending"].includes(status)) return status;
-    return "planned";
-  }
-
-  function hasRealActivationName(item) {
-    const name = clean(item && (item.name || item.nombre || item.title || item.titulo));
-    return !!name && name !== "sin nombre" && compact(name) !== "sinnombre" && !["undefined", "null", "nan"].includes(name);
-  }
-
-  function activationIsMissed(item) {
-    return normalizeStatus(item && (item.status || item.estado || item.activationStatus || item.validacion || item.validation)) === "missed";
-  }
-
-  function activationIsGeneratedPlaceholder(item) {
-    const date = normalizeDate(item && (item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt));
-    const name = clean(item && (item.name || item.nombre || item.title || item.titulo));
-    const location = clean(item && (item.location || item.ubicacion || item.zone || item.zona || item.area));
-    const status = normalizeStatus(item && (item.status || item.estado));
-    return status === "planned" && (date === FALLBACK_DATE || !date) && BROAD_ZONES.has(name) && (!location || location === name || BROAD_ZONES.has(location));
-  }
-
-  function normalizeActivation(item) {
-    if (!isObject(item)) return null;
-    if (!hasRealActivationName(item) || activationIsMissed(item) || activationIsGeneratedPlaceholder(item)) return null;
-    const date = normalizeDate(item.date || item.fecha || item.calendarDate || item.activationDate || item.createdAt || item.updatedAt) || "";
-    const name = text(item.name || item.nombre || item.title || item.titulo).trim();
-    const location = text(item.location || item.ubicacion || item.zone || item.zona || item.area || "").trim();
-    const status = normalizeStatus(item.status || item.estado);
-    return {
-      ...item,
-      name,
-      nombre: text(item.nombre || name),
-      title: text(item.title || item.titulo || name),
-      titulo: text(item.titulo || item.title || name),
-      date: text(item.date || date),
-      fecha: text(item.fecha || date),
-      calendarDate: text(item.calendarDate || date),
-      activationDate: text(item.activationDate || date),
-      location,
-      ubicacion: text(item.ubicacion || location),
-      zone: text(item.zone || item.zona || location),
-      zona: text(item.zona || item.zone || location),
-      type: normalizeType(item.type || item.tipo || item.activationType || item.tipoActivacion),
-      tipo: normalizeType(item.tipo || item.type || item.activationType || item.tipoActivacion),
-      status,
-      estado: text(item.estado || status)
-    };
-  }
-
-  function sanitizeActivationList(value) {
-    if (!Array.isArray(value)) return value;
-    const seen = new Set();
-    const out = [];
-    value.forEach(item => {
-      const next = normalizeActivation(item);
-      if (!next) return;
-      const id = [normalizeDate(next.date || next.fecha), clean(next.name || next.nombre), clean(next.location || next.ubicacion), clean(next.type || next.tipo)].join("|");
-      if (seen.has(id)) return;
-      seen.add(id);
-      out.push(next);
-    });
-    return out;
-  }
-
-  function looksActivationList(value, key = "") {
-    if (!Array.isArray(value)) return false;
-    if (isActivationKey(key)) return true;
-    const sample = stringify(value.slice(0, 8));
-    return /activaci|activation|calendario|calendar|fecha calendario|sabana|petare|altamira|chacaito|flyers/i.test(sample);
-  }
-
-  function normalizeCollections(value, key = "") {
-    if (value == null) return isCollectionKey(key) ? [] : value;
-    if (Array.isArray(value)) {
-      if (looksActivationList(value, key)) return sanitizeActivationList(value);
-      return value.map(item => normalizeCollections(item));
-    }
-    if (!isObject(value)) return value;
-    const next = { ...value };
-    Object.keys(next).forEach(childKey => {
-      if (next[childKey] == null && isCollectionKey(childKey)) next[childKey] = [];
-      else next[childKey] = normalizeCollections(next[childKey], childKey);
-    });
-    if (DASHBOARD_HINT.test(stringify(next).slice(0, 6000))) {
-      const date = normalizeDate(next.date || next.fecha || next.calendarDate || next.activationDate || next.createdAt || next.updatedAt);
-      if (date) {
-        next.date = text(next.date || date) || date;
-        next.fecha = text(next.fecha || date) || date;
-        next.calendarDate = text(next.calendarDate || date) || date;
-        next.activationDate = text(next.activationDate || date) || date;
-        next.createdAt = text(next.createdAt || date) || date;
-        next.updatedAt = text(next.updatedAt || date) || date;
-      }
-    }
-    return next;
-  }
-
-  function parse(value, key = "") {
-    const parsed = parseRaw(value);
-    return parsed == null ? null : normalizeCollections(parsed, key);
-  }
-
-  function sanitizeStoredString(key, raw) {
-    if (RETIRED_KEY.test(text(key))) return "[]";
-    if (!DASHBOARD_HINT.test(text(key)) && !isCollectionKey(key)) return raw;
-    if (raw == null || raw === "null" || raw === "undefined") return isCollectionKey(key) ? "[]" : raw;
-    const parsed = parse(raw, key);
-    if (parsed == null) return raw;
-    return stringify(parsed);
+    return !!raw && !/^(undefined|null|nan)$/i.test(raw);
   }
 
   function storageKeys() {
@@ -167,22 +48,110 @@
     return keys.filter(Boolean);
   }
 
-  function cleanRetiredStorage() {
-    try { storageKeys().forEach(key => { if (RETIRED_KEY.test(key)) localStorage.removeItem(key); }); } catch (_error) {}
+  function protectedDefForKey(key) {
+    const raw = text(key);
+    return PROTECTED_STATE_DEFS.find(def => def.key === raw || def.hint.test(raw));
   }
 
-  function sanitizeLocalStorage() {
+  function readLocal(key) {
+    try { return parseRaw(localStorage.getItem(key)); } catch (_error) { return null; }
+  }
+
+  function writeLocal(key, value) {
+    if (!meaningful(value)) return;
+    try { localStorage.setItem(key, safeStringify(value)); } catch (_error) {}
+  }
+
+  function bestLocalFor(def) {
+    const direct = readLocal(def.key);
+    if (meaningful(direct)) return direct;
+
+    let best = null;
+    let bestScore = -1;
+    storageKeys().forEach(key => {
+      if (!key || RETIRED_KEY.test(key)) return;
+      if (/token|password|secret|credential|session/i.test(key)) return;
+      if (!def.hint.test(key)) return;
+      const value = readLocal(key);
+      if (!meaningful(value)) return;
+      const score = safeStringify(value).length;
+      if (score > bestScore) {
+        best = value;
+        bestScore = score;
+      }
+    });
+    return best;
+  }
+
+  function stateKeyFromUrl(url) {
     try {
-      storageKeys().forEach(key => {
-        if (RETIRED_KEY.test(key)) {
-          localStorage.removeItem(key);
-          return;
-        }
-        const raw = localStorage.getItem(key);
-        const cleanValue = sanitizeStoredString(key, raw);
-        if (cleanValue !== raw && cleanValue != null) localStorage.setItem(key, cleanValue);
+      const parsed = new URL(text(url), window.location.origin);
+      const match = parsed.pathname.match(/\/api\/state\/([^/?#]+)/);
+      return match ? decodeURIComponent(match[1]) : "";
+    } catch (_error) {
+      const match = text(url).match(/\/api\/state\/([^/?#]+)/);
+      return match ? decodeURIComponent(match[1]) : "";
+    }
+  }
+
+  function queueCloudRepair(key, value, originalFetch) {
+    if (!key || !meaningful(value) || !originalFetch) return;
+    window.__yangoProtectedCloudRepair = window.__yangoProtectedCloudRepair || new Set();
+    const marker = `${key}:${safeStringify(value).length}`;
+    if (window.__yangoProtectedCloudRepair.has(marker)) return;
+    window.__yangoProtectedCloudRepair.add(marker);
+    setTimeout(() => {
+      try {
+        originalFetch(`/api/state/${encodeURIComponent(key)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ value })
+        }).catch(() => {});
+      } catch (_error) {}
+    }, 120);
+  }
+
+  function rescueProtectedPayload(payload, url, originalFetch) {
+    if (!payload || typeof payload !== "object") return payload;
+
+    if (payload.values && typeof payload.values === "object") {
+      PROTECTED_STATE_DEFS.forEach(def => {
+        const remoteValue = payload.values[def.key];
+        if (meaningful(remoteValue)) return;
+        const localValue = bestLocalFor(def);
+        if (!meaningful(localValue)) return;
+        payload.values[def.key] = localValue;
+        writeLocal(def.key, localValue);
+        queueCloudRepair(def.key, localValue, originalFetch);
       });
-    } catch (_error) {}
+      Object.keys(payload.values).forEach(key => {
+        if (RETIRED_KEY.test(key)) delete payload.values[key];
+      });
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, "value")) {
+      const requestedKey = stateKeyFromUrl(url);
+      const def = protectedDefForKey(requestedKey);
+      if (def && !meaningful(payload.value)) {
+        const localValue = bestLocalFor(def);
+        if (meaningful(localValue)) {
+          payload.value = localValue;
+          writeLocal(def.key, localValue);
+          queueCloudRepair(def.key, localValue, originalFetch);
+        }
+      }
+    }
+
+    return payload;
+  }
+
+  function seedProtectedCanonicals() {
+    PROTECTED_STATE_DEFS.forEach(def => {
+      const direct = readLocal(def.key);
+      if (meaningful(direct)) return;
+      const localValue = bestLocalFor(def);
+      if (meaningful(localValue)) writeLocal(def.key, localValue);
+    });
   }
 
   function hideRetiredUi() {
@@ -206,119 +175,77 @@
     });
   }
 
-  async function hydrateCollaboratorMirror() {
-    if (!isCollaboratorPanel() || !window.fetch || window.location.protocol === "file:") return;
+  async function hydrateCollaboratorMirror(originalFetch) {
+    if (!PANEL_HINT.test(window.location.href || "") || !originalFetch || window.location.protocol === "file:") return;
     if (window.__yangoCollaboratorMirrorRunning) return;
     window.__yangoCollaboratorMirrorRunning = true;
-    window.__yangoCollaboratorMirrorPending = true;
     try {
-      cleanRetiredStorage();
-      const response = await window.fetch(`/api/state?mirror=1&t=${Date.now()}`, { cache: "no-store" });
+      const response = await originalFetch(`/api/state?mirror=1&t=${Date.now()}`, { cache: "no-store" });
       if (!response.ok) return;
-      const payload = await response.json();
+      const payload = rescueProtectedPayload(await response.json(), "/api/state?mirror=1", originalFetch);
       const values = payload && payload.values && typeof payload.values === "object" ? payload.values : {};
       const keys = Object.keys(values).filter(key => !RETIRED_KEY.test(key));
       let changed = false;
       keys.forEach(key => {
-        const value = normalizeCollections(values[key], key);
-        const next = stringify(value);
+        const value = values[key];
+        const next = safeStringify(value);
         if (localStorage.getItem(key) !== next) {
           localStorage.setItem(key, next);
           changed = true;
         }
       });
-      cleanRetiredStorage();
       dispatchSharedEvents(keys, changed);
-      if (changed && !sessionStorage.getItem("yango_collaborator_mirror_reloaded")) {
-        sessionStorage.setItem("yango_collaborator_mirror_reloaded", "1");
-        setTimeout(() => window.location.reload(), 80);
-      }
     } catch (_error) {
       // The normal sync script retries after boot.
     } finally {
-      window.__yangoCollaboratorMirrorPending = false;
       window.__yangoCollaboratorMirrorRunning = false;
     }
   }
 
   try {
-    const originalGetItem = Storage && Storage.prototype && Storage.prototype.getItem;
     const originalSetItem = Storage && Storage.prototype && Storage.prototype.setItem;
-    if (originalGetItem && !Storage.prototype.__yangoSafeGetItemV9) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeGetItemV9", { value: true, configurable: true });
-      Storage.prototype.getItem = function safeGetItem(key) {
-        const raw = originalGetItem.call(this, key);
-        return sanitizeStoredString(key, raw);
-      };
-    }
-    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV9) {
-      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV9", { value: true, configurable: true });
+    const originalRemoveItem = Storage && Storage.prototype && Storage.prototype.removeItem;
+    if (originalSetItem && !Storage.prototype.__yangoSafeSetItemV11) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeSetItemV11", { value: true, configurable: true });
       Storage.prototype.setItem = function safeSetItem(key, value) {
         if (RETIRED_KEY.test(text(key))) return originalSetItem.call(this, key, "[]");
-        return originalSetItem.call(this, key, sanitizeStoredString(key, value));
-      };
-    }
-  } catch (_error) {}
-
-  try {
-    const originalParse = JSON.parse;
-    if (originalParse && !JSON.__yangoSafeParseV9) {
-      Object.defineProperty(JSON, "__yangoSafeParseV9", { value: true, configurable: true });
-      JSON.parse = function safeJsonParse(value, reviver) {
-        return normalizeCollections(originalParse.call(JSON, value, reviver));
-      };
-    }
-  } catch (_error) {}
-
-  const comparable = item => {
-    const obj = isObject(item) ? normalizeCollections(item) : {};
-    const date = DATE_FIELDS.map(field => normalizeDate(obj[field])).find(Boolean) || FALLBACK_DATE;
-    const name = text(obj.name || obj.nombre || obj.title || obj.titulo || obj.location || obj.ubicacion || "");
-    return { date, name };
-  };
-
-  try {
-    const originalSort = Array.prototype.sort;
-    if (originalSort && !Array.prototype.__yangoSafeSortV9) {
-      Object.defineProperty(Array.prototype, "__yangoSafeSortV9", { value: true, configurable: true });
-      Array.prototype.sort = function safeSort(compareFn) {
-        try { return originalSort.call(this, compareFn); }
-        catch (error) {
-          const message = text(error && error.message);
-          if (!/localeCompare|date|undefined|null/i.test(message)) throw error;
-          for (let index = 0; index < this.length; index += 1) this[index] = normalizeCollections(this[index]);
-          return originalSort.call(this, (a, b) => {
-            const aa = comparable(a), bb = comparable(b);
-            return bb.date.localeCompare(aa.date) || aa.name.localeCompare(bb.name);
-          });
+        const def = protectedDefForKey(key);
+        if (def) {
+          const incoming = parseRaw(value);
+          const existing = parseRaw(this.getItem(key));
+          if (!meaningful(incoming) && meaningful(existing)) return;
         }
+        return originalSetItem.call(this, key, value);
+      };
+    }
+    if (originalRemoveItem && !Storage.prototype.__yangoSafeRemoveItemV11) {
+      Object.defineProperty(Storage.prototype, "__yangoSafeRemoveItemV11", { value: true, configurable: true });
+      Storage.prototype.removeItem = function safeRemoveItem(key) {
+        const def = protectedDefForKey(key);
+        if (def && meaningful(parseRaw(this.getItem(key)))) return;
+        return originalRemoveItem.call(this, key);
       };
     }
   } catch (_error) {}
 
   try {
     const originalFetch = window.fetch && window.fetch.bind(window);
-    if (originalFetch && !window.__yangoSafeFetchV9) {
-      window.__yangoSafeFetchV9 = true;
+    if (originalFetch && !window.__yangoSafeFetchV11) {
+      window.__yangoSafeFetchV11 = true;
       window.fetch = async (...args) => {
         const response = await originalFetch(...args);
         try {
           const url = text(args[0] && args[0].url || args[0]);
-          if (!/\/api\/state(?:\?|$|\/)/.test(url)) return response;
-          const payload = await response.clone().json();
-          if (payload && typeof payload === "object") {
-            if (payload.values && typeof payload.values === "object") {
-              Object.keys(payload.values).forEach(key => {
-                if (RETIRED_KEY.test(key)) delete payload.values[key];
-                else payload.values[key] = normalizeCollections(payload.values[key], key);
-              });
-            }
-            if (Object.prototype.hasOwnProperty.call(payload, "value")) payload.value = normalizeCollections(payload.value, "value");
-            return new Response(JSON.stringify(payload), { status: response.status, statusText: response.statusText, headers: response.headers });
-          }
-        } catch (_error) {}
-        return response;
+          if (!STATE_ENDPOINT.test(url)) return response;
+          const payload = rescueProtectedPayload(await response.clone().json(), url, originalFetch);
+          const headers = new Headers(response.headers);
+          headers.set("Content-Type", "application/json; charset=utf-8");
+          return new Response(JSON.stringify(payload), { status: response.status, statusText: response.statusText, headers });
+        } catch (_error) {
+          return response;
+        }
       };
+      hydrateCollaboratorMirror(originalFetch);
     }
   } catch (_error) {}
 
@@ -328,31 +255,18 @@
       const body = document.body && document.body.innerText ? document.body.innerText : "";
       if (!/Algo salió mal/i.test(body)) return;
       if (!/qr\.reduce|reading 'reduce'|reading 'bg'|\bbg\b|localeCompare|date|undefined|null/i.test(body)) return;
-      const attempts = Number(sessionStorage.getItem("yango_preboot_recovery_attempts_v9") || "0");
-      if (attempts >= 3) return;
-      sessionStorage.setItem("yango_preboot_recovery_attempts_v9", String(attempts + 1));
-      sanitizeLocalStorage();
-      if (isCollaboratorPanel()) hydrateCollaboratorMirror();
+      const attempts = Number(sessionStorage.getItem("yango_preboot_recovery_attempts_v11") || "0");
+      if (attempts >= 2) return;
+      sessionStorage.setItem("yango_preboot_recovery_attempts_v11", String(attempts + 1));
+      seedProtectedCanonicals();
       setTimeout(() => window.location.reload(), 350);
     } catch (_error) {}
   }
 
-  cleanRetiredStorage();
-  sanitizeLocalStorage();
-  if (isCollaboratorPanel()) {
-    window.__yangoCollaboratorPanel = true;
-    hydrateCollaboratorMirror();
-  }
-  window.addEventListener("error", event => {
-    if (/qr\.reduce|reading 'reduce'|reading 'bg'|\bbg\b|localeCompare|date|undefined|null/i.test(text(event && event.message))) sanitizeLocalStorage();
-  }, true);
-  window.addEventListener("unhandledrejection", event => {
-    const reason = event && event.reason;
-    if (/qr\.reduce|reading 'reduce'|reading 'bg'|\bbg\b|localeCompare|date|undefined|null/i.test(text(reason && reason.message || reason))) sanitizeLocalStorage();
-  }, true);
+  seedProtectedCanonicals();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", recoverFromErrorScreen);
   else recoverFromErrorScreen();
-  try { new MutationObserver(() => { hideRetiredUi(); recoverFromErrorScreen(); }).observe(document.documentElement, { childList: true, subtree: true }); } catch (_error) {}
+  try { new MutationObserver(() => { hideRetiredUi(); }).observe(document.documentElement, { childList: true, subtree: true }); } catch (_error) {}
   setTimeout(hideRetiredUi, 300);
   setTimeout(hideRetiredUi, 1500);
 })();
