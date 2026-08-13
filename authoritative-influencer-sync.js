@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoAuthoritativeInfluencerSyncV1) return;
-  window.__yangoAuthoritativeInfluencerSyncV1 = true;
+  if (typeof window === "undefined" || window.__yangoAuthoritativeInfluencerSyncV2) return;
+  window.__yangoAuthoritativeInfluencerSyncV2 = true;
 
   const KEY = "yango_influencers_h1";
   let hydrating = false;
@@ -8,10 +8,24 @@
   let ready = false;
   let timer = null;
   let lastSynced = "";
+  let lastLocal = "";
 
   const parse = value => { try { return JSON.parse(value); } catch (_error) { return null; } };
   const stringify = value => { try { return JSON.stringify(value); } catch (_error) { return String(value); } };
   const cleanText = value => String(value == null ? "" : value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+  function sanitizeDeliverables(value) {
+    const raw = Array.isArray(value) ? value : String(value || "").split("+");
+    const allowed = new Map(["Stories", "Reel", "Post", "TikTok", "Live"].map(item => [item.toLowerCase(), item]));
+    const out = [];
+    raw.forEach(item => {
+      const cleaned = String(item || "").trim();
+      if (!cleaned) return;
+      const canonical = allowed.get(cleaned.toLowerCase()) || cleaned;
+      if (!out.some(existing => String(existing).toLowerCase() === canonical.toLowerCase())) out.push(canonical);
+    });
+    return out;
+  }
 
   function sanitize(value) {
     if (!Array.isArray(value)) return [];
@@ -19,12 +33,13 @@
     value.forEach(item => {
       if (!item || typeof item !== "object") return;
       const name = cleanText(item.name || item.nombre);
-      const handle = cleanText(item.handle || item.igUsername || item.instagram || item.tiktokUsername);
+      const handle = cleanText(item.handle || item.igUsername || item.instagram || item.tiktokUsername || item.tiktok);
       const key = `${name}|${handle}`;
       if (!name && !handle) return;
       if (name === "carlos rides") return;
-      if (!seen.has(key)) seen.set(key, item);
-      else seen.set(key, { ...seen.get(key), ...item });
+      const clean = { ...item, deliverables: sanitizeDeliverables(item.deliverables || item.entregables) };
+      if (!seen.has(key)) seen.set(key, clean);
+      else seen.set(key, { ...seen.get(key), ...clean });
     });
     return [...seen.values()];
   }
@@ -37,6 +52,7 @@
     const next = stringify(sanitize(value));
     if (localStorage.getItem(KEY) !== next) localStorage.setItem(KEY, next);
     lastSynced = next;
+    lastLocal = next;
   }
 
   async function hydrate() {
@@ -60,7 +76,7 @@
     if (!ready || hydrating || pushing || window.__yangoCollaboratorMirrorPending) return;
     const value = localValue();
     const raw = stringify(value);
-    if (raw === lastSynced && reason !== "force") return;
+    if (raw === lastSynced || raw === lastLocal) return;
     pushing = true;
     try {
       const response = await fetch(`/api/state/${encodeURIComponent(KEY)}`, {
@@ -70,30 +86,32 @@
       });
       if (response.ok) {
         lastSynced = raw;
+        lastLocal = raw;
         window.dispatchEvent(new CustomEvent("yango:influencers-authoritative-synced", { detail: { count: value.length, reason } }));
       }
     } catch (_error) {
-      // The normal sync will retry; this helper should never break the UI.
+      // The universal sync retries; this helper should never break the UI.
     } finally {
       pushing = false;
     }
   }
 
   function schedulePush(reason) {
+    const raw = stringify(localValue());
+    if (raw === lastLocal) return;
+    lastLocal = raw;
     clearTimeout(timer);
-    timer = setTimeout(() => pushNow(reason), 700);
+    timer = setTimeout(() => pushNow(reason), 800);
     setTimeout(() => pushNow(reason), 2200);
   }
 
   const previousSetItem = localStorage.setItem.bind(localStorage);
   localStorage.setItem = function setItemWithInfluencerAuthority(key, value) {
+    const oldValue = key === KEY ? localStorage.getItem(KEY) : null;
     previousSetItem(key, value);
-    if (key === KEY) schedulePush("localStorage.setItem");
+    if (key === KEY && oldValue !== value) schedulePush("localStorage.setItem");
   };
 
-  document.addEventListener("click", () => schedulePush("click"), true);
-  document.addEventListener("change", () => schedulePush("change"), true);
-  document.addEventListener("input", () => schedulePush("input"), true);
   window.addEventListener("focus", hydrate);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) hydrate(); });
 
