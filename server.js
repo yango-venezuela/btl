@@ -6,10 +6,12 @@ const { Pool } = require("pg");
 const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
-const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260814a";
+const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260814b";
 const APPS_SCRIPT_WEBHOOK_URL = String(process.env.APPS_SCRIPT_WEBHOOK_URL || "").trim();
 const APPS_SCRIPT_SYNC_SECRET = String(process.env.APPS_SCRIPT_SYNC_SECRET || "").trim();
 const APPS_SCRIPT_TIMEOUT_MS = Number(process.env.APPS_SCRIPT_TIMEOUT_MS || 8000);
+const APPS_SCRIPT_AUTO_BACKFILL = process.env.APPS_SCRIPT_AUTO_BACKFILL !== "false";
+let appsScriptStartupBackfillDone = false;
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
@@ -309,6 +311,20 @@ function fireAndForgetAppsScriptMirror(key, value, metadata = {}) {
   mirrorToAppsScript(key, value, metadata).catch(error => console.warn("Apps Script mirror crashed:", key, describeError(error)));
 }
 
+async function backfillAppsScriptState(trigger = "backfill") {
+  if (!APPS_SCRIPT_WEBHOOK_URL) return { ok: false, error: "APPS_SCRIPT_WEBHOOK_URL is not configured" };
+  if (!(await ensureDatabase())) return { ok: false, error: "DATABASE_URL is not configured" };
+  const result = await pool.query("select key, value, updated_at from app_state order by key");
+  const mirrored = [];
+  for (const row of result.rows) {
+    if (/samsung|raffle|rifa/i.test(row.key)) continue;
+    const value = sanitizeStateValue(row.key, row.value);
+    const mirror = await mirrorToAppsScript(row.key, value, { trigger, dbUpdatedAt: row.updated_at });
+    mirrored.push({ key: row.key, count: appsScriptCount(value), ok: Boolean(mirror.ok), skipped: Boolean(mirror.skipped), error: mirror.error || "" });
+  }
+  return { ok: true, count: mirrored.length, mirrored };
+}
+
 function persistCleanState(key, value) {
   if (!pool) return;
   if (/samsung|raffle|rifa/i.test(String(key || ""))) {
@@ -370,32 +386,27 @@ app.use(express.json({ limit: "50mb" }));
 app.get("/api/health", async (_req, res) => {
   try {
     const hasDb = await ensureDatabase();
-    res.json({ ok: true, database: hasDb ? "connected" : "not_configured", diagnostics: diagnostics(), helperVersion: HELPER_VERSION, appsScriptMirror: { configured: Boolean(APPS_SCRIPT_WEBHOOK_URL) } });
+    res.json({ ok: true, database: hasDb ? "connected" : "not_configured", diagnostics: diagnostics(), helperVersion: HELPER_VERSION, appsScriptMirror: { configured: Boolean(APPS_SCRIPT_WEBHOOK_URL), autoBackfill: APPS_SCRIPT_AUTO_BACKFILL } });
   } catch (error) {
-    res.status(500).json({ ok: false, error: describeError(error), diagnostics: diagnostics(), helperVersion: HELPER_VERSION, appsScriptMirror: { configured: Boolean(APPS_SCRIPT_WEBHOOK_URL) } });
+    res.status(500).json({ ok: false, error: describeError(error), diagnostics: diagnostics(), helperVersion: HELPER_VERSION, appsScriptMirror: { configured: Boolean(APPS_SCRIPT_WEBHOOK_URL), autoBackfill: APPS_SCRIPT_AUTO_BACKFILL } });
   }
 });
 
 app.get("/api/apps-script-sync/status", (_req, res) => {
   res.set("Cache-Control", "no-store");
-  res.json({ ok: true, configured: Boolean(APPS_SCRIPT_WEBHOOK_URL), hasSecret: Boolean(APPS_SCRIPT_SYNC_SECRET) });
+  res.json({ ok: true, configured: Boolean(APPS_SCRIPT_WEBHOOK_URL), hasSecret: Boolean(APPS_SCRIPT_SYNC_SECRET), autoBackfill: APPS_SCRIPT_AUTO_BACKFILL });
 });
 
-app.post("/api/apps-script-sync/backfill", async (_req, res) => {
+async function handleAppsScriptBackfill(_req, res) {
   try {
-    if (!APPS_SCRIPT_WEBHOOK_URL) return res.status(503).json({ ok: false, error: "APPS_SCRIPT_WEBHOOK_URL is not configured" });
-    if (!(await ensureDatabase())) return res.status(503).json({ ok: false, error: "DATABASE_URL is not configured" });
-    const result = await pool.query("select key, value, updated_at from app_state order by key");
-    const mirrored = [];
-    for (const row of result.rows) {
-      if (/samsung|raffle|rifa/i.test(row.key)) continue;
-      const value = sanitizeStateValue(row.key, row.value);
-      const mirror = await mirrorToAppsScript(row.key, value, { trigger: "backfill", dbUpdatedAt: row.updated_at });
-      mirrored.push({ key: row.key, ok: Boolean(mirror.ok), skipped: Boolean(mirror.skipped), error: mirror.error || "" });
-    }
-    res.json({ ok: true, count: mirrored.length, mirrored });
+    const result = await backfillAppsScriptState("manual-backfill");
+    if (!result.ok) return res.status(503).json(result);
+    res.json(result);
   } catch (error) { res.status(500).json({ ok: false, error: describeError(error) }); }
-});
+}
+
+app.get("/api/apps-script-sync/backfill", handleAppsScriptBackfill);
+app.post("/api/apps-script-sync/backfill", handleAppsScriptBackfill);
 
 app.get("/api/yango-summary-csv", async (req, res) => {
   try {
@@ -455,4 +466,14 @@ app.post("/api/state/:key", saveStateValue);
 app.get("/", sendDashboard);
 app.use(express.static(__dirname, { index: false }));
 app.get("*", sendDashboard);
-app.listen(port, () => console.log(`Yango MKT dashboard listening on ${port}`));
+app.listen(port, () => {
+  console.log(`Yango MKT dashboard listening on ${port}`);
+  if (APPS_SCRIPT_AUTO_BACKFILL && APPS_SCRIPT_WEBHOOK_URL && !appsScriptStartupBackfillDone) {
+    appsScriptStartupBackfillDone = true;
+    setTimeout(() => {
+      backfillAppsScriptState("startup-backfill")
+        .then(result => console.log("Apps Script startup backfill:", result.ok ? `${result.count} keys mirrored` : result.error))
+        .catch(error => console.warn("Apps Script startup backfill failed:", describeError(error)));
+    }, 6000);
+  }
+});
