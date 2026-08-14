@@ -1,19 +1,53 @@
-# Yango MKT Venezuela — Clean Rebuild
+# Yango MKT Venezuela — Rebuild limpio
 
-Este repo fue reseteado para reconstruir el panel desde cero.
+Este repo fue reseteado y reconstruido desde cero. La primera versión nueva es **Social Media v1**.
+
+## Qué incluye ahora
+
+- Login simple:
+  - Admin: `admin` / `Yango2026!`
+  - Giselle: `giselle` / `Giselle2026!`
+- Admin de usuarios.
+- Social Media → Influencers.
+- Social Media → Reporte Social Media.
+- Sync central vía Google Apps Script + Google Sheets.
+- Railway solo aloja el panel; la data vive en Google Sheets.
 
 ## Backups antes del reset
 
 - Google Sheet backup real: https://docs.google.com/spreadsheets/d/1gsYFnJHOjZVfGDN014Zj51jNL17YjI0wpUXvgCpDUxU/edit?usp=drivesdk
 - JSON raw backup: https://drive.google.com/file/d/1Ck_JaMAKQVbGoKFwvZD6Ku0WEfqJDMjx/view?usp=drivesdk
 
-## Estado actual
+## Apps Script
 
-Base mínima desplegable en Railway:
+El backend de sync está en:
 
-- `index.html`: pantalla limpia de inicio
-- `server.js`: servidor Node sin dependencias externas
-- `package.json`: start script
-- `railway.json`: config de Railway
+`apps-script/yango-mkt-social-sync.gs`
 
-La reconstrucción se hará por secciones y conectando la data a una fuente única estable.
+Ese script crea y usa estas pestañas en el Google Sheet:
+
+- `SM_Users`
+- `SM_Influencers`
+- `SM_Report`
+- `SM_ChangeLog`
+
+## Railway
+
+Variable opcional:
+
+- `APPS_SCRIPT_URL`
+
+Si no existe, el servidor usa por defecto el deployment actual de Apps Script:
+
+`https://script.google.com/macros/s/AKfycbyeYf8VPZCC-7MB7KRQ4kJuIcpb4-qW2oSxsrmcIi6mk1F7cvVmI_Gd263qEZjElKAZbQ/exec`
+
+## Prueba mínima antes de seguir
+
+1. Entrar como Admin.
+2. Crear un influencer.
+3. Verificar que aparece en `SM_Influencers`.
+4. Entrar como Giselle.
+5. Editar o borrar ese influencer.
+6. Verificar que Admin ve el cambio después del auto-refresh.
+
+No agregar BTL/POP/Branding/Media hasta que esta prueba funcione perfecto.
