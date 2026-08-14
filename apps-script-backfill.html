@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Yango MKT · Apps Script Sync</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f8fb; color: #111827; }
+    main { width: min(720px, calc(100vw - 32px)); background: white; border: 1px solid #dde6f2; border-radius: 28px; padding: 32px; box-shadow: 0 24px 80px rgba(16,24,40,.10); }
+    .brand { color: #e60012; font-weight: 950; font-size: 44px; line-height: 1; letter-spacing: -.04em; margin-bottom: 14px; }
+    h1 { margin: 0; font-size: 30px; }
+    p { color: #61708a; line-height: 1.55; margin: 10px 0 0; }
+    .status { margin: 22px 0; padding: 16px; border-radius: 18px; background: #f7f9fc; border: 1px solid #e3ebf5; font-weight: 800; }
+    button { appearance: none; border: 0; background: #e60012; color: white; font-weight: 950; padding: 15px 22px; border-radius: 16px; cursor: pointer; font-size: 16px; }
+    button:disabled { opacity: .55; cursor: wait; }
+    pre { margin-top: 18px; max-height: 320px; overflow: auto; white-space: pre-wrap; background: #101828; color: #eef4ff; padding: 16px; border-radius: 16px; font-size: 13px; }
+    .ok { color: #16a34a; }
+    .bad { color: #dc2626; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">Y</div>
+    <h1>Sync con Google Apps Script</h1>
+    <p>Esta pantalla verifica si el Web App URL está configurado en Railway y permite mandar al Google Sheet toda la data que ya existe en Postgres.</p>
+    <div id="status" class="status">Revisando configuración…</div>
+    <button id="backfill" disabled>Mandar data existente al Sheet</button>
+    <pre id="log">Esperando…</pre>
+  </main>
+  <script>
+    const statusEl = document.getElementById('status');
+    const button = document.getElementById('backfill');
+    const log = document.getElementById('log');
+
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/apps-script-sync/status', { cache: 'no-store' });
+        const data = await res.json();
+        if (data.configured) {
+          statusEl.innerHTML = '<span class="ok">✓ Apps Script configurado</span>' + (data.hasSecret ? ' · con clave' : '');
+          button.disabled = false;
+        } else {
+          statusEl.innerHTML = '<span class="bad">No está configurado</span>. Falta APPS_SCRIPT_WEBHOOK_URL en Railway.';
+          button.disabled = true;
+        }
+        log.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        statusEl.innerHTML = '<span class="bad">No pude verificar el status</span>';
+        log.textContent = error.message || String(error);
+      }
+    }
+
+    async function runBackfill() {
+      button.disabled = true;
+      log.textContent = 'Mandando data existente al Google Sheet…';
+      try {
+        const res = await fetch('/api/apps-script-sync/backfill', { method: 'POST', cache: 'no-store' });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        statusEl.innerHTML = `<span class="ok">✓ Backfill listo</span> · ${data.count || 0} secciones enviadas`;
+        log.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        statusEl.innerHTML = '<span class="bad">Falló el backfill</span>';
+        log.textContent = error.message || String(error);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    button.addEventListener('click', runBackfill);
+    checkStatus();
+  </script>
+</body>
+</html>
