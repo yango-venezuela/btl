@@ -6,7 +6,10 @@ const { Pool } = require("pg");
 const app = express();
 const port = process.env.PORT || 3000;
 const databaseUrl = process.env.DATABASE_URL;
-const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260813d";
+const HELPER_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || "20260814a";
+const APPS_SCRIPT_WEBHOOK_URL = String(process.env.APPS_SCRIPT_WEBHOOK_URL || "").trim();
+const APPS_SCRIPT_SYNC_SECRET = String(process.env.APPS_SCRIPT_SYNC_SECRET || "").trim();
+const APPS_SCRIPT_TIMEOUT_MS = Number(process.env.APPS_SCRIPT_TIMEOUT_MS || 8000);
 
 const SUMMARY_SHEET_ID = "1HF0h65jgRPZiKYAro_bctnnSOaVARqd-KPjycfOUZDg";
 const SUMMARY_GIDS = new Set(["306964116", "949067172"]);
@@ -266,13 +269,55 @@ function sameStateValue(a, b) {
   return safeStringify(a) === safeStringify(b);
 }
 
+function appsScriptCount(value) {
+  if (Array.isArray(value)) return value.length;
+  if (value && typeof value === "object") return Object.keys(value).length;
+  return value == null || value === "" ? 0 : 1;
+}
+
+async function mirrorToAppsScript(key, value, metadata = {}) {
+  if (!APPS_SCRIPT_WEBHOOK_URL) return { skipped: true, reason: "APPS_SCRIPT_WEBHOOK_URL not configured" };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), APPS_SCRIPT_TIMEOUT_MS);
+  try {
+    const response = await fetch(APPS_SCRIPT_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        secret: APPS_SCRIPT_SYNC_SECRET,
+        source: "railway",
+        key,
+        value,
+        count: appsScriptCount(value),
+        updatedAt: new Date().toISOString(),
+        ...metadata
+      })
+    });
+    const text = await response.text().catch(() => "");
+    if (!response.ok) throw new Error(`Apps Script returned ${response.status}: ${text.slice(0, 300)}`);
+    return { ok: true, status: response.status };
+  } catch (error) {
+    console.warn("Apps Script mirror failed:", key, describeError(error));
+    return { ok: false, error: describeError(error) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function fireAndForgetAppsScriptMirror(key, value, metadata = {}) {
+  mirrorToAppsScript(key, value, metadata).catch(error => console.warn("Apps Script mirror crashed:", key, describeError(error)));
+}
+
 function persistCleanState(key, value) {
   if (!pool) return;
   if (/samsung|raffle|rifa/i.test(String(key || ""))) {
     pool.query("delete from app_state where key = $1", [key]).catch(error => console.warn("No pude retirar estado viejo:", key, error.message));
     return;
   }
-  pool.query("insert into app_state (key, value, updated_at) values ($1, $2::jsonb, now()) on conflict (key) do update set value = excluded.value, updated_at = now()", [key, JSON.stringify(value)]).catch(error => console.warn("No pude persistir limpieza:", key, error.message));
+  pool.query("insert into app_state (key, value, updated_at) values ($1, $2::jsonb, now()) on conflict (key) do update set value = excluded.value, updated_at = now()", [key, JSON.stringify(value)]).then(() => {
+    fireAndForgetAppsScriptMirror(key, value, { trigger: "cleanup" });
+  }).catch(error => console.warn("No pude persistir limpieza:", key, error.message));
 }
 
 function requestToken(req) {
@@ -325,10 +370,31 @@ app.use(express.json({ limit: "50mb" }));
 app.get("/api/health", async (_req, res) => {
   try {
     const hasDb = await ensureDatabase();
-    res.json({ ok: true, database: hasDb ? "connected" : "not_configured", diagnostics: diagnostics(), helperVersion: HELPER_VERSION });
+    res.json({ ok: true, database: hasDb ? "connected" : "not_configured", diagnostics: diagnostics(), helperVersion: HELPER_VERSION, appsScriptMirror: { configured: Boolean(APPS_SCRIPT_WEBHOOK_URL) } });
   } catch (error) {
-    res.status(500).json({ ok: false, error: describeError(error), diagnostics: diagnostics(), helperVersion: HELPER_VERSION });
+    res.status(500).json({ ok: false, error: describeError(error), diagnostics: diagnostics(), helperVersion: HELPER_VERSION, appsScriptMirror: { configured: Boolean(APPS_SCRIPT_WEBHOOK_URL) } });
   }
+});
+
+app.get("/api/apps-script-sync/status", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true, configured: Boolean(APPS_SCRIPT_WEBHOOK_URL), hasSecret: Boolean(APPS_SCRIPT_SYNC_SECRET) });
+});
+
+app.post("/api/apps-script-sync/backfill", async (_req, res) => {
+  try {
+    if (!APPS_SCRIPT_WEBHOOK_URL) return res.status(503).json({ ok: false, error: "APPS_SCRIPT_WEBHOOK_URL is not configured" });
+    if (!(await ensureDatabase())) return res.status(503).json({ ok: false, error: "DATABASE_URL is not configured" });
+    const result = await pool.query("select key, value, updated_at from app_state order by key");
+    const mirrored = [];
+    for (const row of result.rows) {
+      if (/samsung|raffle|rifa/i.test(row.key)) continue;
+      const value = sanitizeStateValue(row.key, row.value);
+      const mirror = await mirrorToAppsScript(row.key, value, { trigger: "backfill", dbUpdatedAt: row.updated_at });
+      mirrored.push({ key: row.key, ok: Boolean(mirror.ok), skipped: Boolean(mirror.skipped), error: mirror.error || "" });
+    }
+    res.json({ ok: true, count: mirrored.length, mirrored });
+  } catch (error) { res.status(500).json({ ok: false, error: describeError(error) }); }
 });
 
 app.get("/api/yango-summary-csv", async (req, res) => {
@@ -378,7 +444,9 @@ async function saveStateValue(req, res) {
     const incoming = req.body && Object.prototype.hasOwnProperty.call(req.body, "value") ? req.body.value : req.body;
     const value = sanitizeStateValue(key, incoming);
     const result = await pool.query("insert into app_state (key, value, updated_at) values ($1, $2::jsonb, now()) on conflict (key) do update set value = excluded.value, updated_at = now() returning key, updated_at", [key, JSON.stringify(value)]);
-    res.json({ ok: true, key: result.rows[0].key, updatedAt: result.rows[0].updated_at });
+    const updatedAt = result.rows[0].updated_at;
+    res.json({ ok: true, key: result.rows[0].key, updatedAt, appsScriptMirror: { configured: Boolean(APPS_SCRIPT_WEBHOOK_URL) } });
+    fireAndForgetAppsScriptMirror(key, value, { trigger: "save", path: req.path, panel: isCollaboratorPanel(req) ? "collaborator" : "admin", dbUpdatedAt: updatedAt });
   } catch (error) { res.status(500).json({ ok: false, error: describeError(error) }); }
 }
 
