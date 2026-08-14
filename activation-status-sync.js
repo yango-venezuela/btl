@@ -1,6 +1,6 @@
 (() => {
-  if (typeof window === "undefined" || window.__yangoSharedStateSyncV17) return;
-  window.__yangoSharedStateSyncV17 = true;
+  if (typeof window === "undefined" || window.__yangoSharedStateSyncV18) return;
+  window.__yangoSharedStateSyncV18 = true;
 
   const canonicalKeys = {
     agency: "yango_agency_submissions_h1",
@@ -32,6 +32,7 @@
   const compact = value => normalize(value).replace(/[^a-z0-9]+/g, "");
   const blockedKey = key => /migration|backup|respaldo|token|password|pass|secret|hydrated|debug|devtools|theme|tooltip|toast|mapbox|leaflet|samsung|raffle|rifa/i.test(String(key || ""));
   const staleCopyKey = key => /backup|respaldo|snapshot|migration|seed|rescue|old|tmp|debug|copy|bak/i.test(String(key || ""));
+  const isUserReason = reason => /Storage\.prototype\.setItem|Storage\.prototype\.removeItem|click|change|input|submit|beforeunload/i.test(String(reason || ""));
 
   function showStatus(ok, message) {
     try {
@@ -300,8 +301,7 @@
         if (staleCopyKey(key)) return;
         const oldValue = sanitizeValue(type, typeof oldRawValue === "string" ? parseJson(oldRawValue) : oldRawValue);
         const changed = stringify(oldValue) !== stringify(clean);
-        const userWrite = /Storage\.prototype\.setItem|click|change|input|submit|beforeunload/i.test(reason || "");
-        if (!changed || !userWrite) return;
+        if (!changed || !isUserReason(reason)) return;
       }
       queueDirect(target, type, clean, reason);
       syncLocalCopies(type, clean);
@@ -327,7 +327,7 @@
           if (hasData(localValue)) queueDirect(target, type, localValue, "seed-remote");
         }
       });
-      window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { source: "universal-sync-v17" } }));
+      window.dispatchEvent(new CustomEvent("yango:shared-state-hydrated", { detail: { source: "universal-sync-v18" } }));
       showStatus(true, "Guardado en la nube OK");
     } catch (error) {
       console.warn("No pude hidratar datos compartidos:", error);
@@ -355,7 +355,7 @@
         await putRemote(entry.target, next);
         syncLocalCopies(entry.type, next);
       }
-      window.dispatchEvent(new CustomEvent("yango:shared-state-synced", { detail: { source: "universal-sync-v17" } }));
+      window.dispatchEvent(new CustomEvent("yango:shared-state-synced", { detail: { source: "universal-sync-v18" } }));
       showStatus(true, "Guardado en la nube OK");
     } catch (error) {
       console.warn("No pude sincronizar cambios del panel:", error);
@@ -369,15 +369,21 @@
 
   function scan(reason) {
     if (hydrating) return;
+    const userReason = isUserReason(reason);
     localEntries().forEach(entry => {
-      if (replaceTypes.has(entry.type) && entry.key !== entry.target) return;
       const raw = stringify(entry.value);
-      if (lastSeen.get(String(entry.key)) !== raw) queueDirect(entry.target, entry.type, entry.value, reason);
+      const changed = lastSeen.get(String(entry.key)) !== raw;
+      if (replaceTypes.has(entry.type) && entry.key !== entry.target) {
+        if (staleCopyKey(entry.key)) return;
+        if (userReason && changed) queueDirect(entry.target, entry.type, entry.value, reason);
+        return;
+      }
+      if (changed) queueDirect(entry.target, entry.type, entry.value, reason);
     });
   }
 
-  if (proto && !proto.__yangoSharedStateStoragePatchV17) {
-    Object.defineProperty(proto, "__yangoSharedStateStoragePatchV17", { value: true, configurable: true });
+  if (proto && !proto.__yangoSharedStateStoragePatchV18) {
+    Object.defineProperty(proto, "__yangoSharedStateStoragePatchV18", { value: true, configurable: true });
     proto.setItem = function yangoSharedSetItem(key, value) {
       const oldValue = this === localStorage ? localStorage.getItem(key) : null;
       const result = nativeSetItem.call(this, key, value);
@@ -412,12 +418,12 @@
 })();
 
 (() => {
-  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV12) return;
-  window.__yangoBtlMapPolishLoaderInstalledV12 = true;
+  if (typeof window === "undefined" || window.__yangoBtlMapPolishLoaderInstalledV13) return;
+  window.__yangoBtlMapPolishLoaderInstalledV13 = true;
   const load = () => {
     if (document.querySelector('script[src^="/btl-map-polish.js"]')) return;
     const script = document.createElement("script");
-    script.src = `/btl-map-polish.js?v=20260813i-${Date.now()}`;
+    script.src = `/btl-map-polish.js?v=20260814a-${Date.now()}`;
     script.defer = true;
     document.head.appendChild(script);
   };
