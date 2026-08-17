@@ -1,4 +1,4 @@
-const SPREADSHEET_ID = '1gsYFnJHOjZVfGDN014Zj51jNL17YjI0wpUXvgCpDUxU';
+const SPREADSHEET_ID = '1C1cJ9z4lD6tIxwoS0Dk2d_UrjpK9XwRljZnUiQxWjt4';
 
 const SHEETS = {
   users: 'SM_Users',

@@ -39,7 +39,7 @@ Variable opcional:
 
 Si no existe, el servidor usa por defecto el deployment actual de Apps Script:
 
-`https://script.google.com/macros/s/AKfycbyeYf8VPZCC-7MB7KRQ4kJuIcpb4-qW2oSxsrmcIi6mk1F7cvVmI_Gd263qEZjElKAZbQ/exec`
+`https://script.google.com/macros/s/AKfycbyD03wun8PJpAxWpLk5EhKnI4S3V6Crfoho87KPcJCZAcGvFFjKOTew_6NFUult-2EYkw/exec`
 
 ## Prueba mínima antes de seguir
 
