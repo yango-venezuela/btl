@@ -33,11 +33,7 @@ Ese script crea y usa estas pestañas en el Google Sheet:
 
 ## Railway
 
-Variable opcional:
-
-- `APPS_SCRIPT_URL`
-
-Si no existe, el servidor usa por defecto el deployment actual de Apps Script:
+El servidor usa este deployment actual de Apps Script:
 
 `https://script.google.com/macros/s/AKfycbyD03wun8PJpAxWpLk5EhKnI4S3V6Crfoho87KPcJCZAcGvFFjKOTew_6NFUult-2EYkw/exec`
 
