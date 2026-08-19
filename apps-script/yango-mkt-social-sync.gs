@@ -9,7 +9,7 @@ const SHEETS = {
 
 const HEADERS = {
   [SHEETS.users]: ['id','name','email','role','password','active','created_at','updated_at','deleted_at'],
-  [SHEETS.influencers]: ['id','name','type','platform','ig_username','tiktok_username','deliverables','ig_followers','tiktok_followers','publish_date','budget','paid','payment_date','recorded','published','promo_code','promo_redemptions','ig_reach','tiktok_reach','notes','created_at','updated_at','deleted_at'],
+  [SHEETS.influencers]: ['id','name','type','platform','ig_username','tiktok_username','deliverables','ig_followers','tiktok_followers','publish_date','budget','paid','payment_date','recorded','published','link','tiktok_link','has_promo_code','promo_code','promo_redemptions','ig_reach','ig_likes','ig_comments','ig_shares','ig_saves','tiktok_reach','tiktok_likes','tiktok_comments','tiktok_shares','tiktok_saves','reach_total','engagement_total','engagement_rate','cost_per_engagement','cpm','cost_per_redemption','notes','created_at','updated_at','deleted_at'],
   [SHEETS.socialReports]: ['id','month','ig_followers','tiktok_followers','ig_reach','tiktok_reach','ig_clicks','tiktok_clicks','ig_installs','tiktok_installs','ig_orders','tiktok_orders','notes','created_at','updated_at','deleted_at'],
   [SHEETS.log]: ['at','actor','action','entity','entity_id','payload_json'],
 };

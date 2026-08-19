@@ -5,71 +5,733 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Yango MKT Venezuela</title>
   <style>
-    :root{--red:#ef1d1d;--red2:#c90016;--ink:#111827;--muted:#6d7b93;--line:#dfe7f2;--bg:#f6f8fb;--card:#fff;--green:#13a555;--blue:#0ea5e9;--amber:#d97706;--shadow:0 18px 55px rgba(17,24,39,.10)}
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:"YangoText",Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px} button,input,select,textarea{font:inherit} button{cursor:pointer}
-    .login{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at top left,#fff 0,#f9fafb 35%,#eef3f9 100%)}
-    .login-card{width:min(460px,100%);background:#fff;border:1px solid var(--line);border-radius:28px;padding:32px;box-shadow:var(--shadow)}
-    .mark{width:50px;height:50px;border-radius:17px;background:var(--red);color:#fff;display:grid;place-items:center;font-size:30px;font-weight:950;margin-bottom:16px}.login h1{margin:0 0 6px;font-size:30px;letter-spacing:-.04em}.login p{margin:0 0 20px;color:var(--muted)}
-    label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#71809a;font-weight:850;margin-bottom:6px}.field{margin-bottom:12px} input,select,textarea{width:100%;border:1px solid var(--line);border-radius:13px;padding:10px 12px;background:#fff;color:var(--ink);outline:none} textarea{min-height:78px;resize:vertical}.btn{border:0;border-radius:13px;background:var(--ink);color:#fff;font-weight:850;padding:10px 13px}.btn.red{background:var(--red)}.btn.light{background:#fff;color:var(--ink);border:1px solid var(--line)}.btn.green{background:var(--green)}.btn.small{padding:7px 9px;border-radius:10px;font-size:12px}.danger{color:var(--red)}
-    .app{min-height:100vh;display:grid;grid-template-columns:280px 1fr}.side{background:#fff;border-right:1px solid var(--line);padding:24px 18px;position:sticky;top:0;height:100vh;overflow:auto}.brand{display:flex;gap:12px;align-items:center;margin-bottom:28px}.brand .mark{width:42px;height:42px;border-radius:14px;font-size:28px;margin:0}.brand strong{display:block}.brand span{display:block;color:var(--muted);font-size:12px}.nav-title{font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:#99a6ba;font-weight:900;margin:22px 10px 8px}.nav{display:grid;gap:7px}.nav button{border:1px solid transparent;background:transparent;text-align:left;padding:12px 13px;border-radius:14px;color:#526176;font-weight:800}.nav button.active{background:#fff1f1;border-color:#ffd8d8;color:var(--red)}.side-foot{margin-top:28px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}.sync-dot{display:inline-flex;align-items:center;gap:7px}.sync-dot:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--green)}.sync-dot.warn:before{background:var(--amber)}.sync-dot.err:before{background:var(--red)}
-    .main{padding:30px;min-width:0}.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}.top h1{margin:0;font-size:34px;line-height:.95;letter-spacing:-.05em}.top p{margin:7px 0 0;color:var(--muted)}.userbar{display:flex;gap:9px;align-items:center}.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 9px;background:#eef3f9;color:#526176;font-weight:850;font-size:11px}.badge.red{background:#ffe9e9;color:var(--red)}.badge.blue{background:#e8f6ff;color:var(--blue)}.badge.green{background:#e9fbef;color:var(--green)}
-    .hero{background:linear-gradient(135deg,#ef1d1d 0,#8e111b 56%,#111827 100%);color:#fff;border-radius:24px;padding:24px;margin-bottom:20px;box-shadow:var(--shadow)}.hero h2{margin:0 0 6px;font-size:26px}.hero p{margin:0;color:rgba(255,255,255,.82)}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px}.actions .btn.light{background:#fff;color:var(--ink)}
-    .cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:20px}.card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:17px}.metric{font-size:26px;font-weight:950;letter-spacing:-.05em}.card span{color:var(--muted);font-weight:700}.panel{background:#fff;border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:0 8px 30px rgba(17,24,39,.03);overflow:hidden}.panel-head{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-bottom:14px}.panel h3{margin:0;font-size:19px}.panel p{margin:4px 0 0;color:var(--muted)}.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin-bottom:14px;align-items:end}.filter-field input,.filter-field select{height:42px}.filter-field button{height:42px;width:100%}.checkline{display:flex;align-items:center;gap:9px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink);font-weight:800}.checkline input{width:auto}.table-wrap{overflow:auto;border:1px solid #eef2f7;border-radius:16px}table{width:100%;border-collapse:collapse;min-width:1080px}th,td{padding:12px 14px;border-bottom:1px solid #eef2f7;text-align:left;vertical-align:top}th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8}td{font-size:13px}.name{font-weight:900}.muted{color:var(--muted)}.row-actions{display:flex;gap:7px}.empty{padding:30px;text-align:center;color:var(--muted)}
-    .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}.modal.open{display:flex}.modal-card{background:#fff;border-radius:28px;width:min(980px,100%);max-height:90vh;overflow:auto;padding:24px;box-shadow:var(--shadow)}.modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:18px}.modal-head h2{margin:0;font-size:28px}.form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.form-grid .wide{grid-column:1/-1}.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#111827;color:#fff;border-radius:999px;padding:12px 16px;font-weight:850;box-shadow:var(--shadow);display:none;z-index:80}.toast.show{display:block}.toast.err{background:var(--red)}
-    @media(max-width:980px){.app{grid-template-columns:1fr}.side{position:relative;height:auto}.main{padding:22px}.cards{grid-template-columns:repeat(2,1fr)}.filters,.form-grid{grid-template-columns:1fr}.top{display:block}.userbar{margin-top:12px}} @media(max-width:600px){.cards{grid-template-columns:1fr}}
+    :root {
+      --red:#ff1a1a;
+      --red-dark:#b50013;
+      --ink:#101828;
+      --muted:#66758f;
+      --soft:#f6f8fb;
+      --line:#dfe7f2;
+      --card:#ffffff;
+      --green:#16a34a;
+      --blue:#0ea5e9;
+      --orange:#f97316;
+      --purple:#8b5cf6;
+      --shadow:0 18px 55px rgba(16,24,40,.10);
+    }
+
+    * { box-sizing:border-box; }
+    body {
+      margin:0;
+      background:var(--soft);
+      color:var(--ink);
+      font-family:"YangoText", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size:13px;
+    }
+    button,input,select,textarea { font:inherit; }
+    button { cursor:pointer; }
+
+    label {
+      display:block;
+      margin-bottom:6px;
+      color:#71809a;
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+    input,select,textarea {
+      width:100%;
+      min-height:42px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:10px 12px;
+      outline:none;
+      background:#fff;
+      color:var(--ink);
+    }
+    textarea { min-height:76px; resize:vertical; }
+
+    .btn {
+      border:0;
+      border-radius:999px;
+      padding:11px 16px;
+      background:var(--ink);
+      color:#fff;
+      font-weight:900;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      white-space:nowrap;
+    }
+    .btn.red { background:var(--red); }
+    .btn.light { background:#fff; color:var(--ink); border:1px solid var(--line); }
+    .btn.small { padding:8px 11px; font-size:12px; }
+    .btn.danger { color:var(--red); }
+
+    .login {
+      min-height:100vh;
+      display:grid;
+      place-items:center;
+      padding:24px;
+      background:radial-gradient(circle at top left,#fff 0,#f9fafb 35%,#eef3f9 100%);
+    }
+    .login-card {
+      width:min(460px,100%);
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:30px;
+      padding:34px;
+      box-shadow:var(--shadow);
+    }
+    .mark {
+      width:48px;
+      height:48px;
+      border-radius:17px;
+      display:grid;
+      place-items:center;
+      background:var(--red);
+      color:#fff;
+      font-size:30px;
+      font-weight:950;
+      letter-spacing:-.08em;
+    }
+    .login h1 { margin:18px 0 6px; font-size:34px; letter-spacing:-.05em; }
+    .login p { margin:0 0 20px; color:var(--muted); }
+
+    .app { min-height:100vh; display:grid; grid-template-columns:272px 1fr; }
+    .side {
+      background:#fff;
+      border-right:1px solid var(--line);
+      padding:24px 18px;
+      position:sticky;
+      top:0;
+      height:100vh;
+      overflow:auto;
+    }
+    .brand { display:flex; gap:12px; align-items:center; margin-bottom:30px; }
+    .brand .mark { width:42px; height:42px; border-radius:15px; font-size:27px; }
+    .brand strong { display:block; font-size:15px; }
+    .brand span { display:block; color:var(--muted); font-size:12px; }
+    .nav-title {
+      margin:24px 10px 9px;
+      font-size:11px;
+      color:#99a6ba;
+      font-weight:950;
+      text-transform:uppercase;
+      letter-spacing:.14em;
+    }
+    .nav { display:grid; gap:7px; }
+    .nav button {
+      border:1px solid transparent;
+      background:transparent;
+      color:#526176;
+      text-align:left;
+      padding:12px 13px;
+      border-radius:16px;
+      font-weight:900;
+    }
+    .nav button.active { background:#fff1f1; border-color:#ffd8d8; color:var(--red); }
+    .side-foot { margin-top:28px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+    .sync-dot { display:inline-flex; align-items:center; gap:7px; font-weight:800; }
+    .sync-dot:before { content:""; width:8px; height:8px; border-radius:50%; background:var(--green); }
+    .sync-dot.warn:before { background:#d97706; }
+    .sync-dot.err:before { background:var(--red); }
+
+    .main { width:100%; max-width:1620px; margin:0 auto; padding:32px; min-width:0; }
+    .top { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; margin-bottom:22px; }
+    .top h1 {
+      margin:0;
+      font-family:"YangoHeadline","YangoText",system-ui,sans-serif;
+      font-size:34px;
+      line-height:.9;
+      letter-spacing:-.06em;
+      text-transform:uppercase;
+    }
+    .top p { margin:8px 0 0; color:var(--muted); font-size:15px; }
+    .userbar { display:flex; gap:9px; align-items:center; }
+
+    .hero {
+      border-radius:28px;
+      padding:26px 28px;
+      margin-bottom:22px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:18px;
+      color:#fff;
+      background:linear-gradient(135deg,#121522 0%,#3a111f 44%,#e60012 100%);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .hero h2 {
+      margin:0 0 7px;
+      font-size:29px;
+      line-height:1;
+      letter-spacing:-.04em;
+    }
+    .hero p { margin:0; color:rgba(255,255,255,.82); font-size:15px; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+    .actions .btn.light { background:#fff; color:var(--ink); }
+
+    .cards {
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:13px;
+      margin-bottom:22px;
+    }
+    .card {
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:22px;
+      padding:20px 18px;
+      min-height:142px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      box-shadow:0 8px 30px rgba(16,24,40,.025);
+    }
+    .icon {
+      width:42px;
+      height:42px;
+      border-radius:14px;
+      display:grid;
+      place-items:center;
+      margin-bottom:12px;
+      font-weight:950;
+    }
+    .i-red { background:#ffe9e9; color:var(--red); }
+    .i-blue { background:#e8f6ff; color:var(--blue); }
+    .i-green { background:#e9fbef; color:var(--green); }
+    .i-purple { background:#f0e8ff; color:var(--purple); }
+    .i-orange { background:#fff1e7; color:var(--orange); }
+    .i-gray { background:#eef2f7; color:var(--ink); }
+    .metric {
+      font-family:"YangoHeadline","YangoText",system-ui,sans-serif;
+      font-size:31px;
+      font-weight:950;
+      line-height:.9;
+      letter-spacing:-.07em;
+      margin-bottom:8px;
+    }
+    .card span { color:var(--muted); font-size:14px; font-weight:800; }
+
+    .filters {
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+      gap:14px;
+      align-items:end;
+      margin-bottom:18px;
+    }
+    .filter-field button { width:100%; min-height:42px; }
+
+    .panel {
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:24px;
+      padding:20px;
+      box-shadow:0 8px 30px rgba(16,24,40,.03);
+      overflow:hidden;
+    }
+    .panel-head { display:flex; justify-content:space-between; align-items:center; gap:14px; margin-bottom:16px; }
+    .panel h3 { margin:0; font-size:20px; }
+    .panel p { margin:4px 0 0; color:var(--muted); }
+    .table-wrap { overflow:auto; border:1px solid #eef2f7; border-radius:18px; }
+    table { width:100%; border-collapse:collapse; min-width:1320px; }
+    th,td { padding:14px 16px; border-bottom:1px solid #eef2f7; text-align:left; vertical-align:top; }
+    th {
+      color:#9aa8bd;
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      font-weight:950;
+    }
+    td { font-size:13px; }
+    .name { font-size:15px; font-weight:950; }
+    .muted { color:var(--muted); }
+    .tiny { font-size:12px; line-height:1.45; }
+    .result-block { min-width:160px; line-height:1.45; }
+    .result-title { color:var(--red); font-weight:950; }
+    .row-actions { display:flex; gap:7px; }
+    .empty { padding:34px; text-align:center; color:var(--muted); }
+    .badge {
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      border-radius:999px;
+      padding:6px 10px;
+      background:#eef3f9;
+      color:#526176;
+      font-size:11px;
+      font-weight:900;
+      margin:2px 0;
+    }
+    .badge.red { background:#ffe9e9; color:var(--red); }
+    .badge.blue { background:#e8f6ff; color:var(--blue); }
+    .badge.green { background:#e9fbef; color:var(--green); }
+    .badge.gray { background:#eef2f7; color:#64748b; }
+    .linkish { color:var(--red); font-weight:950; text-decoration:none; }
+
+    .modal { position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:center; justify-content:center; padding:20px; z-index:50; }
+    .modal.open { display:flex; }
+    .modal-card { background:#fff; border-radius:30px; width:min(1080px,100%); max-height:90vh; overflow:auto; padding:24px; box-shadow:var(--shadow); }
+    .modal-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:18px; }
+    .modal-head h2 { margin:0; font-size:30px; letter-spacing:-.04em; }
+    .form-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+    .form-grid .wide { grid-column:1/-1; }
+    .checkline { display:flex; align-items:center; gap:9px; color:var(--ink); font-size:13px; font-weight:900; text-transform:none; letter-spacing:0; }
+    .checkline input { width:auto; min-height:auto; }
+    .modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+    .toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:#111827; color:#fff; border-radius:999px; padding:12px 16px; font-weight:900; box-shadow:var(--shadow); display:none; z-index:80; }
+    .toast.show { display:block; }
+    .toast.err { background:var(--red); }
+
+    @media(max-width:1100px) {
+      .app { grid-template-columns:1fr; }
+      .side { position:relative; height:auto; }
+      .main { padding:22px; }
+      .hero { display:block; }
+      .actions { justify-content:flex-start; margin-top:16px; }
+      .cards { grid-template-columns:repeat(2,1fr); }
+      .form-grid { grid-template-columns:1fr; }
+      .top { display:block; }
+      .userbar { margin-top:12px; }
+    }
+    @media(max-width:620px) { .cards { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
   <div id="root"></div>
   <div id="toast" class="toast"></div>
   <div id="modal" class="modal"></div>
+  <input id="csvInput" type="file" accept=".csv,text/csv" hidden />
+
 <script>
-const DEFAULT_USERS=[{id:'admin',name:'Isabella',email:'admin@yango.local',role:'admin',password:'Yango2026!',active:true},{id:'giselle',name:'Giselle',email:'giselle@yango.local',role:'editor',password:'Giselle2026!',active:true}];
-let app={session:null,view:'influencers',users:[...DEFAULT_USERS],influencers:[],socialReports:[],loading:true,sync:'warn',lastSync:null,filters:{q:'',type:'all',platform:'all',paid:'all',publishedFrom:'',publishedTo:'',paymentFrom:'',paymentTo:''},reportMonth:'all'};
-const root=document.getElementById('root');const modal=document.getElementById('modal');const toastEl=document.getElementById('toast');
-function uid(prefix='id'){return prefix+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
-function n(v){const x=Number(String(v??'').replace(/\./g,'').replace(',','.'));return Number.isFinite(x)?x:0}
-function money(v){return '$'+n(v).toLocaleString('es-VE')}
-function num(v){return n(v).toLocaleString('es-VE')}
-function today(){return new Date().toISOString().slice(0,10)}
-function toast(msg,type='ok'){toastEl.textContent=msg;toastEl.className='toast show '+(type==='err'?'err':'');setTimeout(()=>toastEl.className='toast',2600)}
-async function api(action,payload={}){const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,payload,actor:app.session?.id||'anonymous',at:new Date().toISOString()})});let data={};try{data=await r.json()}catch(e){} if(!r.ok||data.ok===false)throw new Error(data.error||'No se pudo guardar en Google Sheets');return data}
-async function load(silent=false){try{if(!silent)app.loading=true;render();const r=await fetch('/api/sync?action=bootstrap',{cache:'no-store'});const data=await r.json();if(data.ok===false)throw new Error(data.error||'Sync error');app.users=(data.users&&data.users.length?data.users:DEFAULT_USERS).filter(u=>u.active!==false);app.influencers=(data.influencers||[]).filter(x=>!x.deleted_at);app.socialReports=(data.socialReports||[]).filter(x=>!x.deleted_at);app.sync='ok';app.lastSync=new Date();}catch(e){app.users=app.users.length?app.users:DEFAULT_USERS;app.sync='err';if(!silent)toast('No pude leer Google Sheets: '+e.message,'err')}finally{app.loading=false;render()}}
-function saveSession(user){app.session={id:user.id,name:user.name,email:user.email,role:user.role};localStorage.setItem('yango_mkt_session',JSON.stringify(app.session))}
-function boot(){try{app.session=JSON.parse(localStorage.getItem('yango_mkt_session')||'null')}catch(e){} load();setInterval(()=>{if(app.session)load(true)},12000)}
-function loginHTML(){return `<div class="login"><div class="login-card"><div class="mark">Y</div><h1>Yango MKT</h1><p>Social Media · panel compartido</p><form id="loginForm"><div class="field"><label>Usuario</label><select name="user"><option value="admin">Isabella / Admin</option><option value="giselle">Giselle</option></select></div><div class="field"><label>Clave</label><input name="password" type="password" placeholder="Clave" required></div><button class="btn red" style="width:100%">Entrar</button></form><p style="font-size:12px;margin-top:16px">La data se lee y se guarda en Google Sheets vía Apps Script.</p></div></div>`}
-function layout(content){const syncClass=app.sync==='ok'?'':app.sync==='err'?'err':'warn';return `<div class="app"><aside class="side"><div class="brand"><div class="mark">Y</div><div><strong>Yango MKT</strong><span>Venezuela</span></div></div><div class="nav"><div class="nav-title">Social Media</div>${navBtn('influencers','Influencers')}${navBtn('social-report','Reporte Social Media')}<div class="nav-title">Admin</div>${navBtn('users','Usuarios')}</div><div class="side-foot"><div class="sync-dot ${syncClass}">${app.sync==='ok'?'Sincronizado':'Revisar sync'}</div>${app.lastSync?`<br><br>Última lectura: ${app.lastSync.toLocaleTimeString('es-VE')}`:''}</div></aside><main class="main"><div class="top"><div><h1>${title()}</h1><p>${subtitle()}</p></div><div class="userbar"><span class="badge red">${app.session?.name||''}</span><button class="btn light small" onclick="logout()">Salir</button></div></div>${content}</main></div>`}
-function navBtn(id,label){return `<button class="${app.view===id?'active':''}" onclick="go('${id}')">${label}</button>`}
-function title(){return app.view==='influencers'?'IG, TikTok e Influencers':app.view==='social-report'?'Reporte Social Media':'Usuarios'}
-function subtitle(){return app.view==='influencers'?'Tracking de creadores, entregables, pagos y resultados.':app.view==='social-report'?'Followers, reach, clicks, installs y orders por mes.':'Administrar accesos al panel compartido.'}
-function go(view){app.view=view;render()}
-function logout(){localStorage.removeItem('yango_mkt_session');app.session=null;render()}
-function metricsInfluencers(list){return {influencers:list.filter(x=>x.type==='Influencer').length,micros:list.filter(x=>x.type==='Microinfluencer').length,published:list.filter(x=>String(x.published)==='true'||x.published===true).length,budget:list.reduce((s,x)=>s+n(x.budget),0),reachIG:list.reduce((s,x)=>s+n(x.ig_reach),0),reachTT:list.reduce((s,x)=>s+n(x.tiktok_reach),0),promo:list.reduce((s,x)=>s+n(x.promo_redemptions),0)}}
-function normDate(v){if(!v)return '';const s=String(v).trim();if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);const m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);if(m){const y=m[3].length===2?'20'+m[3]:m[3];return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`}return ''}
-function dateInRange(value,from,to){const v=normDate(value);return (!from||(v&&v>=from))&&(!to||(v&&v<=to))}
-function tiktokUser(x){return String(x.tiktok_username||'').trim()||String(x.ig_username||'').trim()}
-function resetInfluencerFilters(){app.filters={q:'',type:'all',platform:'all',paid:'all',publishedFrom:'',publishedTo:'',paymentFrom:'',paymentTo:''};render()}
-function dateFilter(label,key){return `<div class="filter-field"><label>${label}</label><input type="date" value="${esc(app.filters[key])}" onchange="app.filters['${key}']=this.value;render()"></div>`}
-function filteredInfluencers(){return app.influencers.filter(x=>{const q=String(app.filters.q||'').toLowerCase();return (!q||[x.name,x.ig_username,tiktokUser(x),x.deliverables].join(' ').toLowerCase().includes(q))&&(app.filters.type==='all'||x.type===app.filters.type)&&(app.filters.platform==='all'||x.platform===app.filters.platform)&&(app.filters.paid==='all'||String(x.paid)===app.filters.paid)&&dateInRange(x.publish_date,app.filters.publishedFrom,app.filters.publishedTo)&&dateInRange(x.payment_date,app.filters.paymentFrom,app.filters.paymentTo)})}
-function influencersView(){const list=filteredInfluencers();const m=metricsInfluencers(list);return `<section class="hero"><h2>Tracking de IG, TikTok e Influencers</h2><p>Controla acuerdos, entregables, pago, publicación, resultados y Promo Codes por creador.</p><div class="actions"><button class="btn light" onclick="openInfluencer()">+ Nuevo influencer</button><button class="btn" onclick="load()">Actualizar desde Google Sheets</button></div></section><section class="cards"><div class="card"><div class="metric">${m.influencers}</div><span>Influencers</span></div><div class="card"><div class="metric">${m.micros}</div><span>Micros</span></div><div class="card"><div class="metric">${m.published}/${list.length}</div><span>Publicados</span></div><div class="card"><div class="metric">${money(m.budget)}</div><span>Presupuesto</span></div><div class="card"><div class="metric">${num(m.reachIG)}</div><span>Reach IG</span></div><div class="card"><div class="metric">${num(m.reachTT)}</div><span>Reach TikTok</span></div><div class="card"><div class="metric">${num(m.promo)}</div><span>Redenciones Promo Code</span></div><div class="card"><div class="metric">${list.length}</div><span>Total filtrado</span></div></section><section class="panel"><div class="panel-head"><div><h3>Influencers</h3><p>Vista conectada al sheet central.</p></div><button class="btn red" onclick="openInfluencer()">Agregar</button></div><div class="filters"><div class="filter-field"><label>Buscar</label><input placeholder="Nombre o usuario" value="${esc(app.filters.q)}" oninput="app.filters.q=this.value;render()"></div><div class="filter-field"><label>Tipo</label><select onchange="app.filters.type=this.value;render()"><option value="all">Todos</option><option ${sel(app.filters.type,'Influencer')}>Influencer</option><option ${sel(app.filters.type,'Microinfluencer')}>Microinfluencer</option></select></div><div class="filter-field"><label>Plataforma</label><select onchange="app.filters.platform=this.value;render()"><option value="all">Todas</option><option ${sel(app.filters.platform,'IG')}>IG</option><option ${sel(app.filters.platform,'TikTok')}>TikTok</option><option ${sel(app.filters.platform,'IG + TikTok')}>IG + TikTok</option></select></div><div class="filter-field"><label>Pagado</label><select onchange="app.filters.paid=this.value;render()"><option value="all">Todos</option><option value="true" ${app.filters.paid==='true'?'selected':''}>Pagado</option><option value="false" ${app.filters.paid==='false'?'selected':''}>No pagado</option></select></div>${dateFilter('Publicado desde','publishedFrom')}${dateFilter('Publicado hasta','publishedTo')}${dateFilter('Fecha pago desde','paymentFrom')}${dateFilter('Fecha pago hasta','paymentTo')}<div class="filter-field"><label>&nbsp;</label><button class="btn light" onclick="resetInfluencerFilters()">Limpiar</button></div></div>${tableInfluencers(list)}</section>`}
-function tableInfluencers(list){if(!list.length)return `<div class="empty">No hay influencers con estos filtros.</div>`;return `<div class="table-wrap"><table><thead><tr><th>Influencer</th><th>Tipo</th><th>Entregables</th><th>Pago</th><th>Resultados</th><th>Promo Code</th><th></th></tr></thead><tbody>${list.map(x=>`<tr><td><div class="name">${esc(x.name)}</div><div class="muted">IG ${esc(x.ig_username||'—')} · TikTok ${esc(tiktokUser(x)||'—')}${!x.tiktok_username&&x.ig_username?' (mismo usuario)':''}</div><div class="muted">IG ${num(x.ig_followers)} · TikTok ${num(x.tiktok_followers)} followers</div></td><td><span class="badge ${x.type==='Influencer'?'red':'blue'}">${esc(x.type||'')}</span><div class="muted">${esc(x.platform||'')}</div></td><td><strong>${esc(x.deliverables||'')}</strong><div class="muted">Publicación: ${fmtDate(x.publish_date)}</div></td><td><strong>${money(x.budget)}</strong><div>${boolBadge(x.paid,'Pagado','Pendiente')}</div><div class="muted">${fmtDate(x.payment_date)}</div></td><td><div>IG: <strong>${num(x.ig_reach)}</strong> reach</div><div>TikTok: <strong>${num(x.tiktok_reach)}</strong> reach</div></td><td>${x.promo_code?`<strong>${esc(x.promo_code)}</strong><div class="muted">${num(x.promo_redemptions)} canjes</div>`:'<span class="badge">No aplica</span>'}</td><td><div class="row-actions"><button class="btn light small" onclick="openInfluencer('${x.id}')">Editar</button><button class="btn light small danger" onclick="deleteInfluencer('${x.id}')">Borrar</button></div></td></tr>`).join('')}</tbody></table></div>`}
-function reportView(){const months=[...new Set(app.socialReports.map(x=>x.month).filter(Boolean))].sort().reverse();const list=app.socialReports.filter(x=>app.reportMonth==='all'||x.month===app.reportMonth).sort((a,b)=>(b.month||'').localeCompare(a.month||''));const totals=list.reduce((s,x)=>{['ig_followers','tiktok_followers','ig_reach','tiktok_reach','ig_clicks','tiktok_clicks','ig_installs','tiktok_installs','ig_orders','tiktok_orders'].forEach(k=>s[k]=(s[k]||0)+n(x[k]));return s},{});return `<section class="hero"><h2>Reporte Social Media</h2><p>Resumen mensual de IG y TikTok. Los cambios también viven en Google Sheets.</p><div class="actions"><button class="btn light" onclick="openReport()">+ Agregar periodo</button><button class="btn" onclick="load()">Actualizar</button></div></section><section class="cards"><div class="card"><div class="metric">${num(totals.ig_followers)}</div><span>Followers IG</span></div><div class="card"><div class="metric">${num(totals.tiktok_followers)}</div><span>Followers TikTok</span></div><div class="card"><div class="metric">${num(totals.ig_reach)}</div><span>Reach IG</span></div><div class="card"><div class="metric">${num(totals.tiktok_reach)}</div><span>Reach TikTok</span></div><div class="card"><div class="metric">${num(n(totals.ig_clicks)+n(totals.tiktok_clicks))}</div><span>Clicks</span></div><div class="card"><div class="metric">${num(n(totals.ig_installs)+n(totals.tiktok_installs))}</div><span>Installs</span></div><div class="card"><div class="metric">${num(n(totals.ig_orders)+n(totals.tiktok_orders))}</div><span>Orders</span></div><div class="card"><div class="metric">${list.length}</div><span>Periodos</span></div></section><section class="panel"><div class="panel-head"><div><h3>Periodos</h3><p>Selecciona mes o agrega uno nuevo.</p></div><select style="max-width:220px" onchange="app.reportMonth=this.value;render()"><option value="all">Todos los meses</option>${months.map(m=>`<option value="${esc(m)}" ${app.reportMonth===m?'selected':''}>${monthLabel(m)}</option>`).join('')}</select></div>${tableReports(list)}</section>`}
-function tableReports(list){if(!list.length)return `<div class="empty">No hay periodos cargados.</div>`;return `<div class="table-wrap"><table><thead><tr><th>Mes</th><th>Followers</th><th>Reach</th><th>Clicks</th><th>Installs</th><th>Orders</th><th></th></tr></thead><tbody>${list.map(x=>`<tr><td><strong>${monthLabel(x.month)}</strong></td><td>IG ${num(x.ig_followers)}<br>TikTok ${num(x.tiktok_followers)}</td><td>IG ${num(x.ig_reach)}<br>TikTok ${num(x.tiktok_reach)}</td><td>IG ${num(x.ig_clicks)}<br>TikTok ${num(x.tiktok_clicks)}</td><td>IG ${num(x.ig_installs)}<br>TikTok ${num(x.tiktok_installs)}</td><td>IG ${num(x.ig_orders)}<br>TikTok ${num(x.tiktok_orders)}</td><td><div class="row-actions"><button class="btn light small" onclick="openReport('${x.id}')">Editar</button><button class="btn light small danger" onclick="deleteReport('${x.id}')">Borrar</button></div></td></tr>`).join('')}</tbody></table></div>`}
-function usersView(){if(app.session?.role!=='admin')return `<section class="panel"><h3>Sin permiso</h3><p>Solo Admin puede administrar usuarios.</p></section>`;return `<section class="hero"><h2>Usuarios</h2><p>Giselle y Admin comparten la misma data central. Esto no crea paneles separados.</p><div class="actions"><button class="btn light" onclick="openUser()">+ Nuevo usuario</button></div></section><section class="panel"><div class="panel-head"><div><h3>Accesos</h3><p>Usuarios autorizados.</p></div></div><div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>${app.users.map(u=>`<tr><td><strong>${esc(u.name)}</strong></td><td>${esc(u.email||'')}</td><td><span class="badge ${u.role==='admin'?'red':'blue'}">${esc(u.role)}</span></td><td>${boolBadge(u.active!==false,'Activo','Inactivo')}</td><td><div class="row-actions"><button class="btn light small" onclick="openUser('${u.id}')">Editar</button><button class="btn light small danger" onclick="deleteUser('${u.id}')">Borrar</button></div></td></tr>`).join('')}</tbody></table></div></section>`}
-function render(){if(!app.session){root.innerHTML=loginHTML();document.getElementById('loginForm').onsubmit=onLogin;return}let content=app.loading?'<section class="panel"><h3>Cargando...</h3><p>Leyendo Google Sheets.</p></section>':app.view==='influencers'?influencersView():app.view==='social-report'?reportView():usersView();root.innerHTML=layout(content)}
-function onLogin(e){e.preventDefault();const fd=new FormData(e.target);const user=(app.users.length?app.users:DEFAULT_USERS).find(u=>u.id===fd.get('user')&&String(u.password||'')===fd.get('password')&&u.active!==false);if(!user)return toast('Clave incorrecta o usuario inactivo','err');saveSession(user);render();load(true)}
-function esc(v){return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}function sel(a,b){return a===b?'value="'+b+'" selected':'value="'+b+'"'}function fmtDate(d){if(!d)return '—';const [y,m,day]=String(d).slice(0,10).split('-');return y&&m&&day?`${day}/${m}/${y}`:esc(d)}function monthLabel(m){if(!m)return '—';const [y,mo]=m.split('-');const names=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];return `${names[Number(mo)-1]||mo} ${y}`}function boolBadge(v,yes,no){return `<span class="badge ${v?'green':''}">${v?'✓ '+yes:no}</span>`}
-function toggleTikTokUsername(cb){const wrap=document.getElementById('tiktokUserWrap');if(wrap)wrap.style.display=cb.checked?'none':'block'}
-function openInfluencer(id){const x=app.influencers.find(i=>i.id===id)||{id:uid('inf'),type:'Microinfluencer',platform:'IG',paid:false,recorded:false,published:false};const sameUsername=!String(x.tiktok_username||'').trim();openForm('Influencer',`<input type="hidden" name="id" value="${esc(x.id)}"><div class="form-grid"><div class="field"><label>Nombre</label><input name="name" value="${esc(x.name)}" required></div><div class="field"><label>Tipo</label><select name="type"><option ${sel(x.type,'Microinfluencer')}>Microinfluencer</option><option ${sel(x.type,'Influencer')}>Influencer</option></select></div><div class="field"><label>Plataforma</label><select name="platform"><option ${sel(x.platform,'IG')}>IG</option><option ${sel(x.platform,'TikTok')}>TikTok</option><option ${sel(x.platform,'IG + TikTok')}>IG + TikTok</option></select></div><div class="field"><label>Username IG</label><input name="ig_username" value="${esc(x.ig_username)}"></div><div class="field"><label>Username TikTok</label><label class="checkline"><input type="checkbox" name="same_username" value="true" ${sameUsername?'checked':''} onchange="toggleTikTokUsername(this)"> Es el mismo que Instagram</label></div><div class="field" id="tiktokUserWrap" style="${sameUsername?'display:none':''}"><label>Username TikTok distinto</label><input name="tiktok_username" value="${esc(x.tiktok_username)}"></div><div class="field"><label>Entregables</label><input name="deliverables" value="${esc(x.deliverables)}" placeholder="Reel + Stories"></div><div class="field"><label>Followers IG</label><input name="ig_followers" value="${esc(x.ig_followers)}"></div><div class="field"><label>Followers TikTok</label><input name="tiktok_followers" value="${esc(x.tiktok_followers)}"></div><div class="field"><label>Fecha publicación</label><input type="date" name="publish_date" value="${esc(x.publish_date)}"></div><div class="field"><label>Presupuesto</label><input name="budget" value="${esc(x.budget)}"></div><div class="field"><label>Pagado</label><select name="paid"><option value="false" ${String(x.paid)!=='true'?'selected':''}>No</option><option value="true" ${String(x.paid)==='true'?'selected':''}>Sí</option></select></div><div class="field"><label>Fecha pago</label><input type="date" name="payment_date" value="${esc(x.payment_date)}"></div><div class="field"><label>Grabó</label><select name="recorded"><option value="false" ${String(x.recorded)!=='true'?'selected':''}>No</option><option value="true" ${String(x.recorded)==='true'?'selected':''}>Sí</option></select></div><div class="field"><label>Publicó</label><select name="published"><option value="false" ${String(x.published)!=='true'?'selected':''}>No</option><option value="true" ${String(x.published)==='true'?'selected':''}>Sí</option></select></div><div class="field"><label>Promo Code</label><input name="promo_code" value="${esc(x.promo_code)}"></div><div class="field"><label>Canjes Promo Code</label><input name="promo_redemptions" value="${esc(x.promo_redemptions)}"></div><div class="field"><label>Reach IG</label><input name="ig_reach" value="${esc(x.ig_reach)}"></div><div class="field"><label>Reach TikTok</label><input name="tiktok_reach" value="${esc(x.tiktok_reach)}"></div><div class="field wide"><label>Notas</label><textarea name="notes">${esc(x.notes)}</textarea></div></div>`,saveInfluencer)}
-function openReport(id){const x=app.socialReports.find(r=>r.id===id)||{id:uid('rep'),month:new Date().toISOString().slice(0,7)};openForm('Periodo Social Media',`<input type="hidden" name="id" value="${esc(x.id)}"><div class="form-grid"><div class="field"><label>Mes</label><input type="month" name="month" value="${esc(x.month)}" required></div>${['ig_followers','tiktok_followers','ig_reach','tiktok_reach','ig_clicks','tiktok_clicks','ig_installs','tiktok_installs','ig_orders','tiktok_orders'].map(k=>`<div class="field"><label>${k.replaceAll('_',' ')}</label><input name="${k}" value="${esc(x[k])}"></div>`).join('')}<div class="field wide"><label>Notas</label><textarea name="notes">${esc(x.notes)}</textarea></div></div>`,saveReport)}
-function openUser(id){const u=app.users.find(x=>x.id===id)||{id:uid('user'),role:'editor',active:true};openForm('Usuario',`<input type="hidden" name="id" value="${esc(u.id)}"><div class="form-grid"><div class="field"><label>Nombre</label><input name="name" value="${esc(u.name)}" required></div><div class="field"><label>Email</label><input name="email" value="${esc(u.email)}"></div><div class="field"><label>Rol</label><select name="role"><option ${sel(u.role,'editor')}>editor</option><option ${sel(u.role,'admin')}>admin</option></select></div><div class="field"><label>Clave</label><input name="password" value="${esc(u.password)}" required></div><div class="field"><label>Activo</label><select name="active"><option value="true" ${u.active!==false?'selected':''}>Sí</option><option value="false" ${u.active===false?'selected':''}>No</option></select></div></div>`,saveUser)}
-function openForm(title,body,onSave){modal.className='modal open';modal.innerHTML=`<div class="modal-card"><form id="modalForm"><div class="modal-head"><div><h2>${title}</h2><p class="muted">Se guarda directo en Google Sheets.</p></div><button type="button" class="btn light" onclick="closeModal()">Cerrar</button></div>${body}<div class="modal-actions"><button type="button" class="btn light" onclick="closeModal()">Cancelar</button><button class="btn red">Guardar</button></div></form></div>`;document.getElementById('modalForm').onsubmit=async e=>{e.preventDefault();const obj=Object.fromEntries(new FormData(e.target).entries());await onSave(obj)}}function closeModal(){modal.className='modal';modal.innerHTML=''}
-async function saveInfluencer(obj){try{if(obj.same_username==='true')obj.tiktok_username='';delete obj.same_username;['paid','recorded','published'].forEach(k=>obj[k]=obj[k]==='true');obj.updated_at=new Date().toISOString();await api('upsertInfluencer',obj);const i=app.influencers.findIndex(x=>x.id===obj.id);if(i>=0)app.influencers[i]=obj;else app.influencers.unshift(obj);closeModal();toast('Influencer guardado en Google Sheets');render();load(true)}catch(e){toast(e.message,'err')}}
-async function deleteInfluencer(id){if(!confirm('¿Borrar este influencer?'))return;try{await api('deleteInfluencer',{id});app.influencers=app.influencers.filter(x=>x.id!==id);toast('Influencer borrado');render();load(true)}catch(e){toast(e.message,'err')}}
-async function saveReport(obj){try{obj.updated_at=new Date().toISOString();await api('upsertSocialReport',obj);const i=app.socialReports.findIndex(x=>x.id===obj.id);if(i>=0)app.socialReports[i]=obj;else app.socialReports.unshift(obj);closeModal();toast('Periodo guardado');render();load(true)}catch(e){toast(e.message,'err')}}
-async function deleteReport(id){if(!confirm('¿Borrar este periodo?'))return;try{await api('deleteSocialReport',{id});app.socialReports=app.socialReports.filter(x=>x.id!==id);toast('Periodo borrado');render();load(true)}catch(e){toast(e.message,'err')}}
-async function saveUser(obj){try{obj.active=obj.active==='true';obj.updated_at=new Date().toISOString();await api('upsertUser',obj);const i=app.users.findIndex(x=>x.id===obj.id);if(i>=0)app.users[i]=obj;else app.users.push(obj);closeModal();toast('Usuario guardado');render();load(true)}catch(e){toast(e.message,'err')}}
-async function deleteUser(id){if(id==='admin')return toast('No borro el admin principal','err');if(!confirm('¿Borrar/desactivar usuario?'))return;try{await api('deleteUser',{id});app.users=app.users.filter(x=>x.id!==id);toast('Usuario eliminado');render();load(true)}catch(e){toast(e.message,'err')}}
+const DEFAULT_USERS = [
+  { id:'admin', name:'Isabella', email:'admin@yango.local', role:'admin', password:'Yango2026!', active:true },
+  { id:'giselle', name:'Giselle', email:'giselle@yango.local', role:'editor', password:'Giselle2026!', active:true },
+];
+const EMPTY_FILTERS = { q:'', type:'all', platform:'all', paid:'all', publishedFrom:'', publishedTo:'', paymentFrom:'', paymentTo:'' };
+const CSV_HEADERS = [
+  'Nombre','Usuario IG','Usuario TikTok','Tipo','Plataforma','Followers IG','Followers TikTok','Entregables','Presupuesto','Pagado','Fecha de pago','Grabó','Publicó','Fecha publicación','Link','Link TikTok','Tiene Promo Code','Promo Code','Redenciones','IG Reach','IG Likes','IG Comentarios','IG Shares','IG Saves','TikTok Reach','TikTok Likes','TikTok Comentarios','TikTok Shares','TikTok Saves','Reach total','Engagement total','Engagement rate','Costo por engagement','CPM','Costo por redención','Notas'
+];
+
+let app = {
+  session:null,
+  view:'influencers',
+  users:[...DEFAULT_USERS],
+  influencers:[],
+  socialReports:[],
+  loading:true,
+  sync:'warn',
+  lastSync:null,
+  filters:{...EMPTY_FILTERS},
+  reportMonth:'all'
+};
+
+const root = document.getElementById('root');
+const modal = document.getElementById('modal');
+const toastEl = document.getElementById('toast');
+const csvInput = document.getElementById('csvInput');
+const EXTRA_MARKER = '\n\n__YANGO_EXTRA__';
+const INFLUENCER_EXTRA_KEYS = [
+  'link','tiktok_link','has_promo_code',
+  'ig_likes','ig_comments','ig_shares','ig_saves',
+  'tiktok_likes','tiktok_comments','tiktok_shares','tiktok_saves',
+  'reach_total','engagement_total','engagement_rate',
+  'cost_per_engagement','cpm','cost_per_redemption'
+];
+
+function uid(prefix='id'){ return prefix+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8); }
+function cleanNumberString(v){
+  let s=String(v??'').trim().replace(/[$%\s]/g,'');
+  if(!s) return '';
+  const comma=s.lastIndexOf(','), dot=s.lastIndexOf('.');
+  if(comma>=0 && dot>=0) s = comma>dot ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,'');
+  else if(comma>=0) s = /,\d{1,2}$/.test(s) ? s.replace(',','.') : s.replace(/,/g,'');
+  return s;
+}
+function n(v){ const x=Number(cleanNumberString(v)); return Number.isFinite(x)?x:0; }
+function money(v){ return '$'+n(v).toLocaleString('es-VE'); }
+function num(v){ return n(v).toLocaleString('es-VE'); }
+function pct(v){ const x=n(v); return x.toLocaleString('es-VE',{maximumFractionDigits:1})+'%'; }
+function esc(v){ return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function sel(a,b){ return a===b?'value="'+b+'" selected':'value="'+b+'"'; }
+function boolish(v){ return v===true || String(v).toLowerCase()==='true' || String(v).toLowerCase()==='sí' || String(v).toLowerCase()==='si'; }
+function normDate(v){
+  if(!v) return '';
+  const s=String(v).trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  const m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if(m){ const y=m[3].length===2?'20'+m[3]:m[3]; return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
+  return '';
+}
+function fmtDate(d){ const v=normDate(d); if(!v)return '—'; const [y,m,day]=v.split('-'); return `${day}/${m}/${y}`; }
+function dateInRange(value,from,to){ const v=normDate(value); return (!from||(v&&v>=from))&&(!to||(v&&v<=to)); }
+function monthLabel(m){ if(!m)return '—'; const [y,mo]=String(m).split('-'); const names=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']; return `${names[Number(mo)-1]||mo} ${y}`; }
+function tiktokUser(x){ return String(x.tiktok_username||'').trim() || String(x.ig_username||'').trim(); }
+function totalReach(x){ return n(x.reach_total) || n(x.ig_reach)+n(x.tiktok_reach); }
+function totalEngagement(x){ return n(x.engagement_total) || n(x.ig_likes)+n(x.ig_comments)+n(x.ig_shares)+n(x.ig_saves)+n(x.tiktok_likes)+n(x.tiktok_comments)+n(x.tiktok_shares)+n(x.tiktok_saves); }
+function calcER(list){ const reach=list.reduce((s,x)=>s+totalReach(x),0); const eng=list.reduce((s,x)=>s+totalEngagement(x),0); return reach ? eng/reach*100 : 0; }
+function boolBadge(v,yes,no){ return `<span class="badge ${boolish(v)?'green':'gray'}">${boolish(v)?'✓ '+yes:no}</span>`; }
+function toast(msg,type='ok'){ toastEl.textContent=msg; toastEl.className='toast show '+(type==='err'?'err':''); setTimeout(()=>toastEl.className='toast',2800); }
+function splitExtraNotes(notes){
+  const raw=String(notes||'');
+  const idx=raw.indexOf(EXTRA_MARKER);
+  if(idx<0) return { notes:raw, extra:{} };
+  const plain=raw.slice(0,idx).trim();
+  const json=raw.slice(idx+EXTRA_MARKER.length).trim();
+  try{ return { notes:plain, extra:JSON.parse(json)||{} }; }
+  catch(e){ return { notes:raw, extra:{} }; }
+}
+function hydrateInfluencer(x){
+  const parsed=splitExtraNotes(x.notes);
+  const out={...x};
+  INFLUENCER_EXTRA_KEYS.forEach(k=>{
+    if((out[k]===undefined || out[k]==='') && parsed.extra[k]!==undefined) out[k]=parsed.extra[k];
+  });
+  out.notes=parsed.notes;
+  return out;
+}
+function payloadInfluencer(x){
+  const plain=splitExtraNotes(x.notes).notes;
+  const extra={};
+  INFLUENCER_EXTRA_KEYS.forEach(k=>{ if(x[k]!==undefined && x[k]!==null && x[k]!=='') extra[k]=x[k]; });
+  return { ...x, notes: plain + EXTRA_MARKER + JSON.stringify(extra) };
+}
+
+async function api(action,payload={}){
+  const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,payload,actor:app.session?.id||'anonymous',at:new Date().toISOString()})});
+  let data={};
+  try{ data=await r.json(); }catch(e){}
+  if(!r.ok||data.ok===false) throw new Error(data.error||'No se pudo guardar en Google Sheets');
+  return data;
+}
+async function load(silent=false){
+  try{
+    if(!silent) app.loading=true;
+    render();
+    const r=await fetch('/api/sync?action=bootstrap',{cache:'no-store'});
+    const data=await r.json();
+    if(data.ok===false) throw new Error(data.error||'Sync error');
+    app.users=(data.users&&data.users.length?data.users:DEFAULT_USERS).filter(u=>u.active!==false);
+    app.influencers=(data.influencers||[]).map(hydrateInfluencer).filter(x=>!x.deleted_at);
+    app.socialReports=(data.socialReports||[]).filter(x=>!x.deleted_at);
+    app.sync='ok';
+    app.lastSync=new Date();
+  }catch(e){
+    app.users=app.users.length?app.users:DEFAULT_USERS;
+    app.sync='err';
+    if(!silent) toast('No pude leer Google Sheets: '+e.message,'err');
+  }finally{
+    app.loading=false;
+    render();
+  }
+}
+
+function saveSession(user){ app.session={id:user.id,name:user.name,email:user.email,role:user.role}; localStorage.setItem('yango_mkt_session',JSON.stringify(app.session)); }
+function boot(){ try{app.session=JSON.parse(localStorage.getItem('yango_mkt_session')||'null')}catch(e){} load(); setInterval(()=>{if(app.session)load(true)},12000); csvInput.addEventListener('change',handleCSVFile); }
+function loginHTML(){ return `<div class="login"><div class="login-card"><div class="mark">Y</div><h1>Yango MKT</h1><p>Social Media · panel compartido</p><form id="loginForm"><div class="field"><label>Usuario</label><select name="user"><option value="admin">Isabella / Admin</option><option value="giselle">Giselle</option></select></div><div class="field"><label>Clave</label><input name="password" type="password" placeholder="Clave" required></div><button class="btn red" style="width:100%">Entrar</button></form><p style="font-size:12px;margin-top:16px">La data se lee y se guarda en Google Sheets vía Apps Script.</p></div></div>`; }
+function layout(content){
+  const syncClass=app.sync==='ok'?'':app.sync==='err'?'err':'warn';
+  return `<div class="app"><aside class="side"><div class="brand"><div class="mark">Y</div><div><strong>Yango MKT</strong><span>Venezuela</span></div></div><div class="nav"><div class="nav-title">Social Media</div>${navBtn('influencers','Influencers')}${navBtn('social-report','Reporte Social Media')}<div class="nav-title">Admin</div>${navBtn('users','Usuarios')}</div><div class="side-foot"><div class="sync-dot ${syncClass}">${app.sync==='ok'?'Sincronizado':'Revisar sync'}</div>${app.lastSync?`<br><br>Última lectura: ${app.lastSync.toLocaleTimeString('es-VE')}`:''}</div></aside><main class="main"><div class="top"><div><h1>${title()}</h1><p>${subtitle()}</p></div><div class="userbar"><span class="badge red">${esc(app.session?.name||'')}</span><button class="btn light small" onclick="logout()">Salir</button></div></div>${content}</main></div>`;
+}
+function navBtn(id,label){ return `<button class="${app.view===id?'active':''}" onclick="go('${id}')">${label}</button>`; }
+function title(){ return app.view==='influencers'?'IG, TikTok e Influencers':app.view==='social-report'?'Reporte Social Media':'Usuarios'; }
+function subtitle(){ return app.view==='influencers'?'Tracking de creadores, entregables, pagos y resultados.':app.view==='social-report'?'Followers, reach, clicks, installs y orders por mes.':'Administrar accesos al panel compartido.'; }
+function go(view){ app.view=view; render(); }
+function logout(){ localStorage.removeItem('yango_mkt_session'); app.session=null; render(); }
+
+function metricsInfluencers(list){
+  const budget=list.reduce((s,x)=>s+n(x.budget),0);
+  const engagement=list.reduce((s,x)=>s+totalEngagement(x),0);
+  const reachIG=list.reduce((s,x)=>s+n(x.ig_reach),0);
+  const reachTT=list.reduce((s,x)=>s+n(x.tiktok_reach),0);
+  const cpmReach=reachIG+reachTT;
+  return {
+    influencers:list.filter(x=>x.type==='Influencer').length,
+    micros:list.filter(x=>x.type==='Microinfluencer').length,
+    published:list.filter(x=>boolish(x.published)).length,
+    budget,
+    reachIG,
+    reachTT,
+    promo:list.reduce((s,x)=>s+n(x.promo_redemptions),0),
+    engagement,
+    er:calcER(list),
+    cpm:cpmReach ? budget/cpmReach*1000 : 0,
+  };
+}
+function filteredInfluencers(){
+  return app.influencers.filter(x=>{
+    const q=String(app.filters.q||'').toLowerCase();
+    return (!q||[x.name,x.ig_username,tiktokUser(x),x.deliverables,x.promo_code].join(' ').toLowerCase().includes(q))
+      && (app.filters.type==='all'||x.type===app.filters.type)
+      && (app.filters.platform==='all'||x.platform===app.filters.platform)
+      && (app.filters.paid==='all'||String(boolish(x.paid))===app.filters.paid)
+      && dateInRange(x.publish_date,app.filters.publishedFrom,app.filters.publishedTo)
+      && dateInRange(x.payment_date,app.filters.paymentFrom,app.filters.paymentTo);
+  });
+}
+function dateFilter(label,key){ return `<div class="filter-field"><label>${label}</label><input type="date" value="${esc(app.filters[key])}" onchange="app.filters['${key}']=this.value;render()"></div>`; }
+function resetInfluencerFilters(){ app.filters={...EMPTY_FILTERS}; render(); }
+
+function influencersView(){
+  const list=filteredInfluencers();
+  const m=metricsInfluencers(list);
+  return `<section class="hero"><div><h2>Tracking de IG, TikTok e Influencers</h2><p>Controla acuerdos, entregables, pago, publicación, resultados y Promo Codes por creador.</p></div><div class="actions"><button class="btn light" onclick="openInfluencer()">+ Nuevo influencer</button><button class="btn light" onclick="downloadInfluencersCSV()">Descargar CSV</button><button class="btn light" onclick="csvInput.click()">Importar CSV</button></div></section>
+  <section class="cards">
+    <div class="card"><div class="icon i-red">+</div><div class="metric">${m.influencers}</div><span>Influencers</span></div>
+    <div class="card"><div class="icon i-blue">+</div><div class="metric">${m.micros}</div><span>Micros</span></div>
+    <div class="card"><div class="icon i-green">✓</div><div class="metric">${m.published}/${list.length}</div><span>Publicados</span></div>
+    <div class="card"><div class="icon i-blue">◎</div><div class="metric">${num(m.reachIG)}</div><span>Reach IG</span></div>
+    <div class="card"><div class="icon i-gray">◉</div><div class="metric">${num(m.reachTT)}</div><span>Reach TikTok</span></div>
+    <div class="card"><div class="icon i-purple">↗</div><div class="metric">${pct(m.er)}</div><span>Engagement rate</span></div>
+    <div class="card"><div class="icon i-orange">▱</div><div class="metric">${num(m.promo)}</div><span>Redenciones Promo Code</span></div>
+    <div class="card"><div class="icon i-gray">$</div><div class="metric">${money(m.budget)}</div><span>Presupuesto</span></div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><div><h3>Influencers</h3><p>Cada fila mezcla acuerdo comercial, operación y resultados.</p></div><button class="btn red" onclick="openInfluencer()">Agregar</button></div>
+    <div class="filters">
+      <div class="filter-field"><label>Buscar</label><input placeholder="Nombre, usuario o promo" value="${esc(app.filters.q)}" oninput="app.filters.q=this.value;render()"></div>
+      <div class="filter-field"><label>Tipo</label><select onchange="app.filters.type=this.value;render()"><option value="all">Todos</option><option ${sel(app.filters.type,'Influencer')}>Influencer</option><option ${sel(app.filters.type,'Microinfluencer')}>Microinfluencer</option></select></div>
+      <div class="filter-field"><label>Plataforma</label><select onchange="app.filters.platform=this.value;render()"><option value="all">Todas</option><option ${sel(app.filters.platform,'IG')}>IG</option><option ${sel(app.filters.platform,'TikTok')}>TikTok</option><option ${sel(app.filters.platform,'IG + TikTok')}>IG + TikTok</option></select></div>
+      <div class="filter-field"><label>Pagado</label><select onchange="app.filters.paid=this.value;render()"><option value="all">Todos</option><option value="true" ${app.filters.paid==='true'?'selected':''}>Pagado</option><option value="false" ${app.filters.paid==='false'?'selected':''}>No pagado</option></select></div>
+      ${dateFilter('Publicado desde','publishedFrom')}${dateFilter('Publicado hasta','publishedTo')}${dateFilter('Fecha pago desde','paymentFrom')}${dateFilter('Fecha pago hasta','paymentTo')}
+      <div class="filter-field"><label>&nbsp;</label><button class="btn light" onclick="resetInfluencerFilters()">Limpiar</button></div>
+    </div>
+    ${tableInfluencers(list)}
+  </section>`;
+}
+function resultPlatform(x,prefix,label){
+  const reach=n(x[`${prefix}_reach`]);
+  const likes=n(x[`${prefix}_likes`]);
+  const comments=n(x[`${prefix}_comments`]);
+  const shares=n(x[`${prefix}_shares`]);
+  const saves=n(x[`${prefix}_saves`]);
+  const hasData=reach||likes||comments||shares||saves;
+  if(!hasData) return `<span class="badge gray">No aplica</span>`;
+  return `<div class="result-block"><div class="result-title">${label}: ${num(reach)} reach</div><div class="tiny muted">Likes ${num(likes)} · Comments ${num(comments)}</div><div class="tiny muted">Shares ${num(shares)} · Saves ${num(saves)}</div></div>`;
+}
+function tableInfluencers(list){
+  if(!list.length) return `<div class="empty">No hay influencers con estos filtros.</div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Influencer</th><th>Tipo</th><th>Entregables</th><th>Presupuesto / Pago</th><th>CPM</th><th>Estados</th><th>Resultados IG</th><th>Resultados TikTok</th><th>ER / Links</th><th>Promo Code</th><th></th></tr></thead><tbody>${list.map(x=>`<tr>
+    <td><div class="name">${esc(x.name)}</div><div class="muted tiny">IG ${esc(x.ig_username||'—')} · TikTok ${esc(tiktokUser(x)||'—')}${!x.tiktok_username&&x.ig_username?' (mismo usuario)':''}</div><div class="muted tiny">IG ${num(x.ig_followers)} · TikTok ${num(x.tiktok_followers)} followers</div></td>
+    <td><span class="badge ${x.type==='Influencer'?'red':'blue'}">${esc(x.type||'')}</span><div class="muted tiny">${esc(x.platform||'')}</div></td>
+    <td><strong>${esc(x.deliverables||'')}</strong><div class="muted tiny">${fmtDate(x.publish_date)}</div></td>
+    <td><strong>${money(x.budget)}</strong><div class="muted tiny">${boolish(x.paid)?'Pagado · '+fmtDate(x.payment_date):'Pendiente pago'}</div></td>
+    <td><strong>${x.cpm?esc(x.cpm):money(metricsInfluencers([x]).cpm)}</strong><div class="muted tiny">CPE ${esc(x.cost_per_engagement||'—')}</div></td>
+    <td>${boolBadge(x.paid,'Pagado','Pago pendiente')}<br>${boolBadge(x.recorded,'Grabó','Grabación pendiente')}<br>${boolBadge(x.published,'Publicó','Publicación pendiente')}</td>
+    <td>${resultPlatform(x,'ig','IG')}</td>
+    <td>${resultPlatform(x,'tiktok','TikTok')}</td>
+    <td><strong>${x.engagement_rate?esc(x.engagement_rate):pct(metricsInfluencers([x]).er)}</strong><div class="muted tiny">${num(totalEngagement(x))} engagements</div><div>${x.link?`<a class="linkish" href="${esc(x.link)}" target="_blank">IG / reporte</a>`:''} ${x.tiktok_link?`<br><a class="linkish" href="${esc(x.tiktok_link)}" target="_blank">TikTok</a>`:''}</div></td>
+    <td>${x.promo_code?`<strong>${esc(x.promo_code)}</strong><div class="muted tiny">${num(x.promo_redemptions)} canjes</div>`:'<span class="badge gray">No aplica</span>'}</td>
+    <td><div class="row-actions"><button class="btn light small" onclick="openInfluencer('${x.id}')">Editar</button><button class="btn light small danger" onclick="deleteInfluencer('${x.id}')">Borrar</button></div></td>
+  </tr>`).join('')}</tbody></table></div>`;
+}
+
+function reportView(){
+  const months=[...new Set(app.socialReports.map(x=>x.month).filter(Boolean))].sort().reverse();
+  const list=app.socialReports.filter(x=>app.reportMonth==='all'||x.month===app.reportMonth).sort((a,b)=>(b.month||'').localeCompare(a.month||''));
+  const totals=list.reduce((s,x)=>{['ig_followers','tiktok_followers','ig_reach','tiktok_reach','ig_clicks','tiktok_clicks','ig_installs','tiktok_installs','ig_orders','tiktok_orders'].forEach(k=>s[k]=(s[k]||0)+n(x[k]));return s},{});
+  return `<section class="hero"><div><h2>Reporte Social Media</h2><p>Resumen mensual de IG y TikTok.</p></div><div class="actions"><button class="btn light" onclick="openReport()">+ Agregar periodo</button><button class="btn light" onclick="load()">Actualizar</button></div></section><section class="cards"><div class="card"><div class="metric">${num(totals.ig_followers)}</div><span>Followers IG</span></div><div class="card"><div class="metric">${num(totals.tiktok_followers)}</div><span>Followers TikTok</span></div><div class="card"><div class="metric">${num(totals.ig_reach)}</div><span>Reach IG</span></div><div class="card"><div class="metric">${num(totals.tiktok_reach)}</div><span>Reach TikTok</span></div><div class="card"><div class="metric">${num(n(totals.ig_clicks)+n(totals.tiktok_clicks))}</div><span>Clicks</span></div><div class="card"><div class="metric">${num(n(totals.ig_installs)+n(totals.tiktok_installs))}</div><span>Installs</span></div><div class="card"><div class="metric">${num(n(totals.ig_orders)+n(totals.tiktok_orders))}</div><span>Orders</span></div><div class="card"><div class="metric">${list.length}</div><span>Periodos</span></div></section><section class="panel"><div class="panel-head"><div><h3>Periodos</h3><p>Selecciona mes o agrega uno nuevo.</p></div><select style="max-width:220px" onchange="app.reportMonth=this.value;render()"><option value="all">Todos los meses</option>${months.map(m=>`<option value="${esc(m)}" ${app.reportMonth===m?'selected':''}>${monthLabel(m)}</option>`).join('')}</select></div>${tableReports(list)}</section>`;
+}
+function tableReports(list){
+  if(!list.length) return `<div class="empty">No hay periodos cargados.</div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Mes</th><th>Followers</th><th>Reach</th><th>Clicks</th><th>Installs</th><th>Orders</th><th></th></tr></thead><tbody>${list.map(x=>`<tr><td><strong>${monthLabel(x.month)}</strong></td><td>IG ${num(x.ig_followers)}<br>TikTok ${num(x.tiktok_followers)}</td><td>IG ${num(x.ig_reach)}<br>TikTok ${num(x.tiktok_reach)}</td><td>IG ${num(x.ig_clicks)}<br>TikTok ${num(x.tiktok_clicks)}</td><td>IG ${num(x.ig_installs)}<br>TikTok ${num(x.tiktok_installs)}</td><td>IG ${num(x.ig_orders)}<br>TikTok ${num(x.tiktok_orders)}</td><td><div class="row-actions"><button class="btn light small" onclick="openReport('${x.id}')">Editar</button><button class="btn light small danger" onclick="deleteReport('${x.id}')">Borrar</button></div></td></tr>`).join('')}</tbody></table></div>`;
+}
+function usersView(){
+  if(app.session?.role!=='admin') return `<section class="panel"><h3>Sin permiso</h3><p>Solo Admin puede administrar usuarios.</p></section>`;
+  return `<section class="hero"><div><h2>Usuarios</h2><p>Giselle y Admin comparten la misma data central.</p></div><div class="actions"><button class="btn light" onclick="openUser()">+ Nuevo usuario</button></div></section><section class="panel"><div class="panel-head"><div><h3>Accesos</h3><p>Usuarios autorizados.</p></div></div><div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>${app.users.map(u=>`<tr><td><strong>${esc(u.name)}</strong></td><td>${esc(u.email||'')}</td><td><span class="badge ${u.role==='admin'?'red':'blue'}">${esc(u.role)}</span></td><td>${boolBadge(u.active!==false,'Activo','Inactivo')}</td><td><div class="row-actions"><button class="btn light small" onclick="openUser('${u.id}')">Editar</button><button class="btn light small danger" onclick="deleteUser('${u.id}')">Borrar</button></div></td></tr>`).join('')}</tbody></table></div></section>`;
+}
+function render(){
+  if(!app.session){ root.innerHTML=loginHTML(); document.getElementById('loginForm').onsubmit=onLogin; return; }
+  const content=app.loading?'<section class="panel"><h3>Cargando...</h3><p>Leyendo Google Sheets.</p></section>':app.view==='influencers'?influencersView():app.view==='social-report'?reportView():usersView();
+  root.innerHTML=layout(content);
+}
+function onLogin(e){
+  e.preventDefault();
+  const fd=new FormData(e.target);
+  const user=(app.users.length?app.users:DEFAULT_USERS).find(u=>u.id===fd.get('user')&&String(u.password||'')===fd.get('password')&&u.active!==false);
+  if(!user) return toast('Clave incorrecta o usuario inactivo','err');
+  saveSession(user);
+  render();
+  load(true);
+}
+
+function openInfluencer(id){
+  const x=app.influencers.find(i=>i.id===id)||{id:uid('inf'),type:'Microinfluencer',platform:'IG',paid:false,recorded:false,published:false};
+  const sameUsername=!String(x.tiktok_username||'').trim();
+  openForm('Influencer',`<input type="hidden" name="id" value="${esc(x.id)}"><div class="form-grid">
+    <div class="field"><label>Nombre</label><input name="name" value="${esc(x.name)}" required></div>
+    <div class="field"><label>Tipo</label><select name="type"><option ${sel(x.type,'Microinfluencer')}>Microinfluencer</option><option ${sel(x.type,'Influencer')}>Influencer</option></select></div>
+    <div class="field"><label>Plataforma</label><select name="platform"><option ${sel(x.platform,'IG')}>IG</option><option ${sel(x.platform,'TikTok')}>TikTok</option><option ${sel(x.platform,'IG + TikTok')}>IG + TikTok</option></select></div>
+    <div class="field"><label>Username IG</label><input name="ig_username" value="${esc(x.ig_username)}"></div>
+    <div class="field"><label>Username TikTok</label><label class="checkline"><input type="checkbox" name="same_username" value="true" ${sameUsername?'checked':''} onchange="toggleTikTokUsername(this)"> Es el mismo que Instagram</label></div>
+    <div class="field" id="tiktokUserWrap" style="${sameUsername?'display:none':''}"><label>Username TikTok distinto</label><input name="tiktok_username" value="${esc(x.tiktok_username)}"></div>
+    <div class="field"><label>Followers IG</label><input name="ig_followers" value="${esc(x.ig_followers)}"></div>
+    <div class="field"><label>Followers TikTok</label><input name="tiktok_followers" value="${esc(x.tiktok_followers)}"></div>
+    <div class="field"><label>Entregables</label><input name="deliverables" value="${esc(x.deliverables)}" placeholder="Reel + Stories"></div>
+    <div class="field"><label>Fecha publicación</label><input type="date" name="publish_date" value="${esc(normDate(x.publish_date))}"></div>
+    <div class="field"><label>Presupuesto</label><input name="budget" value="${esc(x.budget)}"></div>
+    <div class="field"><label>Pagado</label><select name="paid"><option value="false" ${!boolish(x.paid)?'selected':''}>No</option><option value="true" ${boolish(x.paid)?'selected':''}>Sí</option></select></div>
+    <div class="field"><label>Fecha pago</label><input type="date" name="payment_date" value="${esc(normDate(x.payment_date))}"></div>
+    <div class="field"><label>Grabó</label><select name="recorded"><option value="false" ${!boolish(x.recorded)?'selected':''}>No</option><option value="true" ${boolish(x.recorded)?'selected':''}>Sí</option></select></div>
+    <div class="field"><label>Publicó</label><select name="published"><option value="false" ${!boolish(x.published)?'selected':''}>No</option><option value="true" ${boolish(x.published)?'selected':''}>Sí</option></select></div>
+    <div class="field"><label>Link IG / Reporte</label><input name="link" value="${esc(x.link)}"></div>
+    <div class="field"><label>Link TikTok</label><input name="tiktok_link" value="${esc(x.tiktok_link)}"></div>
+    <div class="field"><label>Promo Code</label><input name="promo_code" value="${esc(x.promo_code)}"></div>
+    <div class="field"><label>Canjes Promo Code</label><input name="promo_redemptions" value="${esc(x.promo_redemptions)}"></div>
+    ${['ig_reach','ig_likes','ig_comments','ig_shares','ig_saves','tiktok_reach','tiktok_likes','tiktok_comments','tiktok_shares','tiktok_saves','engagement_total','engagement_rate','cpm','cost_per_engagement','cost_per_redemption'].map(k=>`<div class="field"><label>${k.replaceAll('_',' ')}</label><input name="${k}" value="${esc(x[k])}"></div>`).join('')}
+    <div class="field wide"><label>Notas</label><textarea name="notes">${esc(x.notes)}</textarea></div>
+  </div>`,saveInfluencer);
+}
+function toggleTikTokUsername(cb){ const wrap=document.getElementById('tiktokUserWrap'); if(wrap) wrap.style.display=cb.checked?'none':'block'; }
+function openReport(id){
+  const x=app.socialReports.find(r=>r.id===id)||{id:uid('rep'),month:new Date().toISOString().slice(0,7)};
+  openForm('Periodo Social Media',`<input type="hidden" name="id" value="${esc(x.id)}"><div class="form-grid"><div class="field"><label>Mes</label><input type="month" name="month" value="${esc(x.month)}" required></div>${['ig_followers','tiktok_followers','ig_reach','tiktok_reach','ig_clicks','tiktok_clicks','ig_installs','tiktok_installs','ig_orders','tiktok_orders'].map(k=>`<div class="field"><label>${k.replaceAll('_',' ')}</label><input name="${k}" value="${esc(x[k])}"></div>`).join('')}<div class="field wide"><label>Notas</label><textarea name="notes">${esc(x.notes)}</textarea></div></div>`,saveReport);
+}
+function openUser(id){
+  const u=app.users.find(x=>x.id===id)||{id:uid('user'),role:'editor',active:true};
+  openForm('Usuario',`<input type="hidden" name="id" value="${esc(u.id)}"><div class="form-grid"><div class="field"><label>Nombre</label><input name="name" value="${esc(u.name)}" required></div><div class="field"><label>Email</label><input name="email" value="${esc(u.email)}"></div><div class="field"><label>Rol</label><select name="role"><option ${sel(u.role,'editor')}>editor</option><option ${sel(u.role,'admin')}>admin</option></select></div><div class="field"><label>Clave</label><input name="password" value="${esc(u.password)}" required></div><div class="field"><label>Activo</label><select name="active"><option value="true" ${u.active!==false?'selected':''}>Sí</option><option value="false" ${u.active===false?'selected':''}>No</option></select></div></div>`,saveUser);
+}
+function openForm(title,body,onSave){
+  modal.className='modal open';
+  modal.innerHTML=`<div class="modal-card"><form id="modalForm"><div class="modal-head"><div><h2>${title}</h2><p class="muted">Se guarda directo en Google Sheets.</p></div><button type="button" class="btn light" onclick="closeModal()">Cerrar</button></div>${body}<div class="modal-actions"><button type="button" class="btn light" onclick="closeModal()">Cancelar</button><button class="btn red">Guardar</button></div></form></div>`;
+  document.getElementById('modalForm').onsubmit=async e=>{ e.preventDefault(); const obj=Object.fromEntries(new FormData(e.target).entries()); await onSave(obj); };
+}
+function closeModal(){ modal.className='modal'; modal.innerHTML=''; }
+
+async function saveInfluencer(obj){
+  try{
+    if(obj.same_username==='true') obj.tiktok_username='';
+    delete obj.same_username;
+    ['paid','recorded','published'].forEach(k=>obj[k]=obj[k]==='true');
+    obj.updated_at=new Date().toISOString();
+    await api('upsertInfluencer',payloadInfluencer(obj));
+    const i=app.influencers.findIndex(x=>x.id===obj.id);
+    if(i>=0) app.influencers[i]=obj; else app.influencers.unshift(obj);
+    closeModal(); toast('Influencer guardado en Google Sheets'); render(); load(true);
+  }catch(e){ toast(e.message,'err'); }
+}
+async function deleteInfluencer(id){
+  if(!confirm('¿Borrar este influencer?')) return;
+  try{ await api('deleteInfluencer',{id}); app.influencers=app.influencers.filter(x=>x.id!==id); toast('Influencer borrado'); render(); load(true); }
+  catch(e){ toast(e.message,'err'); }
+}
+async function saveReport(obj){
+  try{ obj.updated_at=new Date().toISOString(); await api('upsertSocialReport',obj); const i=app.socialReports.findIndex(x=>x.id===obj.id); if(i>=0) app.socialReports[i]=obj; else app.socialReports.unshift(obj); closeModal(); toast('Periodo guardado'); render(); load(true); }
+  catch(e){ toast(e.message,'err'); }
+}
+async function deleteReport(id){
+  if(!confirm('¿Borrar este periodo?')) return;
+  try{ await api('deleteSocialReport',{id}); app.socialReports=app.socialReports.filter(x=>x.id!==id); toast('Periodo borrado'); render(); load(true); }
+  catch(e){ toast(e.message,'err'); }
+}
+async function saveUser(obj){
+  try{ obj.active=obj.active==='true'; obj.updated_at=new Date().toISOString(); await api('upsertUser',obj); const i=app.users.findIndex(x=>x.id===obj.id); if(i>=0) app.users[i]=obj; else app.users.push(obj); closeModal(); toast('Usuario guardado'); render(); load(true); }
+  catch(e){ toast(e.message,'err'); }
+}
+async function deleteUser(id){
+  if(id==='admin') return toast('No borro el admin principal','err');
+  if(!confirm('¿Borrar/desactivar usuario?')) return;
+  try{ await api('deleteUser',{id}); app.users=app.users.filter(x=>x.id!==id); toast('Usuario eliminado'); render(); load(true); }
+  catch(e){ toast(e.message,'err'); }
+}
+
+function parseCSV(text){
+  const rows=[]; let row=[], cell='', q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i], n=text[i+1];
+    if(q && c==='"' && n==='"'){ cell+='"'; i++; }
+    else if(c==='"'){ q=!q; }
+    else if(!q && c===','){ row.push(cell); cell=''; }
+    else if(!q && (c==='\n'||c==='\r')){ if(c==='\r'&&n==='\n') i++; row.push(cell); if(row.some(v=>v!=='')) rows.push(row); row=[]; cell=''; }
+    else cell+=c;
+  }
+  row.push(cell); if(row.some(v=>v!=='')) rows.push(row);
+  return rows;
+}
+function toCSV(rows){
+  return rows.map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+}
+function mapCSVRow(r){
+  const ig=String(r['Usuario IG']||'').trim();
+  const tt=String(r['Usuario TikTok']||'').trim();
+  const name=String(r['Nombre']||'').trim();
+  const platform=String(r['Plataforma']||'').trim().replace('Instagram','IG');
+  return {
+    id:'inf_'+(name||ig||uid()).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,''),
+    name,
+    ig_username:ig,
+    tiktok_username:tt && tt!==ig ? tt : '',
+    type:r['Tipo']||'Microinfluencer',
+    platform:platform||'IG',
+    ig_followers:r['Followers IG']||'',
+    tiktok_followers:r['Followers TikTok']||'',
+    deliverables:r['Entregables']||'',
+    budget:r['Presupuesto']||'',
+    paid:boolish(r['Pagado']),
+    payment_date:normDate(r['Fecha de pago']),
+    recorded:boolish(r['Grabó']),
+    published:boolish(r['Publicó']),
+    publish_date:normDate(r['Fecha publicación']),
+    link:r['Link']||'',
+    tiktok_link:r['Link TikTok']||'',
+    has_promo_code:boolish(r['Tiene Promo Code']),
+    promo_code:r['Promo Code']||'',
+    promo_redemptions:r['Redenciones']||'',
+    ig_reach:r['IG Reach']||'',
+    ig_likes:r['IG Likes']||'',
+    ig_comments:r['IG Comentarios']||'',
+    ig_shares:r['IG Shares']||'',
+    ig_saves:r['IG Saves']||'',
+    tiktok_reach:r['TikTok Reach']||'',
+    tiktok_likes:r['TikTok Likes']||'',
+    tiktok_comments:r['TikTok Comentarios']||'',
+    tiktok_shares:r['TikTok Shares']||'',
+    tiktok_saves:r['TikTok Saves']||'',
+    reach_total:r['Reach total']||'',
+    engagement_total:r['Engagement total']||'',
+    engagement_rate:r['Engagement rate']||'',
+    cost_per_engagement:r['Costo por engagement']||'',
+    cpm:r['CPM']||'',
+    cost_per_redemption:r['Costo por redención']||'',
+    notes:r['Notas']||'',
+    updated_at:new Date().toISOString(),
+  };
+}
+async function handleCSVFile(e){
+  const file=e.target.files && e.target.files[0];
+  if(!file) return;
+  try{
+    const text=await file.text();
+    const rows=parseCSV(text);
+    const headers=rows.shift()||[];
+    const objects=rows.map(row=>Object.fromEntries(headers.map((h,i)=>[h,row[i]??'']))).map(mapCSVRow).filter(x=>x.name);
+    for(const obj of objects) await api('upsertInfluencer',payloadInfluencer(obj));
+    toast(`${objects.length} influencers importados`);
+    await load(true);
+  }catch(err){ toast('No pude importar CSV: '+err.message,'err'); }
+  e.target.value='';
+}
+function influencerToCSVRow(x){
+  return [
+    x.name,x.ig_username,tiktokUser(x),x.type,x.platform,x.ig_followers,x.tiktok_followers,x.deliverables,x.budget,boolish(x.paid)?'Sí':'No',normDate(x.payment_date),boolish(x.recorded)?'Sí':'No',boolish(x.published)?'Sí':'No',normDate(x.publish_date),x.link,x.tiktok_link,x.promo_code?'Sí':'No',x.promo_code,x.promo_redemptions,x.ig_reach,x.ig_likes,x.ig_comments,x.ig_shares,x.ig_saves,x.tiktok_reach,x.tiktok_likes,x.tiktok_comments,x.tiktok_shares,x.tiktok_saves,totalReach(x),totalEngagement(x),x.engagement_rate||pct(metricsInfluencers([x]).er),x.cost_per_engagement,x.cpm||money(metricsInfluencers([x]).cpm),x.cost_per_redemption,x.notes
+  ];
+}
+function downloadInfluencersCSV(){
+  const rows=[CSV_HEADERS,...filteredInfluencers().map(influencerToCSVRow)];
+  const blob=new Blob([toCSV(rows)],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='yango_influencers_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 boot();
 </script>
 </body>
