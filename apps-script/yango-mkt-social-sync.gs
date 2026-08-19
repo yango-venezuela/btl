@@ -4,6 +4,10 @@ const SHEETS = {
   users: 'SM_Users',
   influencers: 'SM_Influencers',
   socialReports: 'SM_Report',
+  btlActivations: 'BTL_Calendar',
+  btlResults: 'BTL_Results',
+  agencyReports: 'BTL_Agency',
+  btlBudgets: 'BTL_Budgets',
   log: 'SM_ChangeLog',
 };
 
@@ -11,6 +15,10 @@ const HEADERS = {
   [SHEETS.users]: ['id','name','email','role','password','active','created_at','updated_at','deleted_at'],
   [SHEETS.influencers]: ['id','name','type','platform','ig_username','tiktok_username','deliverables','ig_followers','tiktok_followers','publish_date','budget','paid','payment_date','recorded','published','link','tiktok_link','has_promo_code','promo_code','promo_redemptions','ig_reach','ig_likes','ig_comments','ig_shares','ig_saves','tiktok_reach','tiktok_likes','tiktok_comments','tiktok_shares','tiktok_saves','reach_total','engagement_total','engagement_rate','cost_per_engagement','cpm','cost_per_redemption','notes','created_at','updated_at','deleted_at'],
   [SHEETS.socialReports]: ['id','month','ig_followers','tiktok_followers','ig_reach','tiktok_reach','ig_clicks','tiktok_clicks','ig_installs','tiktok_installs','ig_orders','tiktok_orders','notes','created_at','updated_at','deleted_at'],
+  [SHEETS.btlActivations]: ['id','name','date','bucket','real_location','type','address','status','promoters_planned','flyers_planned','budget','promo_code','qr_link','lat','lng','notes','created_at','updated_at','deleted_at'],
+  [SHEETS.btlResults]: ['id','date','bucket','type','clicks','installs','registrations','first_orders','promo_redemptions','source','notes','created_at','updated_at','deleted_at'],
+  [SHEETS.agencyReports]: ['id','activation_id','activation_name','date','real_location','type','status','promoters_count','promoters_names','flyers_delivered','photo_urls','notes','created_at','updated_at','deleted_at'],
+  [SHEETS.btlBudgets]: ['id','period','label','amount','notes','created_at','updated_at','deleted_at'],
   [SHEETS.log]: ['at','actor','action','entity','entity_id','payload_json'],
 };
 
@@ -42,6 +50,18 @@ function doPost(e) {
     if (action === 'upsertSocialReport') return json(upsert_(SHEETS.socialReports, payload, actor, action));
     if (action === 'deleteSocialReport') return json(softDelete_(SHEETS.socialReports, payload.id, actor, action));
 
+    if (action === 'upsertBTLActivation') return json(upsert_(SHEETS.btlActivations, payload, actor, action));
+    if (action === 'deleteBTLActivation') return json(softDelete_(SHEETS.btlActivations, payload.id, actor, action));
+
+    if (action === 'upsertBTLResult') return json(upsert_(SHEETS.btlResults, payload, actor, action));
+    if (action === 'deleteBTLResult') return json(softDelete_(SHEETS.btlResults, payload.id, actor, action));
+
+    if (action === 'upsertBTLBudget') return json(upsert_(SHEETS.btlBudgets, payload, actor, action));
+    if (action === 'deleteBTLBudget') return json(softDelete_(SHEETS.btlBudgets, payload.id, actor, action));
+
+    if (action === 'upsertAgencyReport') return json(saveAgencyReport_(payload, actor, action));
+    if (action === 'deleteAgencyReport') return json(softDelete_(SHEETS.agencyReports, payload.id, actor, action));
+
     if (action === 'upsertUser') return json(upsert_(SHEETS.users, payload, actor, action));
     if (action === 'deleteUser') return json(softDelete_(SHEETS.users, payload.id, actor, action));
 
@@ -63,8 +83,40 @@ function loadBootstrap_() {
     users: activeRows_(SHEETS.users),
     influencers: activeRows_(SHEETS.influencers),
     socialReports: activeRows_(SHEETS.socialReports),
+    btlActivations: activeRows_(SHEETS.btlActivations),
+    btlResults: activeRows_(SHEETS.btlResults),
+    agencyReports: activeRows_(SHEETS.agencyReports),
+    btlBudgets: activeRows_(SHEETS.btlBudgets),
     updated_at: new Date().toISOString(),
   };
+}
+
+function saveAgencyReport_(payload, actor, action) {
+  const files = payload.photo_files || [];
+  const existing = Array.isArray(payload.photo_urls) ? payload.photo_urls : String(payload.photo_urls || '').split(/\n|,/).map(function(x) { return x.trim(); }).filter(Boolean);
+  const uploaded = files.map(function(file) {
+    return uploadPhoto_(file, payload.activation_name || payload.activation_id || payload.id);
+  }).filter(Boolean);
+  payload.photo_urls = JSON.stringify(existing.concat(uploaded));
+  delete payload.photo_files;
+  return upsert_(SHEETS.agencyReports, payload, actor, action);
+}
+
+function uploadPhoto_(file, activationName) {
+  if (!file || !file.data) return '';
+  const folder = ensurePhotoFolder_();
+  const safe = String(activationName || 'activacion').replace(/[^\w\-áéíóúÁÉÍÓÚñÑ ]+/g, '').slice(0, 80) || 'activacion';
+  const name = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss') + '_' + safe + '_' + (file.name || 'foto.jpg');
+  const blob = Utilities.newBlob(Utilities.base64Decode(file.data), file.type || 'image/jpeg', name);
+  const created = folder.createFile(blob);
+  created.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return created.getUrl();
+}
+
+function ensurePhotoFolder_() {
+  const name = 'Yango MKT - Evidencias Agencia';
+  const folders = DriveApp.getFoldersByName(name);
+  return folders.hasNext() ? folders.next() : DriveApp.createFolder(name);
 }
 
 function upsert_(sheetName, payload, actor, action) {

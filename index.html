@@ -273,7 +273,41 @@
     .badge.blue { background:#e8f6ff; color:var(--blue); }
     .badge.green { background:#e9fbef; color:var(--green); }
     .badge.gray { background:#eef2f7; color:#64748b; }
+    .badge.orange { background:#fff1e7; color:#c2410c; }
+    .badge.pink { background:#fce7f3; color:#db2777; }
+    .badge.purple { background:#f0e8ff; color:var(--purple); }
     .linkish { color:var(--red); font-weight:950; text-decoration:none; }
+
+    .section-stack { display:grid; gap:22px; }
+    .split-2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    .split-3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
+    .mini-list { display:grid; gap:10px; }
+    .mini-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid #eef2f7; }
+    .mini-row:last-child { border-bottom:0; }
+    .bar { height:9px; border-radius:99px; background:#eef2f7; overflow:hidden; margin-top:8px; }
+    .bar span { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,var(--red),#ff7a7a); }
+    .location-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
+    .location-card { background:#f8fafc; border:1px solid #e7eef7; border-radius:18px; padding:14px; min-height:92px; }
+    .location-card strong { display:block; margin-bottom:7px; }
+    .funnel { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; align-items:center; }
+    .funnel-card { background:#f8fafc; border:1px solid #eef2f7; border-radius:20px; padding:18px; text-align:center; min-height:128px; }
+    .funnel-card .metric { margin-top:8px; }
+    .activity-list { display:grid; gap:10px; }
+    .activity-row { display:grid; grid-template-columns:1fr auto; gap:16px; align-items:center; padding:15px 18px; border:1px solid #e7eef7; border-radius:18px; background:#fff; }
+    .activity-meta { color:var(--muted); margin-top:5px; font-size:12px; font-weight:700; }
+    .activity-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+    .calendar-toolbar { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }
+    .calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:9px; }
+    .cal-head { color:#93a1b5; font-weight:950; text-align:center; padding:8px; }
+    .cal-day { min-height:120px; background:#fff; border:1px solid #e7eef7; border-radius:18px; padding:10px; overflow:hidden; }
+    .cal-day.today { border-color:var(--red); box-shadow:0 0 0 3px #ffe1e1 inset; }
+    .cal-day.out { background:#f8fafc; color:#b0bbcc; }
+    .cal-num { font-weight:950; color:#71809a; margin-bottom:7px; }
+    .cal-item { display:block; border-radius:10px; padding:5px 7px; margin-bottom:5px; background:#f1f5f9; border-left:4px solid #64748b; color:#526176; font-size:11px; font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
+    .agency-shell { min-height:100vh; padding:28px; background:#f6f8fb; }
+    .agency-shell .main { padding:0; }
+    .photo-chip { display:inline-flex; align-items:center; gap:5px; margin:3px 5px 3px 0; padding:6px 9px; border-radius:999px; background:#eef2f7; color:#526176; font-weight:900; text-decoration:none; font-size:11px; }
 
     .modal { position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:center; justify-content:center; padding:20px; z-index:50; }
     .modal.open { display:flex; }
@@ -296,6 +330,9 @@
       .hero { display:block; }
       .actions { justify-content:flex-start; margin-top:16px; }
       .cards { grid-template-columns:repeat(2,1fr); }
+      .split-2,.split-3,.funnel { grid-template-columns:1fr; }
+      .calendar-grid { grid-template-columns:1fr; }
+      .activity-row { grid-template-columns:1fr; }
       .form-grid { grid-template-columns:1fr; }
       .top { display:block; }
       .userbar { margin-top:12px; }
@@ -318,18 +355,42 @@ const EMPTY_FILTERS = { q:'', type:'all', platform:'all', paid:'all', publishedF
 const CSV_HEADERS = [
   'Nombre','Usuario IG','Usuario TikTok','Tipo','Plataforma','Followers IG','Followers TikTok','Entregables','Presupuesto','Pagado','Fecha de pago','Grabó','Publicó','Fecha publicación','Link','Link TikTok','Tiene Promo Code','Promo Code','Redenciones','IG Reach','IG Likes','IG Comentarios','IG Shares','IG Saves','TikTok Reach','TikTok Likes','TikTok Comentarios','TikTok Shares','TikTok Saves','Reach total','Engagement total','Engagement rate','Costo por engagement','CPM','Costo por redención','Notas'
 ];
+const BTL_BUCKETS = {
+  'Petare':['Petare','Palo Verde','La Dolorita'],
+  'Centro':['Centro de Caracas','La Hoyada','Bellas Artes','Parque Central','Plaza Venezuela','Los Símbolos','Estación 5 de Julio'],
+  'Este':['Altamira','Chacaíto','El Recreo','Los Dos Caminos','Los Cortijos','Los Ruices','La California','La Urbina','Macaracuay'],
+  'Sureste':['Las Mercedes','Bello Monte','El Cafetal','Caurimare','Prados del Este','Plaza Baruta','Las Minas'],
+  'Universidades':['UCAB','Ciudad Universitaria','Monteávila'],
+  'Oeste':['Catia','Plaza Sucre','Propatria','Antímano','La Yaguara','La Vega','Montalbán','El Paraíso','El Pinar'],
+  'Sur':['Caricuao','El Valle','La Rinconada'],
+  'Norte':['San Bernardino','Alta Florida','La Pastora'],
+  'Satelites':['Los Teques','San Antonio de los Altos','El Junquito'],
+  'Sabana Grande':['Sabana Grande']
+};
+const BTL_TYPES = ['Flyers','Café','Helados','Material POP','Universidad','Evento'];
+const BTL_TYPE_COLORS = {'Flyers':'#64748b','Café':'#b45309','Helados':'#0ea5e9','Material POP':'#db2777','Universidad':'#7c3aed','Evento':'#ec4899'};
+const BTL_EMPTY_FILTERS = { from:'', to:'', bucket:'all', type:'all' };
+const BTL_STATUS_LABELS = { planned:'Planificada', executed:'Se dio', cancelled:'No se dio' };
+const BTL_STATUS_CLASS = { planned:'gray', executed:'green', cancelled:'red' };
 
 let app = {
   session:null,
-  view:'influencers',
+  agencyMode:new URLSearchParams(location.search).has('agency'),
+  view:'btl-global',
   users:[...DEFAULT_USERS],
   influencers:[],
   socialReports:[],
+  btlActivations:[],
+  btlResults:[],
+  agencyReports:[],
+  btlBudgets:[],
   loading:true,
   sync:'warn',
   lastSync:null,
   filters:{...EMPTY_FILTERS},
-  reportMonth:'all'
+  reportMonth:'all',
+  btlFilters:{...BTL_EMPTY_FILTERS},
+  calendarMonth:new Date().toISOString().slice(0,7)
 };
 
 const root = document.getElementById('root');
@@ -420,6 +481,10 @@ async function load(silent=false){
     app.users=(data.users&&data.users.length?data.users:DEFAULT_USERS).filter(u=>u.active!==false);
     app.influencers=(data.influencers||[]).map(hydrateInfluencer).filter(x=>!x.deleted_at);
     app.socialReports=(data.socialReports||[]).filter(x=>!x.deleted_at);
+    app.btlActivations=(data.btlActivations||[]).filter(x=>!x.deleted_at);
+    app.btlResults=(data.btlResults||[]).filter(x=>!x.deleted_at);
+    app.agencyReports=(data.agencyReports||[]).filter(x=>!x.deleted_at);
+    app.btlBudgets=(data.btlBudgets||[]).filter(x=>!x.deleted_at);
     app.sync='ok';
     app.lastSync=new Date();
   }catch(e){
@@ -434,14 +499,18 @@ async function load(silent=false){
 
 function saveSession(user){ app.session={id:user.id,name:user.name,email:user.email,role:user.role}; localStorage.setItem('yango_mkt_session',JSON.stringify(app.session)); }
 function boot(){ try{app.session=JSON.parse(localStorage.getItem('yango_mkt_session')||'null')}catch(e){} load(); setInterval(()=>{if(app.session)load(true)},12000); csvInput.addEventListener('change',handleCSVFile); }
-function loginHTML(){ return `<div class="login"><div class="login-card"><div class="mark">Y</div><h1>Yango MKT</h1><p>Social Media · panel compartido</p><form id="loginForm"><div class="field"><label>Usuario</label><select name="user"><option value="admin">Isabella / Admin</option><option value="giselle">Giselle</option></select></div><div class="field"><label>Clave</label><input name="password" type="password" placeholder="Clave" required></div><button class="btn red" style="width:100%">Entrar</button></form><p style="font-size:12px;margin-top:16px">La data se lee y se guarda en Google Sheets vía Apps Script.</p></div></div>`; }
+function loginHTML(){ return `<div class="login"><div class="login-card"><div class="mark">Y</div><h1>Yango MKT</h1><p>BTL + Social Media · panel compartido</p><form id="loginForm"><div class="field"><label>Usuario</label><select name="user"><option value="admin">Isabella / Admin</option><option value="giselle">Giselle</option></select></div><div class="field"><label>Clave</label><input name="password" type="password" placeholder="Clave" required></div><button class="btn red" style="width:100%">Entrar</button></form><p style="font-size:12px;margin-top:16px">La data se lee y se guarda en Google Sheets vía Apps Script.</p></div></div>`; }
 function layout(content){
   const syncClass=app.sync==='ok'?'':app.sync==='err'?'err':'warn';
-  return `<div class="app"><aside class="side"><div class="brand"><div class="mark">Y</div><div><strong>Yango MKT</strong><span>Venezuela</span></div></div><div class="nav"><div class="nav-title">Social Media</div>${navBtn('influencers','Influencers')}${navBtn('social-report','Reporte Social Media')}<div class="nav-title">Admin</div>${navBtn('users','Usuarios')}</div><div class="side-foot"><div class="sync-dot ${syncClass}">${app.sync==='ok'?'Sincronizado':'Revisar sync'}</div>${app.lastSync?`<br><br>Última lectura: ${app.lastSync.toLocaleTimeString('es-VE')}`:''}</div></aside><main class="main"><div class="top"><div><h1>${title()}</h1><p>${subtitle()}</p></div><div class="userbar"><span class="badge red">${esc(app.session?.name||'')}</span><button class="btn light small" onclick="logout()">Salir</button></div></div>${content}</main></div>`;
+  return `<div class="app"><aside class="side"><div class="brand"><div class="mark">Y</div><div><strong>Yango MKT</strong><span>Venezuela</span></div></div><div class="nav"><div class="nav-title">BTL</div>${navBtn('btl-global','Vista global')}${navBtn('btl-results','Resultados')}${navBtn('btl-calendar','Calendario')}${navBtn('btl-activations','Activaciones')}${navBtn('agency-admin','Admin agencia')}<div class="nav-title">Social Media</div>${navBtn('influencers','Influencers')}${navBtn('social-report','Reporte Social Media')}<div class="nav-title">Admin</div>${navBtn('users','Usuarios')}</div><div class="side-foot"><div class="sync-dot ${syncClass}">${app.sync==='ok'?'Sincronizado':'Revisar sync'}</div>${app.lastSync?`<br><br>Última lectura: ${app.lastSync.toLocaleTimeString('es-VE')}`:''}<br><br><a class="linkish" href="?agency=1" target="_blank">Link agencia</a></div></aside><main class="main"><div class="top"><div><h1>${title()}</h1><p>${subtitle()}</p></div><div class="userbar"><span class="badge red">${esc(app.session?.name||'')}</span><button class="btn light small" onclick="logout()">Salir</button></div></div>${content}</main></div>`;
 }
 function navBtn(id,label){ return `<button class="${app.view===id?'active':''}" onclick="go('${id}')">${label}</button>`; }
-function title(){ return app.view==='influencers'?'IG, TikTok e Influencers':app.view==='social-report'?'Reporte Social Media':'Usuarios'; }
-function subtitle(){ return app.view==='influencers'?'Tracking de creadores, entregables, pagos y resultados.':app.view==='social-report'?'Followers, reach, clicks, installs y orders por mes.':'Administrar accesos al panel compartido.'; }
+function title(){
+  return ({'btl-global':'Vista global BTL','btl-results':'Activaciones — Resultados','btl-calendar':'Calendario BTL','btl-activations':'Activaciones y validación','agency-admin':'Admin agencia','influencers':'IG, TikTok e Influencers','social-report':'Reporte Social Media','users':'Usuarios'})[app.view]||'Yango MKT';
+}
+function subtitle(){
+  return ({'btl-global':'Resumen de activaciones, inversión y performance por fecha.','btl-results':'Cruce de QR/Adjust, Promo Code y ubicación.','btl-calendar':'Planificación mensual y budget del mes/Q.','btl-activations':'Crear, editar y confirmar si una activación se dio.','agency-admin':'Lo que carga la agencia: flyers, promotoras y evidencia.','influencers':'Tracking de creadores, entregables, pagos y resultados.','social-report':'Followers, reach, clicks, installs y orders por mes.','users':'Administrar accesos al panel compartido.'})[app.view]||'';
+}
 function go(view){ app.view=view; render(); }
 function logout(){ localStorage.removeItem('yango_mkt_session'); app.session=null; render(); }
 
@@ -529,7 +598,156 @@ function tableInfluencers(list){
     <td><strong>${x.engagement_rate?esc(x.engagement_rate):pct(metricsInfluencers([x]).er)}</strong><div class="muted tiny">${num(totalEngagement(x))} engagements</div><div>${x.link?`<a class="linkish" href="${esc(x.link)}" target="_blank">IG / reporte</a>`:''} ${x.tiktok_link?`<br><a class="linkish" href="${esc(x.tiktok_link)}" target="_blank">TikTok</a>`:''}</div></td>
     <td>${x.promo_code?`<strong>${esc(x.promo_code)}</strong><div class="muted tiny">${num(x.promo_redemptions)} canjes</div>`:'<span class="badge gray">No aplica</span>'}</td>
     <td><div class="row-actions"><button class="btn light small" onclick="openInfluencer('${x.id}')">Editar</button><button class="btn light small danger" onclick="deleteInfluencer('${x.id}')">Borrar</button></div></td>
-  </tr>`).join('')}</tbody></table></div>`;
+	  </tr>`).join('')}</tbody></table></div>`;
+}
+
+function btlStatus(x){ return x.status || 'planned'; }
+function btlStatusBadge(status){ return `<span class="badge ${BTL_STATUS_CLASS[status]||'gray'}">${BTL_STATUS_LABELS[status]||status||'Planificada'}</span>`; }
+function btlColor(type){ return BTL_TYPE_COLORS[type] || '#64748b'; }
+function btlFilteredActivations(){
+  return app.btlActivations.filter(x=>{
+    const bucket=x.bucket||x.location_bucket||'';
+    const type=x.type||x.activation_type||'';
+    return dateInRange(x.date,app.btlFilters.from,app.btlFilters.to)
+      && (app.btlFilters.bucket==='all'||bucket===app.btlFilters.bucket)
+      && (app.btlFilters.type==='all'||type===app.btlFilters.type)
+      && String(x.name||'').trim();
+  }).sort((a,b)=>(normDate(a.date)||'').localeCompare(normDate(b.date)||''));
+}
+function btlFilteredResults(){
+  return app.btlResults.filter(x=>{
+    const bucket=x.bucket||x.location_bucket||'';
+    const type=x.type||x.activation_type||'';
+    return dateInRange(x.date,app.btlFilters.from,app.btlFilters.to)
+      && (app.btlFilters.bucket==='all'||bucket===app.btlFilters.bucket)
+      && (app.btlFilters.type==='all'||type===app.btlFilters.type);
+  });
+}
+function btlReportsFor(list){
+  const ids=new Set(list.map(x=>String(x.id)));
+  return app.agencyReports.filter(r=>ids.has(String(r.activation_id)) && !r.deleted_at);
+}
+function btlMetrics(list=btlFilteredActivations()){
+  const results=btlFilteredResults();
+  const reports=btlReportsFor(list);
+  const clicks=results.reduce((s,x)=>s+n(x.clicks),0);
+  const installs=results.reduce((s,x)=>s+n(x.installs),0);
+  const registrations=results.reduce((s,x)=>s+n(x.registrations||x.registration),0);
+  const firstOrders=results.reduce((s,x)=>s+n(x.first_orders||x.success_first_order),0);
+  const promo=results.reduce((s,x)=>s+n(x.promo_redemptions),0);
+  const spend=list.reduce((s,x)=>s+n(x.budget||x.cost),0);
+  return { total:list.length, executed:list.filter(x=>btlStatus(x)==='executed').length, planned:list.filter(x=>btlStatus(x)==='planned').length, cancelled:list.filter(x=>btlStatus(x)==='cancelled').length, spend, clicks, installs, registrations, firstOrders, promo, reports:reports.length, photos:reports.reduce((s,r)=>s+photoList(r).length,0), flyers:reports.reduce((s,r)=>s+n(r.flyers_delivered),0) };
+}
+function btlFiltersHTML(){
+  return `<div class="filters">
+    <div class="filter-field"><label>Desde</label><input type="date" value="${esc(app.btlFilters.from)}" onchange="app.btlFilters.from=this.value;render()"></div>
+    <div class="filter-field"><label>Hasta</label><input type="date" value="${esc(app.btlFilters.to)}" onchange="app.btlFilters.to=this.value;render()"></div>
+    <div class="filter-field"><label>Zona</label><select onchange="app.btlFilters.bucket=this.value;render()"><option value="all">Todas</option>${Object.keys(BTL_BUCKETS).map(x=>`<option value="${esc(x)}" ${app.btlFilters.bucket===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+    <div class="filter-field"><label>Tipo</label><select onchange="app.btlFilters.type=this.value;render()"><option value="all">Todos</option>${BTL_TYPES.map(x=>`<option value="${esc(x)}" ${app.btlFilters.type===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+    <div class="filter-field"><label>&nbsp;</label><button class="btn light" onclick="app.btlFilters={...BTL_EMPTY_FILTERS};render()">Limpiar</button></div>
+  </div>`;
+}
+function btlCards(m){
+  return `<section class="cards">
+    <div class="card"><div class="icon i-red">⌖</div><div class="metric">${num(m.executed)}</div><span>Ejecutadas</span></div>
+    <div class="card"><div class="icon i-blue">▣</div><div class="metric">${num(m.total)}</div><span>Activaciones</span></div>
+    <div class="card"><div class="icon i-gray">$</div><div class="metric">${money(m.spend)}</div><span>Invertido</span></div>
+    <div class="card"><div class="icon i-orange">▱</div><div class="metric">${num(m.promo)}</div><span>Canjes Promo Code</span></div>
+    <div class="card"><div class="icon i-blue">◎</div><div class="metric">${num(m.clicks)}</div><span>Clicks QR</span></div>
+    <div class="card"><div class="icon i-green">▯</div><div class="metric">${num(m.installs)}</div><span>Installs</span></div>
+    <div class="card"><div class="icon i-purple">+</div><div class="metric">${num(m.registrations)}</div><span>Registros</span></div>
+    <div class="card"><div class="icon i-red">➤</div><div class="metric">${num(m.firstOrders)}</div><span>Primeros viajes</span></div>
+  </section>`;
+}
+function btlGlobalView(){
+  const list=btlFilteredActivations();
+  const m=btlMetrics(list);
+  return `<section class="hero"><div><h2>BTL — Vista global</h2><p>Activaciones, inversión y resultados conectados a Google Sheets.</p></div><div class="actions"><button class="btn light" onclick="openActivation()">+ Nueva activación</button><button class="btn light" onclick="go('btl-calendar')">Ver calendario</button></div></section>${btlFiltersHTML()}${btlCards(m)}
+  <section class="split-3">
+    <div class="panel"><h3>Installs por ubicación</h3><p>Resumen rápido por bucket.</p>${btlBucketMiniList(list,'installs')}</div>
+    <div class="panel"><h3>Inversión por tipo</h3><p>Cuánto cuesta cada mecánica.</p>${btlTypeMiniList(list,'budget')}</div>
+    <div class="panel"><h3>Agencia</h3><p>Validación operativa.</p><div class="mini-list"><div class="mini-row"><strong>Cargas recibidas</strong><span>${num(m.reports)}</span></div><div class="mini-row"><strong>Flyers reales</strong><span>${num(m.flyers)}</span></div><div class="mini-row"><strong>Fotos</strong><span>${num(m.photos)}</span></div></div></div>
+  </section>
+  <section class="panel" style="margin-top:22px"><div class="panel-head"><div><h3>Resumen por ubicación</h3><p>Activaciones, flyers y resultados acumulados por zona.</p></div></div>${btlZoneTable(list)}</section>`;
+}
+function btlBucketMiniList(list,metric){
+  const max=Math.max(1,...Object.keys(BTL_BUCKETS).map(bucket=>btlZoneSummary(list,bucket)[metric]||0));
+  return `<div class="mini-list">${Object.keys(BTL_BUCKETS).map(bucket=>{ const s=btlZoneSummary(list,bucket); const val=s[metric]||0; return `<div><div class="mini-row"><strong>${bucket}</strong><span>${num(val)}</span></div><div class="bar"><span style="width:${Math.min(100,val/max*100)}%"></span></div><div class="tiny muted">${num(s.activations)} activaciones · ${num(s.flyers)} flyers</div></div>`; }).join('')}</div>`;
+}
+function btlTypeMiniList(list){
+  const rows=BTL_TYPES.map(type=>({type, spend:list.filter(x=>(x.type||x.activation_type)===type).reduce((s,x)=>s+n(x.budget||x.cost),0), count:list.filter(x=>(x.type||x.activation_type)===type).length}));
+  const max=Math.max(1,...rows.map(x=>x.spend));
+  return `<div class="mini-list">${rows.map(x=>`<div><div class="mini-row"><strong><span class="dot" style="background:${btlColor(x.type)}"></span>${esc(x.type)}</strong><span>${money(x.spend)}</span></div><div class="bar"><span style="width:${Math.min(100,x.spend/max*100)}%"></span></div><div class="tiny muted">${num(x.count)} activaciones</div></div>`).join('')}</div>`;
+}
+function btlZoneSummary(list,bucket){
+  const acts=list.filter(x=>(x.bucket||x.location_bucket)===bucket);
+  const results=app.btlResults.filter(x=>(x.bucket||x.location_bucket)===bucket);
+  return { activations:acts.length, flyers:acts.reduce((s,x)=>s+n(x.flyers_planned||x.flyers),0), spend:acts.reduce((s,x)=>s+n(x.budget||x.cost),0), clicks:results.reduce((s,x)=>s+n(x.clicks),0), installs:results.reduce((s,x)=>s+n(x.installs),0), registrations:results.reduce((s,x)=>s+n(x.registrations||x.registration),0), firstOrders:results.reduce((s,x)=>s+n(x.first_orders||x.success_first_order),0), promo:results.reduce((s,x)=>s+n(x.promo_redemptions),0) };
+}
+function btlZoneTable(list){
+  return `<div class="table-wrap"><table><thead><tr><th>Zona</th><th>Act.</th><th>Flyers plan</th><th>Clicks</th><th>Installs</th><th>Registros</th><th>1ros viajes</th><th>Canjes Promo Code</th><th>Invertido</th><th>Costo/inst.</th><th>Costo/reg.</th><th>Costo/1er viaje</th></tr></thead><tbody>${Object.keys(BTL_BUCKETS).map(bucket=>{const s=btlZoneSummary(list,bucket); return `<tr><td><strong>${bucket}</strong><div class="tiny muted">${BTL_BUCKETS[bucket].join(', ')}</div></td><td>${num(s.activations)}</td><td>${num(s.flyers)}</td><td>${num(s.clicks)}</td><td>${num(s.installs)}</td><td>${num(s.registrations)}</td><td>${num(s.firstOrders)}</td><td>${num(s.promo)}</td><td>${money(s.spend)}</td><td>${s.installs?money(s.spend/s.installs):'—'}</td><td>${s.registrations?money(s.spend/s.registrations):'—'}</td><td>${s.firstOrders?money(s.spend/s.firstOrders):'—'}</td></tr>`;}).join('')}</tbody></table></div>`;
+}
+function btlResultsView(){
+  const list=btlFilteredActivations();
+  const m=btlMetrics(list);
+  return `<section class="hero"><div><h2>Activaciones — Resultados</h2><p>Caracas · ${num(m.executed)} puntos ejecutados · ${money(m.spend)} invertido</p></div><div class="actions"><button class="btn light" onclick="openBTLResult()">+ Cargar resultado</button></div></section>${btlFiltersHTML()}
+  <section class="section-stack">
+    <section class="panel"><h3>Chuleta de ubicaciones</h3><p>Qué lugares incluye cada bucket del calendario y Adjust.</p><div class="location-grid">${Object.entries(BTL_BUCKETS).map(([k,items])=>`<div class="location-card"><strong>${esc(k)}</strong><span class="muted">${esc(items.join(', '))}</span></div>`).join('')}</div></section>
+    <section class="panel"><h3>Captura digital por QR</h3><p>Embudo agregado del periodo (clic → install → registro → primer viaje)</p><div class="funnel"><div class="funnel-card"><div class="icon i-red" style="margin:auto">⌁</div><div class="metric">${num(m.clicks)}</div><span>Clicks</span></div><div class="funnel-card"><div class="icon i-blue" style="margin:auto">▯</div><div class="metric">${num(m.installs)}</div><span>Installs</span></div><div class="funnel-card"><div class="icon i-green" style="margin:auto">+</div><div class="metric">${num(m.registrations)}</div><span>Registros</span></div><div class="funnel-card"><div class="icon i-red" style="margin:auto">➤</div><div class="metric">${num(m.firstOrders)}</div><span>Primeros viajes</span></div></div><p><strong>Conversión total clic → primer viaje:</strong> <span class="result-title">${m.clicks?pct(m.firstOrders/m.clicks*100):'0,0%'}</span></p></section>
+    <section class="panel"><h3>Resultados por zona</h3><p>QR + Promo Code por ubicación.</p>${btlZoneTable(list)}</section>
+  </section>`;
+}
+function btlCalendarView(){
+  const month=app.calendarMonth || new Date().toISOString().slice(0,7);
+  const [year,mo]=month.split('-').map(Number);
+  const first=new Date(year,mo-1,1);
+  const start=new Date(first); start.setDate(first.getDate()-((first.getDay()+6)%7));
+  const days=Array.from({length:42},(_,i)=>{const d=new Date(start); d.setDate(start.getDate()+i); return d;});
+  const monthActs=app.btlActivations.filter(x=>normDate(x.date).slice(0,7)===month && String(x.name||'').trim());
+  const planned=monthActs.reduce((s,x)=>s+n(x.budget||x.cost),0);
+  const budget=app.btlBudgets.find(x=>x.period===month)||{};
+  const q='Q'+Math.ceil(mo/3)+' '+year;
+  const qMonths=[0,1,2].map(i=>`${year}-${String((Math.ceil(mo/3)-1)*3+i+1).padStart(2,'0')}`);
+  const qPlanned=app.btlActivations.filter(x=>qMonths.includes(normDate(x.date).slice(0,7))).reduce((s,x)=>s+n(x.budget||x.cost),0);
+  const qBudget=app.btlBudgets.find(x=>x.period===q)||{};
+  return `<section class="hero"><div><h2>${monthLabel(month)}</h2><p>Calendario de activaciones y budget.</p></div><div class="actions"><button class="btn light" onclick="shiftCalendar(-1)">‹ Mes anterior</button><button class="btn light" onclick="shiftCalendar(1)">Mes siguiente ›</button><button class="btn light" onclick="openActivation()">+ Nueva activación</button></div></section>
+  <section class="split-2"><div class="panel"><div class="panel-head"><div><h3>${monthLabel(month)}</h3><p>${money(planned)} planificado</p></div><button class="btn light small" onclick="openBudget('${month}','Mes')">Budget</button></div><div class="bar"><span style="width:${n(budget.amount)?Math.min(100,planned/n(budget.amount)*100):0}%"></span></div><p>${n(budget.amount)?`${pct(planned/n(budget.amount)*100)} del budget (${money(budget.amount)})`:'Carga el budget del mes para compararlo.'}</p></div><div class="panel"><div class="panel-head"><div><h3>${q}</h3><p>${money(qPlanned)} planificado</p></div><button class="btn light small" onclick="openBudget('${q}','Q')">Budget</button></div><div class="bar"><span style="width:${n(qBudget.amount)?Math.min(100,qPlanned/n(qBudget.amount)*100):0}%"></span></div><p>${n(qBudget.amount)?`${pct(qPlanned/n(qBudget.amount)*100)} del budget (${money(qBudget.amount)})`:'Carga el budget del Q para compararlo.'}</p></div></section>
+  <section class="panel" style="margin-top:22px"><h3>Leyenda de calendario</h3><p>${BTL_TYPES.map(t=>`<span style="margin-right:14px"><span class="dot" style="background:${btlColor(t)}"></span>${t}</span>`).join('')}<span><span class="dot" style="border:2px solid #f59e0b;background:white"></span>Verificada Mystery Shopper</span></p><div class="calendar-grid"><div class="cal-head">L</div><div class="cal-head">M</div><div class="cal-head">M</div><div class="cal-head">J</div><div class="cal-head">V</div><div class="cal-head">S</div><div class="cal-head">D</div>${days.map(day=>calendarDay(day,mo)).join('')}</div></section>`;
+}
+function calendarDay(day,monthNum){
+  const iso=day.toISOString().slice(0,10);
+  const acts=app.btlActivations.filter(x=>normDate(x.date)===iso && String(x.name||'').trim());
+  const today=new Date().toISOString().slice(0,10)===iso;
+  return `<div class="cal-day ${day.getMonth()+1!==monthNum?'out':''} ${today?'today':''}"><div class="cal-num">${day.getDate()}</div>${acts.slice(0,4).map(x=>`<button class="cal-item" style="border-left-color:${btlColor(x.type||x.activation_type)}" onclick="openActivation('${x.id}')" title="${esc(x.name)}">${esc(x.real_location||x.location||x.name)}</button>`).join('')}${acts.length>4?`<div class="tiny muted">+${acts.length-4} más</div>`:''}</div>`;
+}
+function shiftCalendar(delta){
+  const [y,m]=app.calendarMonth.split('-').map(Number);
+  const d=new Date(y,m-1+delta,1);
+  app.calendarMonth=d.toISOString().slice(0,7);
+  render();
+}
+function btlActivationsView(){
+  const list=btlFilteredActivations();
+  return `<section class="hero"><div><h2>Activaciones y validación</h2><p>${num(list.length)} activaciones registradas · últimos filtros aplicados.</p></div><div class="actions"><button class="btn light" onclick="openActivation()">+ Nueva activación</button></div></section>${btlFiltersHTML()}<section class="panel"><div class="panel-head"><div><h3>Por validar</h3><p>La fecha viene del calendario. Adjust/QR se cruza por ubicación + tipo.</p></div></div><div class="activity-list">${list.map(activityRow).join('')||'<div class="empty">No hay activaciones con estos filtros.</div>'}</div></section>`;
+}
+function activityRow(x){
+  return `<div class="activity-row"><div><div class="name"><span class="dot" style="background:${btlColor(x.type||x.activation_type)}"></span>${esc(x.name)}</div><div class="activity-meta">${esc(x.real_location||x.location||'')} · ${esc(x.type||x.activation_type||'')} · fecha calendario: ${fmtDate(x.date)} · ${money(x.budget||x.cost)} · ${num(x.flyers_planned||x.flyers)} flyers</div></div><div class="activity-actions">${btlStatusBadge(btlStatus(x))}<button class="btn light small" onclick="openActivation('${x.id}')">Editar</button><button class="btn small" onclick="setActivationStatus('${x.id}','executed')">✓ Se dio</button><button class="btn light small danger" onclick="setActivationStatus('${x.id}','cancelled')">× No se dio</button></div></div>`;
+}
+function agencyAdminView(){
+  const list=btlFilteredActivations();
+  const reports=btlReportsFor(list).sort((a,b)=>(normDate(b.date)||'').localeCompare(normDate(a.date)||''));
+  const m=btlMetrics(list);
+  return `<section class="hero"><div><h2>Tu resumen de agencia</h2><p>Aquí ves lo que cargó la agencia y descargas reporte por rango.</p></div><div class="actions"><button class="btn light" onclick="copyAgencyLink()">Copiar link agencia</button><button class="btn light" onclick="downloadAgencyCSV()">Descargar CSV</button></div></section>${btlFiltersHTML()}<section class="cards"><div class="card"><div class="icon i-green">✓</div><div class="metric">${num(m.reports)}/${num(m.total)}</div><span>Activaciones con carga</span></div><div class="card"><div class="icon i-orange">▱</div><div class="metric">${num(m.flyers)}</div><span>Flyers reportados</span></div><div class="card"><div class="icon i-blue">▧</div><div class="metric">${num(m.photos)}</div><span>Fotos cargadas</span></div><div class="card"><div class="icon i-red">!</div><div class="metric">${num(m.cancelled)}</div><span>No se dieron</span></div></section><section class="panel"><h3>Cargas de agencia</h3><p>Resumen sin mostrar fotos; el CSV sí incluye links/evidencias.</p>${agencyReportsTable(reports)}</section>`;
+}
+function photoList(r){ try{ if(Array.isArray(r.photos)) return r.photos; const parsed=JSON.parse(r.photo_urls||r.photos_json||'[]'); return Array.isArray(parsed)?parsed:[]; }catch(e){ return String(r.photo_urls||'').split(/\n|,/).map(x=>x.trim()).filter(Boolean); } }
+function agencyReportsTable(reports){
+  if(!reports.length) return `<div class="empty">Todavía no hay cargas de agencia en este rango.</div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Activación</th><th>Ubicación</th><th>Promotoras</th><th>Flyers reales</th><th>Fotos</th><th>Estado</th><th></th></tr></thead><tbody>${reports.map(r=>`<tr><td>${fmtDate(r.date)}</td><td><strong>${esc(r.activation_name)}</strong><div class="tiny muted">${esc(r.type||'')}</div></td><td>${esc(r.real_location||'')}</td><td>${esc(r.promoters_names||'—')}<div class="tiny muted">${num(r.promoters_count)} promotoras</div></td><td>${num(r.flyers_delivered)}</td><td>${photoList(r).length}</td><td>${btlStatusBadge(r.status||'executed')}</td><td><button class="btn light small" onclick="openAgencyReport('${r.activation_id}')">Editar</button></td></tr>`).join('')}</tbody></table></div>`;
+}
+function agencyPortal(){
+  if(app.loading) return `<div class="agency-shell"><main class="main"><section class="panel"><h3>Cargando calendario...</h3><p>Un segundo, estoy leyendo Google Sheets.</p></section></main></div>`;
+  const list=app.btlActivations.filter(x=>String(x.name||'').trim()).sort((a,b)=>(normDate(a.date)||'').localeCompare(normDate(b.date)||''));
+  return `<div class="agency-shell"><main class="main"><section class="hero"><div><h2>Portal agencia BTL</h2><p>Selecciona cada activación y carga fotos, promotoras y flyers entregados.</p></div><div class="actions"><button class="btn light" onclick="load()">Actualizar</button></div></section><section class="panel"><div class="activity-list">${list.map(x=>{const r=app.agencyReports.find(a=>String(a.activation_id)===String(x.id)); return `<div class="activity-row"><div><div class="name">${esc(x.name)}</div><div class="activity-meta">${esc(x.real_location||x.location||'')} · ${esc(x.type||'')} · ${fmtDate(x.date)} · ${r?num(r.flyers_delivered)+' flyers reportados':'pendiente'}</div></div><div class="activity-actions">${r?'<span class="badge green">Cargado</span>':'<span class="badge gray">Pendiente</span>'}<button class="btn red small" onclick="openAgencyReport('${x.id}')">${r?'Editar carga':'Cargar prueba'}</button></div></div>`;}).join('')||'<div class="empty">No hay calendario cargado todavía.</div>'}</div></section></main></div>`;
 }
 
 function reportView(){
@@ -547,9 +765,20 @@ function usersView(){
   return `<section class="hero"><div><h2>Usuarios</h2><p>Giselle y Admin comparten la misma data central.</p></div><div class="actions"><button class="btn light" onclick="openUser()">+ Nuevo usuario</button></div></section><section class="panel"><div class="panel-head"><div><h3>Accesos</h3><p>Usuarios autorizados.</p></div></div><div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>${app.users.map(u=>`<tr><td><strong>${esc(u.name)}</strong></td><td>${esc(u.email||'')}</td><td><span class="badge ${u.role==='admin'?'red':'blue'}">${esc(u.role)}</span></td><td>${boolBadge(u.active!==false,'Activo','Inactivo')}</td><td><div class="row-actions"><button class="btn light small" onclick="openUser('${u.id}')">Editar</button><button class="btn light small danger" onclick="deleteUser('${u.id}')">Borrar</button></div></td></tr>`).join('')}</tbody></table></div></section>`;
 }
 function render(){
+  if(app.agencyMode){ root.innerHTML=agencyPortal(); return; }
   if(!app.session){ root.innerHTML=loginHTML(); document.getElementById('loginForm').onsubmit=onLogin; return; }
-  const content=app.loading?'<section class="panel"><h3>Cargando...</h3><p>Leyendo Google Sheets.</p></section>':app.view==='influencers'?influencersView():app.view==='social-report'?reportView():usersView();
+  const content=app.loading?'<section class="panel"><h3>Cargando...</h3><p>Leyendo Google Sheets.</p></section>':renderView();
   root.innerHTML=layout(content);
+}
+function renderView(){
+  if(app.view==='btl-global') return btlGlobalView();
+  if(app.view==='btl-results') return btlResultsView();
+  if(app.view==='btl-calendar') return btlCalendarView();
+  if(app.view==='btl-activations') return btlActivationsView();
+  if(app.view==='agency-admin') return agencyAdminView();
+  if(app.view==='influencers') return influencersView();
+  if(app.view==='social-report') return reportView();
+  return usersView();
 }
 function onLogin(e){
   e.preventDefault();
@@ -597,6 +826,60 @@ function openUser(id){
   const u=app.users.find(x=>x.id===id)||{id:uid('user'),role:'editor',active:true};
   openForm('Usuario',`<input type="hidden" name="id" value="${esc(u.id)}"><div class="form-grid"><div class="field"><label>Nombre</label><input name="name" value="${esc(u.name)}" required></div><div class="field"><label>Email</label><input name="email" value="${esc(u.email)}"></div><div class="field"><label>Rol</label><select name="role"><option ${sel(u.role,'editor')}>editor</option><option ${sel(u.role,'admin')}>admin</option></select></div><div class="field"><label>Clave</label><input name="password" value="${esc(u.password)}" required></div><div class="field"><label>Activo</label><select name="active"><option value="true" ${u.active!==false?'selected':''}>Sí</option><option value="false" ${u.active===false?'selected':''}>No</option></select></div></div>`,saveUser);
 }
+function openActivation(id){
+  const x=app.btlActivations.find(a=>a.id===id)||{id:uid('btl'),type:'Flyers',status:'planned',date:new Date().toISOString().slice(0,10),bucket:'Sabana Grande'};
+  openForm(id?'Editar activación':'Nueva activación',`<input type="hidden" name="id" value="${esc(x.id)}"><div class="form-grid">
+    <div class="field wide"><label>Nombre</label><input name="name" value="${esc(x.name)}" placeholder="Ej: Café mañanero Sabana Grande" required></div>
+    <div class="field"><label>Ubicación real (calendario)</label><input name="real_location" value="${esc(x.real_location||x.location)}" placeholder="Sabana Grande"></div>
+    <div class="field"><label>Bucket Adjust</label><select name="bucket">${Object.keys(BTL_BUCKETS).map(k=>`<option value="${esc(k)}" ${String(x.bucket||x.location_bucket)===k?'selected':''}>${esc(k)}</option>`).join('')}</select></div>
+    <div class="field"><label>Tipo</label><select name="type">${BTL_TYPES.map(t=>`<option value="${esc(t)}" ${String(x.type||x.activation_type)===t?'selected':''}>${esc(t)}</option>`).join('')}</select></div>
+    <div class="field wide"><label>Dirección exacta de la activación</label><input name="address" value="${esc(x.address)}" placeholder="Ej: Plaza Brión de Chacaíto, frente al metro"></div>
+    <div class="field"><label>Fecha</label><input type="date" name="date" value="${esc(normDate(x.date))}" required></div>
+    <div class="field"><label>Estado</label><select name="status"><option value="planned" ${btlStatus(x)==='planned'?'selected':''}>Planificada</option><option value="executed" ${btlStatus(x)==='executed'?'selected':''}>Ejecutada</option><option value="cancelled" ${btlStatus(x)==='cancelled'?'selected':''}>No se dio</option></select></div>
+    <div class="field"><label>Promotoras planificadas</label><input name="promoters_planned" value="${esc(x.promoters_planned)}"></div>
+    <div class="field"><label>Flyers planificados</label><input name="flyers_planned" value="${esc(x.flyers_planned||x.flyers)}"></div>
+    <div class="field"><label>Costo total USD</label><input name="budget" value="${esc(x.budget||x.cost)}"></div>
+    <div class="field"><label>Promo Code</label><input name="promo_code" value="${esc(x.promo_code)}"></div>
+    <div class="field"><label>Link QR / Adjust</label><input name="qr_link" value="${esc(x.qr_link)}"></div>
+    <div class="field"><label>Latitud</label><input name="lat" value="${esc(x.lat)}" placeholder="Opcional"></div>
+    <div class="field"><label>Longitud</label><input name="lng" value="${esc(x.lng)}" placeholder="Opcional"></div>
+    <div class="field wide"><label>Notas</label><textarea name="notes">${esc(x.notes)}</textarea></div>
+  </div>${id?`<div style="margin-top:14px"><button type="button" class="btn light danger" onclick="deleteActivation('${x.id}')">Eliminar activación</button></div>`:''}`,saveActivation);
+}
+function openBTLResult(id){
+  const x=app.btlResults.find(r=>r.id===id)||{id:uid('btlres'),type:'Flyers',bucket:'Sabana Grande',date:new Date().toISOString().slice(0,10)};
+  openForm('Resultado Adjust / QR',`<input type="hidden" name="id" value="${esc(x.id)}"><div class="form-grid">
+    <div class="field"><label>Fecha del reporte</label><input type="date" name="date" value="${esc(normDate(x.date))}"></div>
+    <div class="field"><label>Bucket / ubicación</label><select name="bucket">${Object.keys(BTL_BUCKETS).map(k=>`<option value="${esc(k)}" ${String(x.bucket||x.location_bucket)===k?'selected':''}>${esc(k)}</option>`).join('')}</select></div>
+    <div class="field"><label>Tipo</label><select name="type">${BTL_TYPES.map(t=>`<option value="${esc(t)}" ${String(x.type||x.activation_type)===t?'selected':''}>${esc(t)}</option>`).join('')}</select></div>
+    <div class="field"><label>Clicks</label><input name="clicks" value="${esc(x.clicks)}"></div>
+    <div class="field"><label>Installs</label><input name="installs" value="${esc(x.installs)}"></div>
+    <div class="field"><label>Registros</label><input name="registrations" value="${esc(x.registrations||x.registration)}"></div>
+    <div class="field"><label>Primeros viajes</label><input name="first_orders" value="${esc(x.first_orders||x.success_first_order)}"></div>
+    <div class="field"><label>Canjes Promo Code</label><input name="promo_redemptions" value="${esc(x.promo_redemptions)}"></div>
+    <div class="field wide"><label>Link / nombre fuente</label><input name="source" value="${esc(x.source)}" placeholder="Adjust export"></div>
+  </div>${id?`<div style="margin-top:14px"><button type="button" class="btn light danger" onclick="deleteBTLResult('${x.id}')">Eliminar resultado</button></div>`:''}`,saveBTLResult);
+}
+function openBudget(period,label){
+  const x=app.btlBudgets.find(b=>b.period===period)||{id:uid('budget'),period,label,amount:''};
+  openForm('Budget '+label,`<input type="hidden" name="id" value="${esc(x.id)}"><input type="hidden" name="period" value="${esc(period)}"><input type="hidden" name="label" value="${esc(label)}"><div class="form-grid"><div class="field"><label>Periodo</label><input value="${esc(period)}" disabled></div><div class="field"><label>Budget USD</label><input name="amount" value="${esc(x.amount)}" required></div><div class="field wide"><label>Notas</label><textarea name="notes">${esc(x.notes)}</textarea></div></div>`,saveBTLBudget);
+}
+function openAgencyReport(activationId){
+  const act=app.btlActivations.find(x=>String(x.id)===String(activationId))||{};
+  const current=app.agencyReports.find(x=>String(x.activation_id)===String(activationId))||{id:uid('ag'),activation_id:activationId,status:'executed',date:act.date,activation_name:act.name,real_location:act.real_location||act.location,type:act.type};
+  const photos=photoList(current);
+  openForm('Carga agencia',`<input type="hidden" name="id" value="${esc(current.id)}"><input type="hidden" name="activation_id" value="${esc(activationId)}"><input type="hidden" name="activation_name" value="${esc(act.name||current.activation_name)}"><input type="hidden" name="real_location" value="${esc(act.real_location||act.location||current.real_location)}"><input type="hidden" name="type" value="${esc(act.type||current.type)}"><div class="form-grid">
+    <div class="field"><label>Activación</label><input value="${esc(act.name||current.activation_name)}" disabled></div>
+    <div class="field"><label>Fecha</label><input type="date" name="date" value="${esc(normDate(current.date||act.date))}"></div>
+    <div class="field"><label>Estado</label><select name="status"><option value="executed" ${String(current.status)==='executed'?'selected':''}>Se dio</option><option value="cancelled" ${String(current.status)==='cancelled'?'selected':''}>No se dio</option></select></div>
+    <div class="field"><label>Cant. promotoras</label><input name="promoters_count" value="${esc(current.promoters_count)}"></div>
+    <div class="field"><label>Flyers entregados</label><input name="flyers_delivered" value="${esc(current.flyers_delivered)}"></div>
+    <div class="field"><label>Fotos de prueba</label><input id="agencyPhotoFiles" type="file" accept="image/*" multiple></div>
+    <div class="field wide"><label>Nombre promotoras</label><input name="promoters_names" value="${esc(current.promoters_names)}" placeholder="Nombre 1, Nombre 2..."></div>
+    <div class="field wide"><label>Links de fotos existentes / Drive</label><textarea name="photo_urls" placeholder="Un link por línea">${esc(photos.join('\n'))}</textarea></div>
+    <div class="field wide"><label>Comentarios</label><textarea name="notes">${esc(current.notes)}</textarea></div>
+  </div>`,saveAgencyReport);
+}
 function openForm(title,body,onSave){
   modal.className='modal open';
   modal.innerHTML=`<div class="modal-card"><form id="modalForm"><div class="modal-head"><div><h2>${title}</h2><p class="muted">Se guarda directo en Google Sheets.</p></div><button type="button" class="btn light" onclick="closeModal()">Cerrar</button></div>${body}<div class="modal-actions"><button type="button" class="btn light" onclick="closeModal()">Cancelar</button><button class="btn red">Guardar</button></div></form></div>`;
@@ -639,6 +922,85 @@ async function deleteUser(id){
   if(!confirm('¿Borrar/desactivar usuario?')) return;
   try{ await api('deleteUser',{id}); app.users=app.users.filter(x=>x.id!==id); toast('Usuario eliminado'); render(); load(true); }
   catch(e){ toast(e.message,'err'); }
+}
+async function saveActivation(obj){
+  try{
+    obj.updated_at=new Date().toISOString();
+    await api('upsertBTLActivation',obj);
+    const i=app.btlActivations.findIndex(x=>x.id===obj.id);
+    if(i>=0) app.btlActivations[i]=obj; else app.btlActivations.unshift(obj);
+    closeModal(); toast('Activación guardada'); render(); load(true);
+  }catch(e){ toast(e.message,'err'); }
+}
+async function deleteActivation(id){
+  if(!confirm('¿Eliminar esta activación?')) return;
+  try{ await api('deleteBTLActivation',{id}); app.btlActivations=app.btlActivations.filter(x=>x.id!==id); closeModal(); toast('Activación eliminada'); render(); load(true); }
+  catch(e){ toast(e.message,'err'); }
+}
+async function setActivationStatus(id,status){
+  const current=app.btlActivations.find(x=>String(x.id)===String(id));
+  if(!current) return;
+  await saveActivation({...current,status,updated_at:new Date().toISOString()});
+}
+async function saveBTLResult(obj){
+  try{
+    obj.updated_at=new Date().toISOString();
+    await api('upsertBTLResult',obj);
+    const i=app.btlResults.findIndex(x=>x.id===obj.id);
+    if(i>=0) app.btlResults[i]=obj; else app.btlResults.unshift(obj);
+    closeModal(); toast('Resultado BTL guardado'); render(); load(true);
+  }catch(e){ toast(e.message,'err'); }
+}
+async function deleteBTLResult(id){
+  if(!confirm('¿Eliminar este resultado?')) return;
+  try{ await api('deleteBTLResult',{id}); app.btlResults=app.btlResults.filter(x=>x.id!==id); closeModal(); toast('Resultado eliminado'); render(); load(true); }
+  catch(e){ toast(e.message,'err'); }
+}
+async function saveBTLBudget(obj){
+  try{
+    obj.updated_at=new Date().toISOString();
+    await api('upsertBTLBudget',obj);
+    const i=app.btlBudgets.findIndex(x=>x.id===obj.id);
+    if(i>=0) app.btlBudgets[i]=obj; else app.btlBudgets.push(obj);
+    closeModal(); toast('Budget guardado'); render(); load(true);
+  }catch(e){ toast(e.message,'err'); }
+}
+function fileToPayload(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve({name:file.name,type:file.type,data:String(reader.result).split(',')[1]||''});
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
+async function saveAgencyReport(obj){
+  try{
+    const files=[...(document.getElementById('agencyPhotoFiles')?.files||[])].slice(0,8);
+    obj.photo_urls=String(obj.photo_urls||'').split(/\n|,/).map(x=>x.trim()).filter(Boolean);
+    obj.photo_files=await Promise.all(files.map(fileToPayload));
+    obj.updated_at=new Date().toISOString();
+    const response=await api('upsertAgencyReport',obj);
+    const rows=response.agencyReports || [];
+    const saved=rows.find(x=>String(x.id)===String(obj.id)) || obj;
+    const i=app.agencyReports.findIndex(x=>x.id===obj.id);
+    if(i>=0) app.agencyReports[i]=saved; else app.agencyReports.unshift(saved);
+    closeModal(); toast('Carga de agencia guardada'); render(); load(true);
+  }catch(e){ toast(e.message,'err'); }
+}
+function copyAgencyLink(){
+  const url=location.origin+location.pathname+'?agency=1';
+  navigator.clipboard?.writeText(url);
+  toast('Link agencia copiado');
+}
+function downloadAgencyCSV(){
+  const list=btlReportsFor(btlFilteredActivations());
+  const rows=[['Fecha','Activación','Ubicación','Tipo','Estado','Promotoras','Nombres promotoras','Flyers entregados','Fotos','Notas'],...list.map(r=>[normDate(r.date),r.activation_name,r.real_location,r.type,r.status,r.promoters_count,r.promoters_names,r.flyers_delivered,photoList(r).join(' | '),r.notes])];
+  const blob=new Blob([toCSV(rows)],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='yango_btl_agencia_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function parseCSV(text){
