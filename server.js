@@ -4,7 +4,7 @@ const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyD03wun8PJpAxWpLk5EhKnI4S3V6Crfoho87KPcJCZAcGvFFjKOTew_6NFUult-2EYkw/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqTjgkDybKNLcGy2O7RD63XzdlTPfhohYh9LN1M6g1Sb0IXw60X58w3n3dAMslnOWOmQ/exec';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
