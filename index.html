@@ -308,6 +308,104 @@
     .agency-shell { min-height:100vh; padding:28px; background:#f6f8fb; }
     .agency-shell .main { padding:0; }
     .photo-chip { display:inline-flex; align-items:center; gap:5px; margin:3px 5px 3px 0; padding:6px 9px; border-radius:999px; background:#eef2f7; color:#526176; font-weight:900; text-decoration:none; font-size:11px; }
+    .ooh-map {
+      position:relative;
+      height:560px;
+      border:1px solid #dfe7f2;
+      border-radius:24px;
+      overflow:hidden;
+      background:
+        radial-gradient(circle at 46% 45%, rgba(255,255,255,.72), transparent 22%),
+        linear-gradient(115deg, rgba(255,255,255,.55) 0 17%, transparent 17% 19%, rgba(255,255,255,.38) 19% 24%, transparent 24% 100%),
+        linear-gradient(22deg, transparent 0 43%, rgba(255,255,255,.45) 43% 45%, transparent 45% 100%),
+        #dfe5eb;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.55), 0 14px 40px rgba(16,24,40,.07);
+    }
+    .ooh-map:before {
+      content:"";
+      position:absolute;
+      inset:0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.34) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.34) 1px, transparent 1px);
+      background-size:72px 72px;
+      opacity:.55;
+    }
+    .map-road {
+      position:absolute;
+      height:7px;
+      border-radius:999px;
+      background:rgba(255,255,255,.72);
+      box-shadow:0 0 0 1px rgba(148,163,184,.18);
+      transform-origin:left center;
+    }
+    .map-label {
+      position:absolute;
+      color:#748299;
+      font-size:11px;
+      font-weight:950;
+      text-transform:uppercase;
+      letter-spacing:.12em;
+      background:rgba(255,255,255,.6);
+      padding:5px 8px;
+      border-radius:999px;
+      backdrop-filter:blur(5px);
+    }
+    .map-pin {
+      position:absolute;
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      transform:translate(-50%,-50%);
+      border:3px solid #fff;
+      box-shadow:0 12px 26px rgba(16,24,40,.35);
+      cursor:pointer;
+    }
+    .map-pin:hover { z-index:5; transform:translate(-50%,-50%) scale(1.25); }
+    .map-pin:after {
+      content:attr(data-title);
+      position:absolute;
+      left:22px;
+      top:50%;
+      transform:translateY(-50%);
+      min-width:170px;
+      max-width:260px;
+      padding:9px 11px;
+      border-radius:14px;
+      background:#fff;
+      color:var(--ink);
+      border:1px solid var(--line);
+      box-shadow:var(--shadow);
+      font-size:12px;
+      font-weight:900;
+      opacity:0;
+      pointer-events:none;
+      transition:.15s ease;
+    }
+    .map-pin:hover:after { opacity:1; }
+    .map-counter {
+      position:absolute;
+      left:16px;
+      bottom:16px;
+      z-index:2;
+      background:#fff;
+      border-radius:999px;
+      padding:10px 14px;
+      box-shadow:0 12px 30px rgba(16,24,40,.14);
+      font-weight:950;
+    }
+    .map-empty {
+      position:absolute;
+      inset:0;
+      display:grid;
+      place-items:center;
+      color:var(--muted);
+      font-weight:900;
+      text-align:center;
+      padding:30px;
+    }
+    .legend { display:flex; gap:14px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:12px; font-weight:800; }
+    .ooh-photo-links { display:flex; gap:6px; flex-wrap:wrap; }
 
     .modal { position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:center; justify-content:center; padding:20px; z-index:50; }
     .modal.open { display:flex; }
@@ -372,6 +470,32 @@ const BTL_TYPE_COLORS = {'Flyers':'#64748b','Café':'#b45309','Helados':'#0ea5e9
 const BTL_EMPTY_FILTERS = { from:'', to:'', bucket:'all', type:'all' };
 const BTL_STATUS_LABELS = { planned:'Planificada', executed:'Se dio', cancelled:'No se dio' };
 const BTL_STATUS_CLASS = { planned:'gray', executed:'green', cancelled:'red' };
+const OOH_TYPES = ['Valla','Banderola','Muppie','Banderola Digital','Metro','Pantalla Digital','Otro'];
+const OOH_TYPE_COLORS = {'Valla':'#ef4444','Banderola':'#f97316','Muppie':'#0ea5e9','Banderola Digital':'#8b5cf6','Metro':'#10b981','Pantalla Digital':'#ec4899','Otro':'#64748b'};
+const OOH_STATUS_LABELS = { active:'Activa', planned:'Planificada', paused:'Pausada' };
+const OOH_STATUS_CLASS = { active:'green', planned:'orange', paused:'red' };
+const OOH_EMPTY_FILTERS = { type:'all', status:'all', zone:'all' };
+const CARACAS_POINTS = {
+  'Caracas':{lat:10.490,lng:-66.902},
+  'Oeste':{lat:10.493,lng:-66.965},
+  'Centro':{lat:10.506,lng:-66.914},
+  'Este':{lat:10.496,lng:-66.835},
+  'Sureste':{lat:10.470,lng:-66.855},
+  'Norte':{lat:10.525,lng:-66.910},
+  'Sur':{lat:10.438,lng:-66.930},
+  'Satelites':{lat:10.430,lng:-67.040},
+  'Petare':{lat:10.478,lng:-66.806},
+  'Sabana Grande':{lat:10.492,lng:-66.876},
+  'Altamira':{lat:10.497,lng:-66.850},
+  'Chacaíto':{lat:10.491,lng:-66.865},
+  'Las Mercedes':{lat:10.482,lng:-66.859},
+  'La Hoyada':{lat:10.506,lng:-66.914},
+  'Plaza Venezuela':{lat:10.500,lng:-66.890},
+  'UCAB':{lat:10.464,lng:-66.976},
+  'Los Teques':{lat:10.344,lng:-67.043},
+  'San Antonio de los Altos':{lat:10.388,lng:-66.951},
+  'El Junquito':{lat:10.470,lng:-67.082},
+};
 
 let app = {
   session:null,
@@ -384,12 +508,14 @@ let app = {
   btlResults:[],
   agencyReports:[],
   btlBudgets:[],
+  oohItems:[],
   loading:true,
   sync:'warn',
   lastSync:null,
   filters:{...EMPTY_FILTERS},
   reportMonth:'all',
   btlFilters:{...BTL_EMPTY_FILTERS},
+  oohFilters:{...OOH_EMPTY_FILTERS},
   calendarMonth:new Date().toISOString().slice(0,7)
 };
 
@@ -485,6 +611,7 @@ async function load(silent=false){
     app.btlResults=(data.btlResults||[]).filter(x=>!x.deleted_at);
     app.agencyReports=(data.agencyReports||[]).filter(x=>!x.deleted_at);
     app.btlBudgets=(data.btlBudgets||[]).filter(x=>!x.deleted_at);
+    app.oohItems=(data.oohItems||[]).filter(x=>!x.deleted_at);
     app.sync='ok';
     app.lastSync=new Date();
   }catch(e){
@@ -502,14 +629,14 @@ function boot(){ try{app.session=JSON.parse(localStorage.getItem('yango_mkt_sess
 function loginHTML(){ return `<div class="login"><div class="login-card"><div class="mark">Y</div><h1>Yango MKT</h1><p>BTL + Social Media · panel compartido</p><form id="loginForm"><div class="field"><label>Usuario</label><select name="user"><option value="admin">Isabella / Admin</option><option value="giselle">Giselle</option></select></div><div class="field"><label>Clave</label><input name="password" type="password" placeholder="Clave" required></div><button class="btn red" style="width:100%">Entrar</button></form><p style="font-size:12px;margin-top:16px">La data se lee y se guarda en Google Sheets vía Apps Script.</p></div></div>`; }
 function layout(content){
   const syncClass=app.sync==='ok'?'':app.sync==='err'?'err':'warn';
-  return `<div class="app"><aside class="side"><div class="brand"><div class="mark">Y</div><div><strong>Yango MKT</strong><span>Venezuela</span></div></div><div class="nav"><div class="nav-title">BTL</div>${navBtn('btl-global','Vista global')}${navBtn('btl-results','Resultados')}${navBtn('btl-calendar','Calendario')}${navBtn('btl-activations','Activaciones')}${navBtn('agency-admin','Admin agencia')}<div class="nav-title">Social Media</div>${navBtn('influencers','Influencers')}${navBtn('social-report','Reporte Social Media')}<div class="nav-title">Admin</div>${navBtn('users','Usuarios')}</div><div class="side-foot"><div class="sync-dot ${syncClass}">${app.sync==='ok'?'Sincronizado':'Revisar sync'}</div>${app.lastSync?`<br><br>Última lectura: ${app.lastSync.toLocaleTimeString('es-VE')}`:''}<br><br><a class="linkish" href="?agency=1" target="_blank">Link agencia</a></div></aside><main class="main"><div class="top"><div><h1>${title()}</h1><p>${subtitle()}</p></div><div class="userbar"><span class="badge red">${esc(app.session?.name||'')}</span><button class="btn light small" onclick="logout()">Salir</button></div></div>${content}</main></div>`;
+  return `<div class="app"><aside class="side"><div class="brand"><div class="mark">Y</div><div><strong>Yango MKT</strong><span>Venezuela</span></div></div><div class="nav"><div class="nav-title">BTL</div>${navBtn('btl-global','Vista global')}${navBtn('btl-results','Resultados')}${navBtn('btl-calendar','Calendario')}${navBtn('btl-activations','Activaciones')}${navBtn('agency-admin','Admin agencia')}<div class="nav-title">Social Media</div>${navBtn('influencers','Influencers')}${navBtn('social-report','Reporte Social Media')}<div class="nav-title">Media</div>${navBtn('ooh','OOH')}<div class="nav-title">Admin</div>${navBtn('users','Usuarios')}</div><div class="side-foot"><div class="sync-dot ${syncClass}">${app.sync==='ok'?'Sincronizado':'Revisar sync'}</div>${app.lastSync?`<br><br>Última lectura: ${app.lastSync.toLocaleTimeString('es-VE')}`:''}<br><br><a class="linkish" href="?agency=1" target="_blank">Link agencia</a></div></aside><main class="main"><div class="top"><div><h1>${title()}</h1><p>${subtitle()}</p></div><div class="userbar"><span class="badge red">${esc(app.session?.name||'')}</span><button class="btn light small" onclick="logout()">Salir</button></div></div>${content}</main></div>`;
 }
 function navBtn(id,label){ return `<button class="${app.view===id?'active':''}" onclick="go('${id}')">${label}</button>`; }
 function title(){
-  return ({'btl-global':'Vista global BTL','btl-results':'Activaciones — Resultados','btl-calendar':'Calendario BTL','btl-activations':'Activaciones y validación','agency-admin':'Admin agencia','influencers':'IG, TikTok e Influencers','social-report':'Reporte Social Media','users':'Usuarios'})[app.view]||'Yango MKT';
+  return ({'btl-global':'Vista global BTL','btl-results':'Activaciones — Resultados','btl-calendar':'Calendario BTL','btl-activations':'Activaciones y validación','agency-admin':'Admin agencia','influencers':'IG, TikTok e Influencers','social-report':'Reporte Social Media','ooh':'OOH Caracas','users':'Usuarios'})[app.view]||'Yango MKT';
 }
 function subtitle(){
-  return ({'btl-global':'Resumen de activaciones, inversión y performance por fecha.','btl-results':'Cruce de QR/Adjust, Promo Code y ubicación.','btl-calendar':'Planificación mensual y budget del mes/Q.','btl-activations':'Crear, editar y confirmar si una activación se dio.','agency-admin':'Lo que carga la agencia: flyers, promotoras y evidencia.','influencers':'Tracking de creadores, entregables, pagos y resultados.','social-report':'Followers, reach, clicks, installs y orders por mes.','users':'Administrar accesos al panel compartido.'})[app.view]||'';
+  return ({'btl-global':'Resumen de activaciones, inversión y performance por fecha.','btl-results':'Cruce de QR/Adjust, Promo Code y ubicación.','btl-calendar':'Planificación mensual y budget del mes/Q.','btl-activations':'Crear, editar y confirmar si una activación se dio.','agency-admin':'Lo que carga la agencia: flyers, promotoras y evidencia.','influencers':'Tracking de creadores, entregables, pagos y resultados.','social-report':'Followers, reach, clicks, installs y orders por mes.','ooh':'Mapa y control de vallas, banderolas, muppies, metro y pantallas.','users':'Administrar accesos al panel compartido.'})[app.view]||'';
 }
 function go(view){ app.view=view; render(); }
 function logout(){ localStorage.removeItem('yango_mkt_session'); app.session=null; render(); }
@@ -760,6 +887,107 @@ function tableReports(list){
   if(!list.length) return `<div class="empty">No hay periodos cargados.</div>`;
   return `<div class="table-wrap"><table><thead><tr><th>Mes</th><th>Followers</th><th>Reach</th><th>Clicks</th><th>Installs</th><th>Orders</th><th></th></tr></thead><tbody>${list.map(x=>`<tr><td><strong>${monthLabel(x.month)}</strong></td><td>IG ${num(x.ig_followers)}<br>TikTok ${num(x.tiktok_followers)}</td><td>IG ${num(x.ig_reach)}<br>TikTok ${num(x.tiktok_reach)}</td><td>IG ${num(x.ig_clicks)}<br>TikTok ${num(x.tiktok_clicks)}</td><td>IG ${num(x.ig_installs)}<br>TikTok ${num(x.tiktok_installs)}</td><td>IG ${num(x.ig_orders)}<br>TikTok ${num(x.tiktok_orders)}</td><td><div class="row-actions"><button class="btn light small" onclick="openReport('${x.id}')">Editar</button><button class="btn light small danger" onclick="deleteReport('${x.id}')">Borrar</button></div></td></tr>`).join('')}</tbody></table></div>`;
 }
+function oohColor(type){ return OOH_TYPE_COLORS[type] || OOH_TYPE_COLORS.Otro; }
+function oohStatus(x){ return x.status || 'planned'; }
+function oohStatusBadge(status){ return `<span class="badge ${OOH_STATUS_CLASS[status]||'gray'}">${OOH_STATUS_LABELS[status]||status||'Planificada'}</span>`; }
+function photoLinks(value){
+  const raw=String(value||'').trim();
+  if(!raw) return [];
+  try{
+    const parsed=JSON.parse(raw);
+    if(Array.isArray(parsed)) return parsed.filter(Boolean);
+  }catch(e){}
+  return raw.split(/\n|,/).map(x=>x.trim()).filter(Boolean);
+}
+function oohFilteredItems(){
+  return app.oohItems.filter(x=>{
+    return (app.oohFilters.type==='all'||x.type===app.oohFilters.type)
+      && (app.oohFilters.status==='all'||oohStatus(x)===app.oohFilters.status)
+      && (app.oohFilters.zone==='all'||String(x.zone||'')===app.oohFilters.zone);
+  }).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'es'));
+}
+function oohMetrics(list=oohFilteredItems()){
+  const active=list.filter(x=>oohStatus(x)==='active');
+  return {
+    total:list.length,
+    active:active.length,
+    planned:list.filter(x=>oohStatus(x)==='planned').length,
+    paused:list.filter(x=>oohStatus(x)==='paused').length,
+    reach:active.reduce((s,x)=>s+n(x.estimated_reach),0),
+    cost:active.reduce((s,x)=>s+n(x.monthly_cost),0),
+    photos:list.reduce((s,x)=>s+photoLinks(x.photo_urls).length,0),
+  };
+}
+function oohPoint(item,index=0){
+  const lat=n(item.lat), lng=n(item.lng);
+  if(lat && lng) return {lat,lng};
+  const lookup=[item.location,item.address,item.zone].map(v=>String(v||'').trim()).find(v=>CARACAS_POINTS[v]);
+  const base=CARACAS_POINTS[lookup] || CARACAS_POINTS.Caracas;
+  const jitter=((index%9)-4)*0.0022;
+  return { lat:base.lat+jitter, lng:base.lng+(((index*3)%9)-4)*0.0026 };
+}
+function oohXY(point){
+  const minLat=10.335, maxLat=10.535, minLng=-67.095, maxLng=-66.780;
+  const x=Math.max(2,Math.min(98,(point.lng-minLng)/(maxLng-minLng)*100));
+  const y=Math.max(2,Math.min(98,(maxLat-point.lat)/(maxLat-minLat)*100));
+  return {x,y};
+}
+function oohFiltersHTML(){
+  const zones=['all',...Object.keys(BTL_BUCKETS)];
+  return `<div class="filters">
+    <div class="filter-field"><label>Tipo</label><select onchange="app.oohFilters.type=this.value;render()"><option value="all">Todos</option>${OOH_TYPES.map(x=>`<option value="${esc(x)}" ${app.oohFilters.type===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+    <div class="filter-field"><label>Estatus</label><select onchange="app.oohFilters.status=this.value;render()"><option value="all">Todos</option><option value="active" ${app.oohFilters.status==='active'?'selected':''}>Activa</option><option value="planned" ${app.oohFilters.status==='planned'?'selected':''}>Planificada</option><option value="paused" ${app.oohFilters.status==='paused'?'selected':''}>Pausada</option></select></div>
+    <div class="filter-field"><label>Zona</label><select onchange="app.oohFilters.zone=this.value;render()">${zones.map(x=>`<option value="${esc(x)}" ${app.oohFilters.zone===x?'selected':''}>${x==='all'?'Todas':esc(x)}</option>`).join('')}</select></div>
+    <div class="filter-field"><label>&nbsp;</label><button class="btn light" onclick="app.oohFilters={...OOH_EMPTY_FILTERS};render()">Limpiar</button></div>
+  </div>`;
+}
+function oohMap(list){
+  const roads=[
+    ['Autopista Francisco Fajardo',7,48,88,0],
+    ['Av. Libertador',18,39,62,-6],
+    ['Av. Francisco de Miranda',45,34,44,4],
+    ['Prados / Baruta',46,64,36,-14],
+    ['Panamericana',2,70,25,-34],
+  ];
+  const labels=[
+    ['Oeste',16,48],['Centro',37,44],['Sabana Grande',49,41],['Este',64,38],['Petare',82,42],['Sureste',58,63],['Satelites',8,72]
+  ];
+  return `<div class="ooh-map" role="img" aria-label="Mapa operativo de OOH en Caracas">
+    ${roads.map(r=>`<div class="map-road" title="${esc(r[0])}" style="left:${r[1]}%;top:${r[2]}%;width:${r[3]}%;transform:rotate(${r[4]}deg)"></div>`).join('')}
+    ${labels.map(l=>`<div class="map-label" style="left:${l[1]}%;top:${l[2]}%">${l[0]}</div>`).join('')}
+    ${list.length?list.map((item,i)=>{ const p=oohXY(oohPoint(item,i)); return `<button class="map-pin" onclick="openOOHItem('${item.id}')" data-title="${esc(`${item.name||'OOH'} · ${item.type||'Tipo'} · ${item.location||item.zone||'Caracas'}`)}" style="left:${p.x}%;top:${p.y}%;background:${oohColor(item.type)}"></button>`; }).join(''):`<div class="map-empty">Todavía no hay OOH cargado.<br>Agrega el primer punto para verlo en el mapa.</div>`}
+    <div class="map-counter">${num(list.length)} puntos en mapa</div>
+  </div>`;
+}
+function oohTable(list){
+  if(!list.length) return `<div class="empty">No hay puntos OOH con estos filtros.</div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Elemento</th><th>Tipo</th><th>Estatus</th><th>Ubicación</th><th>Periodo</th><th>Reach / costo</th><th>Fotos</th><th></th></tr></thead><tbody>${list.map(x=>`<tr>
+    <td><div class="name">${esc(x.name||'Sin nombre')}</div><div class="tiny muted">${esc(x.vendor||'')}</div></td>
+    <td><span class="badge" style="background:${oohColor(x.type)}20;color:${oohColor(x.type)}">${esc(x.type||'Otro')}</span><div class="tiny muted">${esc(x.format||'')}</div></td>
+    <td>${oohStatusBadge(oohStatus(x))}</td>
+    <td><strong>${esc(x.location||x.zone||'Caracas')}</strong><div class="tiny muted">${esc(x.address||'')}</div></td>
+    <td>${fmtDate(x.start_date)} → ${fmtDate(x.end_date)}</td>
+    <td><strong>${num(x.estimated_reach)}</strong> reach<br><span class="muted">${money(x.monthly_cost)} / mes</span></td>
+    <td><div class="ooh-photo-links">${photoLinks(x.photo_urls).slice(0,4).map((url,i)=>`<a class="photo-chip" href="${esc(url)}" target="_blank">Foto ${i+1}</a>`).join('')||'<span class="muted">—</span>'}</div></td>
+    <td><div class="row-actions"><button class="btn light small" onclick="openOOHItem('${x.id}')">Editar</button><button class="btn light small danger" onclick="deleteOOHItem('${x.id}')">Borrar</button></div></td>
+  </tr>`).join('')}</tbody></table></div>`;
+}
+function oohView(){
+  const list=oohFilteredItems();
+  const m=oohMetrics(list);
+  return `<section class="hero"><div><h2>OOH Caracas</h2><p>Mapa de vallas, banderolas, muppies, metro y pantallas por zona.</p></div><div class="actions"><button class="btn light" onclick="openOOHItem()">+ Nuevo OOH</button><button class="btn light" onclick="load(true)">Actualizar</button></div></section>
+  ${oohFiltersHTML()}
+  <section class="cards">
+    <div class="card"><div class="icon i-red">⌖</div><div class="metric">${num(m.total)}</div><span>Puntos cargados</span></div>
+    <div class="card"><div class="icon i-green">✓</div><div class="metric">${num(m.active)}</div><span>Activos</span></div>
+    <div class="card"><div class="icon i-orange">○</div><div class="metric">${num(m.planned)}</div><span>Planificados</span></div>
+    <div class="card"><div class="icon i-gray">$</div><div class="metric">${money(m.cost)}</div><span>Costo mensual activo</span></div>
+    <div class="card"><div class="icon i-purple">↗</div><div class="metric">${num(m.reach)}</div><span>Reach estimado activo</span></div>
+    <div class="card"><div class="icon i-blue">▧</div><div class="metric">${num(m.photos)}</div><span>Fotos / evidencias</span></div>
+  </section>
+  <section class="panel"><div class="panel-head"><div><h3>Mapa de Caracas</h3><p>Color por tipo. Click en un pin para editar. Si no hay lat/lng, uso la ubicación o zona para ubicarlo aproximado.</p></div></div>${oohMap(list)}<div class="legend" style="margin-top:14px">${OOH_TYPES.map(t=>`<span><span class="dot" style="background:${oohColor(t)}"></span>${esc(t)}</span>`).join('')}</div></section>
+  <section class="panel" style="margin-top:22px"><div class="panel-head"><div><h3>Inventario OOH</h3><p>Control editable de cada elemento en calle.</p></div><button class="btn red" onclick="openOOHItem()">Agregar</button></div>${oohTable(list)}</section>`;
+}
 function usersView(){
   if(app.session?.role!=='admin') return `<section class="panel"><h3>Sin permiso</h3><p>Solo Admin puede administrar usuarios.</p></section>`;
   return `<section class="hero"><div><h2>Usuarios</h2><p>Giselle y Admin comparten la misma data central.</p></div><div class="actions"><button class="btn light" onclick="openUser()">+ Nuevo usuario</button></div></section><section class="panel"><div class="panel-head"><div><h3>Accesos</h3><p>Usuarios autorizados.</p></div></div><div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>${app.users.map(u=>`<tr><td><strong>${esc(u.name)}</strong></td><td>${esc(u.email||'')}</td><td><span class="badge ${u.role==='admin'?'red':'blue'}">${esc(u.role)}</span></td><td>${boolBadge(u.active!==false,'Activo','Inactivo')}</td><td><div class="row-actions"><button class="btn light small" onclick="openUser('${u.id}')">Editar</button><button class="btn light small danger" onclick="deleteUser('${u.id}')">Borrar</button></div></td></tr>`).join('')}</tbody></table></div></section>`;
@@ -778,6 +1006,7 @@ function renderView(){
   if(app.view==='agency-admin') return agencyAdminView();
   if(app.view==='influencers') return influencersView();
   if(app.view==='social-report') return reportView();
+  if(app.view==='ooh') return oohView();
   return usersView();
 }
 function onLogin(e){
@@ -880,6 +1109,27 @@ function openAgencyReport(activationId){
     <div class="field wide"><label>Comentarios</label><textarea name="notes">${esc(current.notes)}</textarea></div>
   </div>`,saveAgencyReport);
 }
+function openOOHItem(id){
+  const x=app.oohItems.find(i=>i.id===id)||{id:uid('ooh'),type:'Valla',status:'planned',zone:'Este',start_date:new Date().toISOString().slice(0,10)};
+  openForm(id?'Editar OOH':'Nuevo OOH',`<input type="hidden" name="id" value="${esc(x.id)}"><div class="form-grid">
+    <div class="field wide"><label>Nombre</label><input name="name" value="${esc(x.name)}" placeholder="Ej: Valla Chacaíto / Metro Altamira" required></div>
+    <div class="field"><label>Tipo</label><select name="type">${OOH_TYPES.map(t=>`<option value="${esc(t)}" ${String(x.type)===t?'selected':''}>${esc(t)}</option>`).join('')}</select></div>
+    <div class="field"><label>Estatus</label><select name="status"><option value="active" ${oohStatus(x)==='active'?'selected':''}>Activa</option><option value="planned" ${oohStatus(x)==='planned'?'selected':''}>Planificada</option><option value="paused" ${oohStatus(x)==='paused'?'selected':''}>Pausada</option></select></div>
+    <div class="field"><label>Zona</label><select name="zone">${Object.keys(BTL_BUCKETS).map(z=>`<option value="${esc(z)}" ${String(x.zone)===z?'selected':''}>${esc(z)}</option>`).join('')}</select></div>
+    <div class="field"><label>Ubicación</label><input name="location" value="${esc(x.location)}" placeholder="Ej: Chacaíto, Altamira, Petare"></div>
+    <div class="field wide"><label>Dirección / referencia</label><input name="address" value="${esc(x.address)}" placeholder="Ej: Av. Francisco de Miranda, salida metro Chacaíto"></div>
+    <div class="field"><label>Latitud</label><input name="lat" value="${esc(x.lat)}" placeholder="Opcional, ej: 10.491"></div>
+    <div class="field"><label>Longitud</label><input name="lng" value="${esc(x.lng)}" placeholder="Opcional, ej: -66.865"></div>
+    <div class="field"><label>Proveedor</label><input name="vendor" value="${esc(x.vendor)}"></div>
+    <div class="field"><label>Formato / medida</label><input name="format" value="${esc(x.format)}" placeholder="Ej: 3x2, 10 caras, estación"></div>
+    <div class="field"><label>Inicio</label><input type="date" name="start_date" value="${esc(normDate(x.start_date))}"></div>
+    <div class="field"><label>Fin</label><input type="date" name="end_date" value="${esc(normDate(x.end_date))}"></div>
+    <div class="field"><label>Costo mensual USD</label><input name="monthly_cost" value="${esc(x.monthly_cost)}"></div>
+    <div class="field"><label>Reach estimado</label><input name="estimated_reach" value="${esc(x.estimated_reach)}"></div>
+    <div class="field wide"><label>Fotos / links de reporte</label><textarea name="photo_urls" placeholder="Un link por línea">${esc(photoLinks(x.photo_urls).join('\n'))}</textarea></div>
+    <div class="field wide"><label>Notas</label><textarea name="notes">${esc(x.notes)}</textarea></div>
+  </div>${id?`<div style="margin-top:14px"><button type="button" class="btn light danger" onclick="deleteOOHItem('${x.id}')">Eliminar OOH</button></div>`:''}`,saveOOHItem);
+}
 function openForm(title,body,onSave){
   modal.className='modal open';
   modal.innerHTML=`<div class="modal-card"><form id="modalForm"><div class="modal-head"><div><h2>${title}</h2><p class="muted">Se guarda directo en Google Sheets.</p></div><button type="button" class="btn light" onclick="closeModal()">Cerrar</button></div>${body}<div class="modal-actions"><button type="button" class="btn light" onclick="closeModal()">Cancelar</button><button class="btn red">Guardar</button></div></form></div>`;
@@ -964,6 +1214,21 @@ async function saveBTLBudget(obj){
     if(i>=0) app.btlBudgets[i]=obj; else app.btlBudgets.push(obj);
     closeModal(); toast('Budget guardado'); render(); load(true);
   }catch(e){ toast(e.message,'err'); }
+}
+async function saveOOHItem(obj){
+  try{
+    obj.photo_urls=String(obj.photo_urls||'').split(/\n|,/).map(x=>x.trim()).filter(Boolean);
+    obj.updated_at=new Date().toISOString();
+    await api('upsertOOHItem',obj);
+    const i=app.oohItems.findIndex(x=>x.id===obj.id);
+    if(i>=0) app.oohItems[i]=obj; else app.oohItems.unshift(obj);
+    closeModal(); toast('OOH guardado'); render(); load(true);
+  }catch(e){ toast(e.message,'err'); }
+}
+async function deleteOOHItem(id){
+  if(!confirm('¿Eliminar este punto OOH?')) return;
+  try{ await api('deleteOOHItem',{id}); app.oohItems=app.oohItems.filter(x=>x.id!==id); closeModal(); toast('OOH eliminado'); render(); load(true); }
+  catch(e){ toast(e.message,'err'); }
 }
 function fileToPayload(file){
   return new Promise((resolve,reject)=>{

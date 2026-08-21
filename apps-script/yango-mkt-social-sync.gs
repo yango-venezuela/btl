@@ -8,6 +8,7 @@ const SHEETS = {
   btlResults: 'BTL_Results',
   agencyReports: 'BTL_Agency',
   btlBudgets: 'BTL_Budgets',
+  oohItems: 'OOH_Inventory',
   log: 'SM_ChangeLog',
 };
 
@@ -19,6 +20,7 @@ const HEADERS = {
   [SHEETS.btlResults]: ['id','date','bucket','type','clicks','installs','registrations','first_orders','promo_redemptions','source','notes','created_at','updated_at','deleted_at'],
   [SHEETS.agencyReports]: ['id','activation_id','activation_name','date','real_location','type','status','promoters_count','promoters_names','flyers_delivered','photo_urls','notes','created_at','updated_at','deleted_at'],
   [SHEETS.btlBudgets]: ['id','period','label','amount','notes','created_at','updated_at','deleted_at'],
+  [SHEETS.oohItems]: ['id','name','type','status','location','address','zone','lat','lng','vendor','format','start_date','end_date','monthly_cost','estimated_reach','photo_urls','notes','created_at','updated_at','deleted_at'],
   [SHEETS.log]: ['at','actor','action','entity','entity_id','payload_json'],
 };
 
@@ -59,6 +61,9 @@ function doPost(e) {
     if (action === 'upsertBTLBudget') return json(upsert_(SHEETS.btlBudgets, payload, actor, action));
     if (action === 'deleteBTLBudget') return json(softDelete_(SHEETS.btlBudgets, payload.id, actor, action));
 
+    if (action === 'upsertOOHItem') return json(upsert_(SHEETS.oohItems, payload, actor, action));
+    if (action === 'deleteOOHItem') return json(softDelete_(SHEETS.oohItems, payload.id, actor, action));
+
     if (action === 'upsertAgencyReport') return json(saveAgencyReport_(payload, actor, action));
     if (action === 'deleteAgencyReport') return json(softDelete_(SHEETS.agencyReports, payload.id, actor, action));
 
@@ -87,6 +92,7 @@ function loadBootstrap_() {
     btlResults: activeRows_(SHEETS.btlResults),
     agencyReports: activeRows_(SHEETS.agencyReports),
     btlBudgets: activeRows_(SHEETS.btlBudgets),
+    oohItems: activeRows_(SHEETS.oohItems),
     updated_at: new Date().toISOString(),
   };
 }
