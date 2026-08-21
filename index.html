@@ -406,6 +406,10 @@
     }
     .legend { display:flex; gap:14px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:12px; font-weight:800; }
     .ooh-photo-links { display:flex; gap:6px; flex-wrap:wrap; }
+    .location-search-row { display:grid; grid-template-columns:1fr auto auto; gap:10px; align-items:end; }
+    .geo-status { margin-top:7px; color:var(--muted); font-size:12px; font-weight:800; }
+    .geo-status.ok { color:var(--green); }
+    .geo-status.err { color:var(--red); }
 
     .modal { position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:center; justify-content:center; padding:20px; z-index:50; }
     .modal.open { display:flex; }
@@ -926,6 +930,75 @@ function oohPoint(item,index=0){
   const jitter=((index%9)-4)*0.0022;
   return { lat:base.lat+jitter, lng:base.lng+(((index*3)%9)-4)*0.0026 };
 }
+function knownCaracasPoint(query){
+  const clean=String(query||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const hit=Object.entries(CARACAS_POINTS).find(([name])=>clean.includes(name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')));
+  return hit ? hit[1] : null;
+}
+async function geocodeOOHFromForm(){
+  const form=document.getElementById('modalForm');
+  if(!form) return;
+  const status=form.querySelector('[data-geo-status]');
+  const latInput=form.querySelector('[name="lat"]');
+  const lngInput=form.querySelector('[name="lng"]');
+  const address=String(form.address?.value||'').trim();
+  const location=String(form.location?.value||'').trim();
+  const zone=String(form.zone?.value||'').trim();
+  const query=[address,location,zone,'Caracas Venezuela'].filter(Boolean).join(', ');
+  if(!address && !location){
+    if(status){ status.className='geo-status err'; status.textContent='Escribe una ubicación o referencia para ubicar el punto.'; }
+    return;
+  }
+  if(status){ status.className='geo-status'; status.textContent='Buscando ubicación...'; }
+  try{
+    const url='https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ve&q='+encodeURIComponent(query);
+    const res=await fetch(url);
+    if(!res.ok) throw new Error('No respondió el buscador');
+    const data=await res.json();
+    if(data && data[0]){
+      latInput.value=Number(data[0].lat).toFixed(6);
+      lngInput.value=Number(data[0].lon).toFixed(6);
+      if(status){ status.className='geo-status ok'; status.textContent='Ubicación encontrada y guardada para el mapa.'; }
+      return;
+    }
+    throw new Error('Sin resultado exacto');
+  }catch(e){
+    const fallback=knownCaracasPoint([address,location,zone].join(' '));
+    if(fallback){
+      latInput.value=fallback.lat;
+      lngInput.value=fallback.lng;
+      if(status){ status.className='geo-status ok'; status.textContent='No conseguí match exacto, usé la referencia/zona de Caracas para ubicarlo aproximado.'; }
+    }else if(status){
+      status.className='geo-status err';
+      status.textContent='No pude ubicarlo automático. Prueba con una referencia más específica: “Metro Chacaíto, Caracas”.';
+    }
+  }
+}
+function openOOHInGoogleMaps(){
+  const form=document.getElementById('modalForm');
+  if(!form) return;
+  const query=[form.address?.value,form.location?.value,form.zone?.value,'Caracas Venezuela'].map(v=>String(v||'').trim()).filter(Boolean).join(', ');
+  window.open('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(query||'Caracas Venezuela'),'_blank');
+}
+async function resolveOOHCoordinates(obj){
+  if(n(obj.lat) && n(obj.lng)) return obj;
+  const query=[obj.address,obj.location,obj.zone,'Caracas Venezuela'].map(v=>String(v||'').trim()).filter(Boolean).join(', ');
+  if(!query) return obj;
+  try{
+    const res=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ve&q='+encodeURIComponent(query));
+    if(res.ok){
+      const data=await res.json();
+      if(data && data[0]){
+        obj.lat=Number(data[0].lat).toFixed(6);
+        obj.lng=Number(data[0].lon).toFixed(6);
+        return obj;
+      }
+    }
+  }catch(e){}
+  const fallback=knownCaracasPoint(query);
+  if(fallback){ obj.lat=fallback.lat; obj.lng=fallback.lng; }
+  return obj;
+}
 function oohXY(point){
   const minLat=10.335, maxLat=10.535, minLng=-67.095, maxLng=-66.780;
   const x=Math.max(2,Math.min(98,(point.lng-minLng)/(maxLng-minLng)*100));
@@ -1117,9 +1190,17 @@ function openOOHItem(id){
     <div class="field"><label>Estatus</label><select name="status"><option value="active" ${oohStatus(x)==='active'?'selected':''}>Activa</option><option value="planned" ${oohStatus(x)==='planned'?'selected':''}>Planificada</option><option value="paused" ${oohStatus(x)==='paused'?'selected':''}>Pausada</option></select></div>
     <div class="field"><label>Zona</label><select name="zone">${Object.keys(BTL_BUCKETS).map(z=>`<option value="${esc(z)}" ${String(x.zone)===z?'selected':''}>${esc(z)}</option>`).join('')}</select></div>
     <div class="field"><label>Ubicación</label><input name="location" value="${esc(x.location)}" placeholder="Ej: Chacaíto, Altamira, Petare"></div>
-    <div class="field wide"><label>Dirección / referencia</label><input name="address" value="${esc(x.address)}" placeholder="Ej: Av. Francisco de Miranda, salida metro Chacaíto"></div>
-    <div class="field"><label>Latitud</label><input name="lat" value="${esc(x.lat)}" placeholder="Opcional, ej: 10.491"></div>
-    <div class="field"><label>Longitud</label><input name="lng" value="${esc(x.lng)}" placeholder="Opcional, ej: -66.865"></div>
+    <div class="field wide">
+      <label>Dirección / referencia</label>
+      <div class="location-search-row">
+        <input name="address" value="${esc(x.address)}" placeholder="Ej: Estación de Metro Chacaíto, Caracas">
+        <button type="button" class="btn light" onclick="geocodeOOHFromForm()">Ubicar</button>
+        <button type="button" class="btn light" onclick="openOOHInGoogleMaps()">Maps</button>
+      </div>
+      <div class="geo-status ${x.lat&&x.lng?'ok':''}" data-geo-status>${x.lat&&x.lng?'Ubicación lista para el mapa.':'Escribe una referencia y dale “Ubicar”. No tienes que poner latitud/longitud.'}</div>
+    </div>
+    <input type="hidden" name="lat" value="${esc(x.lat)}">
+    <input type="hidden" name="lng" value="${esc(x.lng)}">
     <div class="field"><label>Proveedor</label><input name="vendor" value="${esc(x.vendor)}"></div>
     <div class="field"><label>Formato / medida</label><input name="format" value="${esc(x.format)}" placeholder="Ej: 3x2, 10 caras, estación"></div>
     <div class="field"><label>Inicio</label><input type="date" name="start_date" value="${esc(normDate(x.start_date))}"></div>
@@ -1219,6 +1300,7 @@ async function saveOOHItem(obj){
   try{
     obj.photo_urls=String(obj.photo_urls||'').split(/\n|,/).map(x=>x.trim()).filter(Boolean);
     obj.updated_at=new Date().toISOString();
+    await resolveOOHCoordinates(obj);
     await api('upsertOOHItem',obj);
     const i=app.oohItems.findIndex(x=>x.id===obj.id);
     if(i>=0) app.oohItems[i]=obj; else app.oohItems.unshift(obj);
