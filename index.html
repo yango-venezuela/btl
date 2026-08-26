@@ -307,6 +307,165 @@
     .mini-row:last-child { border-bottom:0; }
     .bar { height:9px; border-radius:99px; background:#eef2f7; overflow:hidden; margin-top:8px; }
     .bar span { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,var(--red),#ff7a7a); }
+    .smm-shell { display:grid; gap:18px; }
+    .smm-toolbar {
+      display:flex;
+      justify-content:space-between;
+      align-items:end;
+      gap:14px;
+      flex-wrap:wrap;
+      margin-bottom:18px;
+    }
+    .smm-toolbar .field { min-width:220px; }
+    .smm-channel-grid {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:16px;
+    }
+    .smm-channel-card {
+      position:relative;
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:28px;
+      padding:18px;
+      overflow:hidden;
+      box-shadow:0 10px 34px rgba(16,24,40,.04);
+    }
+    .smm-channel-card:before {
+      content:"";
+      position:absolute;
+      inset:0 0 auto 0;
+      height:6px;
+      background:var(--channel,#ff1a1a);
+    }
+    .smm-channel-head {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin:5px 0 16px;
+    }
+    .smm-channel-title { display:flex; align-items:center; gap:10px; }
+    .smm-channel-icon {
+      width:42px;
+      height:42px;
+      border-radius:16px;
+      display:grid;
+      place-items:center;
+      background:var(--channel-soft,#ffe9e9);
+      color:var(--channel,#ff1a1a);
+      font-weight:950;
+      font-size:18px;
+    }
+    .smm-channel-title h3 {
+      margin:0;
+      font-size:19px;
+      line-height:1;
+    }
+    .smm-channel-title p { margin:4px 0 0; color:var(--muted); font-size:12px; font-weight:800; }
+    .smm-big-metric {
+      padding:15px;
+      border-radius:22px;
+      background:linear-gradient(180deg,#f8fafc,#fff);
+      border:1px solid #eef2f7;
+      margin-bottom:12px;
+    }
+    .smm-big-metric .value {
+      font-family:"YangoHeadline","YangoText",system-ui,sans-serif;
+      font-size:39px;
+      line-height:.9;
+      letter-spacing:-.07em;
+      font-weight:950;
+      color:var(--ink);
+    }
+    .smm-big-metric .label { margin-top:7px; color:var(--muted); font-weight:900; }
+    .smm-metric-grid {
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;
+    }
+    .smm-metric-box {
+      border:1px solid #eef2f7;
+      background:#fbfdff;
+      border-radius:18px;
+      padding:12px;
+      min-height:86px;
+    }
+    .smm-metric-box strong {
+      display:block;
+      font-family:"YangoHeadline","YangoText",system-ui,sans-serif;
+      font-size:25px;
+      line-height:.9;
+      letter-spacing:-.06em;
+      margin-bottom:7px;
+      color:var(--ink);
+    }
+    .smm-metric-box span { color:var(--muted); font-weight:850; font-size:12px; }
+    .smm-organic-strip {
+      margin-top:12px;
+      border-radius:20px;
+      background:#101828;
+      color:#fff;
+      padding:14px;
+    }
+    .smm-organic-strip .title {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+      color:rgba(255,255,255,.78);
+      font-weight:900;
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
+    .smm-organic-grid {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:8px;
+    }
+    .smm-organic-grid div {
+      background:rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:14px;
+      padding:9px;
+    }
+    .smm-organic-grid strong {
+      display:block;
+      font-size:15px;
+      margin-bottom:4px;
+    }
+    .smm-organic-grid span {
+      color:rgba(255,255,255,.62);
+      font-size:11px;
+      font-weight:800;
+    }
+    .smm-report-table table { min-width:1180px; }
+    .smm-month-cell strong { display:block; font-size:15px; margin-bottom:4px; }
+    .smm-channel-cell {
+      min-width:260px;
+      display:grid;
+      gap:8px;
+    }
+    .smm-cell-row {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+      padding:7px 9px;
+      border-radius:12px;
+      background:#f8fafc;
+      color:#526176;
+      font-weight:850;
+    }
+    .smm-cell-row b { color:var(--ink); }
+    .smm-note {
+      margin-top:10px;
+      color:#71809a;
+      font-size:12px;
+      font-weight:800;
+    }
     .budget-hero { background:linear-gradient(135deg,#0f172a 0%,#172554 48%,#ff1a1a 100%); }
     .budget-meta { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
     .budget-meta a,.budget-meta span { color:#fff; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.22); border-radius:999px; padding:8px 11px; text-decoration:none; font-weight:900; font-size:12px; }
@@ -426,6 +585,7 @@
       .actions { justify-content:flex-start; margin-top:16px; }
       .cards { grid-template-columns:repeat(2,1fr); }
       .cards.compact,.budget-kpis { grid-template-columns:repeat(2,1fr); }
+      .smm-channel-grid { grid-template-columns:1fr; }
       .budget-grid { grid-template-columns:1fr; }
       .split-2,.split-3,.funnel { grid-template-columns:1fr; }
       .calendar-grid { grid-template-columns:1fr; }
@@ -566,6 +726,13 @@ function normalizeOOHCoord(value,kind){
 function money(v){ return '$'+n(v).toLocaleString('es-VE'); }
 function num(v){ return n(v).toLocaleString('es-VE'); }
 function pct(v){ const x=n(v); return x.toLocaleString('es-VE',{maximumFractionDigits:1})+'%'; }
+function compactNum(v){
+  const x=n(v);
+  const abs=Math.abs(x);
+  if(abs>=1000000) return (x/1000000).toLocaleString('es-VE',{maximumFractionDigits:1})+'M';
+  if(abs>=1000) return (x/1000).toLocaleString('es-VE',{maximumFractionDigits:1})+'K';
+  return num(x);
+}
 function esc(v){ return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function sel(a,b){ return a===b?'value="'+b+'" selected':'value="'+b+'"'; }
 function boolish(v){ return v===true || String(v).toLowerCase()==='true' || String(v).toLowerCase()==='sí' || String(v).toLowerCase()==='si'; }
@@ -594,6 +761,60 @@ function splitExtraNotes(notes){
   const json=raw.slice(idx+EXTRA_MARKER.length).trim();
   try{ return { notes:plain, extra:JSON.parse(json)||{} }; }
   catch(e){ return { notes:raw, extra:{} }; }
+}
+function reportExtra(x){
+  const raw=String(x?.notes||'').trim();
+  if(!raw) return {};
+  const parsed=splitExtraNotes(raw);
+  const candidate=Object.keys(parsed.extra||{}).length ? parsed.extra : parsed.notes;
+  if(candidate && typeof candidate==='object') return candidate;
+  try{
+    const data=JSON.parse(String(candidate||'').trim());
+    return data && typeof data==='object' ? data : {};
+  }catch(e){
+    return {};
+  }
+}
+function reportNoteText(x){
+  const extra=reportExtra(x);
+  if(extra.note) return extra.note;
+  const raw=String(x?.notes||'').trim();
+  if(!raw || raw[0]==='{') return '';
+  return splitExtraNotes(raw).notes;
+}
+const SMM_CHANNELS = [
+  { id:'instagram', label:'Instagram', short:'IG', color:'#ff1a1a', soft:'#ffe9e9', icon:'◎', reachLabel:'Reach' },
+  { id:'tiktok', label:'TikTok', short:'TT', color:'#101828', soft:'#eef2f7', icon:'♪', reachLabel:'Views / reach' },
+  { id:'facebook', label:'Facebook', short:'FB', color:'#1877f2', soft:'#e8f2ff', icon:'f', reachLabel:'Reach' },
+];
+function smmMetric(x, channel, metric){
+  const extra=reportExtra(x);
+  const map={
+    instagram:{ followers:'ig_followers', reach:'ig_reach', clicks:'ig_clicks', installs:'ig_installs', orders:'ig_orders' },
+    tiktok:{ followers:'tiktok_followers', reach:'tiktok_reach', clicks:'tiktok_clicks', installs:'tiktok_installs', orders:'tiktok_orders' },
+    facebook:{ followers:'facebook_followers', reach:'facebook_reach', clicks:'facebook_clicks', installs:'facebook_installs', orders:'facebook_orders' },
+  };
+  const key=map[channel]?.[metric];
+  if(!key) return 0;
+  if(key in x) return n(x[key]);
+  return n(extra[key]);
+}
+function smmOrganic(x, channel, metric){
+  const extra=reportExtra(x);
+  return n(extra?.organic?.[channel]?.[metric]);
+}
+function smmTotals(list, channel){
+  const months=Math.max(1,list.length);
+  return {
+    followers:list.reduce((s,x)=>s+smmMetric(x,channel,'followers'),0),
+    reach:list.reduce((s,x)=>s+smmMetric(x,channel,'reach'),0),
+    clicks:list.reduce((s,x)=>s+smmMetric(x,channel,'clicks'),0),
+    installs:list.reduce((s,x)=>s+smmMetric(x,channel,'installs'),0),
+    orders:list.reduce((s,x)=>s+smmMetric(x,channel,'orders'),0),
+    aorp:list.reduce((s,x)=>s+smmOrganic(x,channel,'aorp'),0)/months,
+    arp_total:list.reduce((s,x)=>s+smmOrganic(x,channel,'arp_total'),0),
+    ors_pct:list.reduce((s,x)=>s+smmOrganic(x,channel,'ors_pct'),0)/months,
+  };
 }
 function hydrateInfluencer(x){
   const parsed=splitExtraNotes(x.notes);
@@ -1053,12 +1274,64 @@ function agencyPortal(){
 function reportView(){
   const months=[...new Set(app.socialReports.map(x=>x.month).filter(Boolean))].sort().reverse();
   const list=app.socialReports.filter(x=>app.reportMonth==='all'||x.month===app.reportMonth).sort((a,b)=>(b.month||'').localeCompare(a.month||''));
-  const totals=list.reduce((s,x)=>{['ig_followers','tiktok_followers','ig_reach','tiktok_reach','ig_clicks','tiktok_clicks','ig_installs','tiktok_installs','ig_orders','tiktok_orders'].forEach(k=>s[k]=(s[k]||0)+n(x[k]));return s},{});
-  return `<section class="hero"><div><h2>Reporte Social Media</h2><p>Resumen mensual de IG y TikTok.</p></div><div class="actions"><button class="btn light" onclick="openReport()">+ Agregar periodo</button><button class="btn light" onclick="load()">Actualizar</button></div></section><section class="cards"><div class="card"><div class="metric">${num(totals.ig_followers)}</div><span>Followers IG</span></div><div class="card"><div class="metric">${num(totals.tiktok_followers)}</div><span>Followers TikTok</span></div><div class="card"><div class="metric">${num(totals.ig_reach)}</div><span>Reach IG</span></div><div class="card"><div class="metric">${num(totals.tiktok_reach)}</div><span>Reach TikTok</span></div><div class="card"><div class="metric">${num(n(totals.ig_clicks)+n(totals.tiktok_clicks))}</div><span>Clicks</span></div><div class="card"><div class="metric">${num(n(totals.ig_installs)+n(totals.tiktok_installs))}</div><span>Installs</span></div><div class="card"><div class="metric">${num(n(totals.ig_orders)+n(totals.tiktok_orders))}</div><span>Orders</span></div><div class="card"><div class="metric">${list.length}</div><span>Periodos</span></div></section><section class="panel"><div class="panel-head"><div><h3>Periodos</h3><p>Selecciona mes o agrega uno nuevo.</p></div><select style="max-width:220px" onchange="app.reportMonth=this.value;render()"><option value="all">Todos los meses</option>${months.map(m=>`<option value="${esc(m)}" ${app.reportMonth===m?'selected':''}>${monthLabel(m)}</option>`).join('')}</select></div>${tableReports(list)}</section>`;
+  const periodLabel=app.reportMonth==='all'?'Todos los meses':monthLabel(app.reportMonth);
+  return `<section class="hero"><div><h2>Reporte Social Media</h2><p>Instagram, TikTok y Facebook separados para entender rápido qué está pasando.</p></div><div class="actions"><button class="btn light" onclick="openReport()">+ Agregar periodo</button><button class="btn light" onclick="load()">Actualizar</button></div></section>
+  <section class="panel smm-shell">
+    <div class="smm-toolbar">
+      <div><h3>${esc(periodLabel)}</h3><p>Followers = crecimiento mensual. Reach, clicks y eficiencia orgánica vienen del reporte fuente.</p></div>
+      <div class="field"><label>Mes</label><select onchange="app.reportMonth=this.value;render()"><option value="all">Todos los meses</option>${months.map(m=>`<option value="${esc(m)}" ${app.reportMonth===m?'selected':''}>${monthLabel(m)}</option>`).join('')}</select></div>
+    </div>
+    ${list.length?`<div class="smm-channel-grid">${SMM_CHANNELS.map(ch=>smmChannelCard(ch,list)).join('')}</div>`:`<div class="empty">No hay periodos cargados.</div>`}
+  </section>
+  <section class="panel">
+    <div class="panel-head"><div><h3>Detalle mensual</h3><p>Lectura completa del archivo: followers, reach/views, clicks y orgánico por canal.</p></div></div>
+    ${tableReports(list)}
+  </section>`;
+}
+function smmChannelCard(ch,list){
+  const t=smmTotals(list,ch.id);
+  const showConversion=t.installs||t.orders;
+  return `<article class="smm-channel-card" style="--channel:${ch.color};--channel-soft:${ch.soft}">
+    <div class="smm-channel-head">
+      <div class="smm-channel-title"><div class="smm-channel-icon">${ch.icon}</div><div><h3>${ch.label}</h3><p>${list.length} periodo${list.length===1?'':'s'} en vista</p></div></div>
+      <span class="badge" style="color:${ch.color};background:${ch.soft}">${ch.short}</span>
+    </div>
+    <div class="smm-big-metric"><div class="value">${compactNum(t.reach)}</div><div class="label">${ch.reachLabel} total</div></div>
+    <div class="smm-metric-grid">
+      <div class="smm-metric-box"><strong>${compactNum(t.followers)}</strong><span>Growth followers</span></div>
+      <div class="smm-metric-box"><strong>${compactNum(t.clicks)}</strong><span>Clicks</span></div>
+      <div class="smm-metric-box"><strong>${showConversion?compactNum(t.installs):'—'}</strong><span>Installs</span></div>
+      <div class="smm-metric-box"><strong>${showConversion?compactNum(t.orders):'—'}</strong><span>Orders</span></div>
+    </div>
+    <div class="smm-organic-strip">
+      <div class="title"><span>Organic reach efficiency</span><span>${ch.short}</span></div>
+      <div class="smm-organic-grid">
+        <div><strong>${compactNum(t.aorp)}</strong><span>AORP prom.</span></div>
+        <div><strong>${compactNum(t.arp_total)}</strong><span>ARP total</span></div>
+        <div><strong>${pct(t.ors_pct)}</strong><span>ORS prom.</span></div>
+      </div>
+    </div>
+  </article>`;
 }
 function tableReports(list){
   if(!list.length) return `<div class="empty">No hay periodos cargados.</div>`;
-  return `<div class="table-wrap"><table><thead><tr><th>Mes</th><th>Followers</th><th>Reach</th><th>Clicks</th><th>Installs</th><th>Orders</th><th></th></tr></thead><tbody>${list.map(x=>`<tr><td><strong>${monthLabel(x.month)}</strong></td><td>IG ${num(x.ig_followers)}<br>TikTok ${num(x.tiktok_followers)}</td><td>IG ${num(x.ig_reach)}<br>TikTok ${num(x.tiktok_reach)}</td><td>IG ${num(x.ig_clicks)}<br>TikTok ${num(x.tiktok_clicks)}</td><td>IG ${num(x.ig_installs)}<br>TikTok ${num(x.tiktok_installs)}</td><td>IG ${num(x.ig_orders)}<br>TikTok ${num(x.tiktok_orders)}</td><td><div class="row-actions"><button class="btn light small" onclick="openReport('${x.id}')">Editar</button><button class="btn light small danger" onclick="deleteReport('${x.id}')">Borrar</button></div></td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap smm-report-table"><table><thead><tr><th>Mes</th>${SMM_CHANNELS.map(ch=>`<th>${ch.label}</th>`).join('')}<th>Notas</th><th></th></tr></thead><tbody>${list.map(x=>`<tr>
+    <td class="smm-month-cell"><strong>${monthLabel(x.month)}</strong><span class="tiny muted">${esc(x.month)}</span></td>
+    ${SMM_CHANNELS.map(ch=>smmChannelCell(x,ch)).join('')}
+    <td>${reportNoteText(x)?`<div class="tiny muted">${esc(reportNoteText(x))}</div>`:'—'}</td>
+    <td><div class="row-actions"><button class="btn light small" onclick="openReport('${x.id}')">Editar</button><button class="btn light small danger" onclick="deleteReport('${x.id}')">Borrar</button></div></td>
+  </tr>`).join('')}</tbody></table></div>`;
+}
+function smmChannelCell(x,ch){
+  const hasConversions=smmMetric(x,ch.id,'installs')||smmMetric(x,ch.id,'orders');
+  return `<td><div class="smm-channel-cell">
+    <div class="smm-cell-row"><span>Followers growth</span><b>${num(smmMetric(x,ch.id,'followers'))}</b></div>
+    <div class="smm-cell-row"><span>${ch.reachLabel}</span><b>${compactNum(smmMetric(x,ch.id,'reach'))}</b></div>
+    <div class="smm-cell-row"><span>Clicks</span><b>${compactNum(smmMetric(x,ch.id,'clicks'))}</b></div>
+    <div class="smm-cell-row"><span>AORP / ARP</span><b>${compactNum(smmOrganic(x,ch.id,'aorp'))} / ${compactNum(smmOrganic(x,ch.id,'arp_total'))}</b></div>
+    <div class="smm-cell-row"><span>ORS</span><b>${pct(smmOrganic(x,ch.id,'ors_pct'))}</b></div>
+    ${hasConversions?`<div class="smm-cell-row"><span>Installs / orders</span><b>${num(smmMetric(x,ch.id,'installs'))} / ${num(smmMetric(x,ch.id,'orders'))}</b></div>`:''}
+  </div></td>`;
 }
 function oohColor(type){ return OOH_TYPE_COLORS[type] || OOH_TYPE_COLORS.Otro; }
 function oohStatus(x){ return x.status || 'planned'; }
@@ -1414,7 +1687,21 @@ function openInfluencer(id){
 function toggleTikTokUsername(cb){ const wrap=document.getElementById('tiktokUserWrap'); if(wrap) wrap.style.display=cb.checked?'none':'block'; }
 function openReport(id){
   const x=app.socialReports.find(r=>r.id===id)||{id:uid('rep'),month:new Date().toISOString().slice(0,7)};
-  openForm('Periodo Social Media',`<input type="hidden" name="id" value="${esc(x.id)}"><div class="form-grid"><div class="field"><label>Mes</label><input type="month" name="month" value="${esc(x.month)}" required></div>${['ig_followers','tiktok_followers','ig_reach','tiktok_reach','ig_clicks','tiktok_clicks','ig_installs','tiktok_installs','ig_orders','tiktok_orders'].map(k=>`<div class="field"><label>${k.replaceAll('_',' ')}</label><input name="${k}" value="${esc(x[k])}"></div>`).join('')}<div class="field wide"><label>Notas</label><textarea name="notes">${esc(x.notes)}</textarea></div></div>`,saveReport);
+  const extra=reportExtra(x);
+  const org=extra.organic||{};
+  openForm('Periodo Social Media',`<input type="hidden" name="id" value="${esc(x.id)}"><div class="form-grid">
+    <div class="field"><label>Mes</label><input type="month" name="month" value="${esc(x.month)}" required></div>
+    <div class="field wide"><label>Instagram</label><input disabled value="Followers, reach, clicks y orgánico"></div>
+    ${['ig_followers','ig_reach','ig_clicks','ig_installs','ig_orders'].map(k=>`<div class="field"><label>${k.replaceAll('_',' ')}</label><input name="${k}" value="${esc(x[k])}"></div>`).join('')}
+    ${['aorp','arp_total','ors_pct'].map(k=>`<div class="field"><label>IG ${k.replaceAll('_',' ')}</label><input name="organic_instagram_${k}" value="${esc(org.instagram?.[k])}"></div>`).join('')}
+    <div class="field wide"><label>TikTok</label><input disabled value="Followers, views/reach, clicks y orgánico"></div>
+    ${['tiktok_followers','tiktok_reach','tiktok_clicks','tiktok_installs','tiktok_orders'].map(k=>`<div class="field"><label>${k.replaceAll('_',' ')}</label><input name="${k}" value="${esc(x[k])}"></div>`).join('')}
+    ${['aorp','arp_total','ors_pct'].map(k=>`<div class="field"><label>TikTok ${k.replaceAll('_',' ')}</label><input name="organic_tiktok_${k}" value="${esc(org.tiktok?.[k])}"></div>`).join('')}
+    <div class="field wide"><label>Facebook</label><input disabled value="Datos del archivo fuente"></div>
+    ${['facebook_followers','facebook_reach','facebook_clicks','facebook_installs','facebook_orders'].map(k=>`<div class="field"><label>${k.replaceAll('_',' ')}</label><input name="${k}" value="${esc(extra[k])}"></div>`).join('')}
+    ${['aorp','arp_total','ors_pct'].map(k=>`<div class="field"><label>Facebook ${k.replaceAll('_',' ')}</label><input name="organic_facebook_${k}" value="${esc(org.facebook?.[k])}"></div>`).join('')}
+    <div class="field wide"><label>Notas visibles</label><textarea name="plain_note">${esc(reportNoteText(x))}</textarea></div>
+  </div>`,saveReport);
 }
 function openUser(id){
   const u=app.users.find(x=>x.id===id)||{id:uid('user'),role:'editor',active:true};
@@ -1542,7 +1829,29 @@ async function deleteInfluencer(id){
   catch(e){ toast(e.message,'err'); }
 }
 async function saveReport(obj){
-  try{ obj.updated_at=new Date().toISOString(); await api('upsertSocialReport',obj); const i=app.socialReports.findIndex(x=>x.id===obj.id); if(i>=0) app.socialReports[i]=obj; else app.socialReports.unshift(obj); closeModal(); toast('Periodo guardado'); render(); load(true); }
+  try{
+    const extra={
+      source:'Panel Yango MKT',
+      facebook_followers:obj.facebook_followers||0,
+      facebook_reach:obj.facebook_reach||0,
+      facebook_clicks:obj.facebook_clicks||0,
+      facebook_installs:obj.facebook_installs||0,
+      facebook_orders:obj.facebook_orders||0,
+      organic:{
+        instagram:{ aorp:obj.organic_instagram_aorp||0, arp_total:obj.organic_instagram_arp_total||0, ors_pct:obj.organic_instagram_ors_pct||0 },
+        tiktok:{ aorp:obj.organic_tiktok_aorp||0, arp_total:obj.organic_tiktok_arp_total||0, ors_pct:obj.organic_tiktok_ors_pct||0 },
+        facebook:{ aorp:obj.organic_facebook_aorp||0, arp_total:obj.organic_facebook_arp_total||0, ors_pct:obj.organic_facebook_ors_pct||0 },
+      }
+    };
+    if(obj.plain_note) extra.note=obj.plain_note;
+    ['facebook_followers','facebook_reach','facebook_clicks','facebook_installs','facebook_orders','organic_instagram_aorp','organic_instagram_arp_total','organic_instagram_ors_pct','organic_tiktok_aorp','organic_tiktok_arp_total','organic_tiktok_ors_pct','organic_facebook_aorp','organic_facebook_arp_total','organic_facebook_ors_pct','plain_note'].forEach(k=>delete obj[k]);
+    obj.notes=JSON.stringify(extra);
+    obj.updated_at=new Date().toISOString();
+    await api('upsertSocialReport',obj);
+    const i=app.socialReports.findIndex(x=>x.id===obj.id);
+    if(i>=0) app.socialReports[i]=obj; else app.socialReports.unshift(obj);
+    closeModal(); toast('Periodo guardado'); render(); load(true);
+  }
   catch(e){ toast(e.message,'err'); }
 }
 async function deleteReport(id){
