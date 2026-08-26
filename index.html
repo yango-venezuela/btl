@@ -472,6 +472,7 @@ let app = {
   loading:true,
   sync:'warn',
   lastSync:null,
+  dataSignature:'',
   filters:{...EMPTY_FILTERS},
   reportMonth:'all',
   btlFilters:{...BTL_EMPTY_FILTERS},
@@ -570,12 +571,25 @@ async function api(action,payload={}){
   return data;
 }
 async function load(silent=false){
+  let shouldRender=!silent;
   try{
     if(!silent) app.loading=true;
-    render();
+    if(!silent) render();
     const r=await fetch('/api/sync?action=bootstrap',{cache:'no-store'});
     const data=await r.json();
     if(data.ok===false) throw new Error(data.error||'Sync error');
+    const nextSignature=JSON.stringify({
+      users:data.users||[],
+      influencers:data.influencers||[],
+      socialReports:data.socialReports||[],
+      btlActivations:data.btlActivations||[],
+      btlResults:data.btlResults||[],
+      agencyReports:data.agencyReports||[],
+      btlBudgets:data.btlBudgets||[],
+      oohItems:data.oohItems||[]
+    });
+    if(silent && nextSignature!==app.dataSignature) shouldRender=true;
+    app.dataSignature=nextSignature;
     app.users=(data.users&&data.users.length?data.users:DEFAULT_USERS).filter(u=>u.active!==false);
     app.influencers=(data.influencers||[]).map(hydrateInfluencer).filter(x=>!x.deleted_at);
     app.socialReports=(data.socialReports||[]).filter(x=>!x.deleted_at);
@@ -589,10 +603,11 @@ async function load(silent=false){
   }catch(e){
     app.users=app.users.length?app.users:DEFAULT_USERS;
     app.sync='err';
+    shouldRender=!silent;
     if(!silent) toast('No pude leer Google Sheets: '+e.message,'err');
   }finally{
     app.loading=false;
-    render();
+    if(shouldRender) render();
   }
 }
 
