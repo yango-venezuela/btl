@@ -220,6 +220,25 @@
       margin-bottom:8px;
     }
     .card span { color:var(--muted); font-size:14px; font-weight:800; }
+    .cards.compact {
+      grid-template-columns:repeat(5,minmax(0,1fr));
+      gap:10px;
+      margin-bottom:18px;
+    }
+    .cards.compact .card {
+      min-height:96px;
+      padding:14px 12px;
+      border-radius:18px;
+    }
+    .cards.compact .icon {
+      width:30px;
+      height:30px;
+      border-radius:10px;
+      margin-bottom:8px;
+      font-size:12px;
+    }
+    .cards.compact .metric { font-size:24px; margin-bottom:5px; }
+    .cards.compact .card span { font-size:12px; }
 
     .filters {
       display:grid;
@@ -288,6 +307,19 @@
     .mini-row:last-child { border-bottom:0; }
     .bar { height:9px; border-radius:99px; background:#eef2f7; overflow:hidden; margin-top:8px; }
     .bar span { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,var(--red),#ff7a7a); }
+    .budget-hero { background:linear-gradient(135deg,#0f172a 0%,#172554 48%,#ff1a1a 100%); }
+    .budget-meta { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    .budget-meta a,.budget-meta span { color:#fff; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.22); border-radius:999px; padding:8px 11px; text-decoration:none; font-weight:900; font-size:12px; }
+    .budget-grid { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr); gap:18px; align-items:start; }
+    .budget-row-title { display:flex; align-items:center; gap:9px; font-weight:950; }
+    .budget-color { width:10px; height:10px; border-radius:50%; display:inline-block; }
+    .budget-money { font-weight:950; white-space:nowrap; }
+    .budget-progress { min-width:150px; }
+    .budget-progress .bar { margin-top:0; height:10px; }
+    .budget-progress small { display:block; margin-top:5px; color:var(--muted); font-weight:800; }
+    .budget-kpis { grid-template-columns:repeat(6,minmax(0,1fr)); }
+    .budget-kpis .card { min-height:118px; }
+    .expense-desc { max-width:380px; line-height:1.35; color:#526176; }
     .location-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
     .location-card { background:#f8fafc; border:1px solid #e7eef7; border-radius:18px; padding:14px; min-height:92px; }
     .location-card strong { display:block; margin-bottom:7px; }
@@ -393,6 +425,8 @@
       .hero { display:block; }
       .actions { justify-content:flex-start; margin-top:16px; }
       .cards { grid-template-columns:repeat(2,1fr); }
+      .cards.compact,.budget-kpis { grid-template-columns:repeat(2,1fr); }
+      .budget-grid { grid-template-columns:1fr; }
       .split-2,.split-3,.funnel { grid-template-columns:1fr; }
       .calendar-grid { grid-template-columns:1fr; }
       .activity-row { grid-template-columns:1fr; }
@@ -400,7 +434,7 @@
       .top { display:block; }
       .userbar { margin-top:12px; }
     }
-    @media(max-width:620px) { .cards { grid-template-columns:1fr; } }
+    @media(max-width:620px) { .cards,.cards.compact,.budget-kpis { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
@@ -480,6 +514,7 @@ let app = {
   btlBudgets:[],
   oohItems:[],
   driverComms:[],
+  budgetSource:null,
   loading:true,
   sync:'warn',
   lastSync:null,
@@ -489,6 +524,7 @@ let app = {
   btlFilters:{...BTL_EMPTY_FILTERS},
   oohFilters:{...OOH_EMPTY_FILTERS},
   driverCommFilters:{...DRIVER_COMM_EMPTY_FILTERS},
+  budgetFilters:{ period:'', area:'all', status:'all' },
   calendarMonth:new Date().toISOString().slice(0,7)
 };
 
@@ -599,7 +635,8 @@ async function load(silent=false){
       agencyReports:data.agencyReports||[],
       btlBudgets:data.btlBudgets||[],
       oohItems:data.oohItems||[],
-      driverComms:data.driverComms||[]
+      driverComms:data.driverComms||[],
+      budgetSource:data.budgetSource||null
     });
     if(silent && nextSignature!==app.dataSignature) shouldRender=true;
     app.dataSignature=nextSignature;
@@ -612,6 +649,11 @@ async function load(silent=false){
     app.btlBudgets=(data.btlBudgets||[]).filter(x=>!x.deleted_at);
     app.oohItems=(data.oohItems||[]).filter(x=>!x.deleted_at);
     app.driverComms=(data.driverComms||[]).filter(x=>!x.deleted_at);
+    app.budgetSource=data.budgetSource||null;
+    if(!app.budgetFilters.period){
+      const periods=(app.budgetSource?.periods||[]).map(x=>x.period).filter(Boolean);
+      app.budgetFilters.period=periods[0]||new Date().toISOString().slice(0,7);
+    }
     app.sync='ok';
     app.lastSync=new Date();
   }catch(e){
@@ -630,17 +672,147 @@ function boot(){ try{app.session=JSON.parse(localStorage.getItem('yango_mkt_sess
 function loginHTML(){ return `<div class="login"><div class="login-card"><div class="mark">Y</div><h1>Yango MKT</h1><p>BTL + Social Media · panel compartido</p><form id="loginForm"><div class="field"><label>Usuario</label><select name="user"><option value="admin">Isabella / Admin</option><option value="giselle">Giselle</option></select></div><div class="field"><label>Clave</label><input name="password" type="password" placeholder="Clave" required></div><button class="btn red" style="width:100%">Entrar</button></form><p style="font-size:12px;margin-top:16px">La data se lee y se guarda en Google Sheets vía Apps Script.</p></div></div>`; }
 function layout(content){
   const syncClass=app.sync==='ok'?'':app.sync==='err'?'err':'warn';
-  return `<div class="app"><aside class="side"><div class="brand"><div class="mark">Y</div><div><strong>Yango MKT</strong><span>Venezuela</span></div></div><div class="nav"><div class="nav-title">BTL</div>${navBtn('btl-global','Vista global')}${navBtn('btl-results','Resultados')}${navBtn('btl-calendar','Calendario')}${navBtn('btl-activations','Activaciones')}${navBtn('agency-admin','Admin agencia')}<div class="nav-title">Social Media</div>${navBtn('influencers','Influencers')}${navBtn('social-report','Reporte Social Media')}<div class="nav-title">Drivers</div>${navBtn('driver-comms','Comunicaciones Drivers')}<div class="nav-title">Media</div>${navBtn('ooh','OOH')}<div class="nav-title">Admin</div>${navBtn('users','Usuarios')}</div><div class="side-foot"><div class="sync-dot ${syncClass}">${app.sync==='ok'?'Sincronizado':'Revisar sync'}</div>${app.lastSync?`<br><br>Última lectura: ${app.lastSync.toLocaleTimeString('es-VE')}`:''}<br><br><a class="linkish" href="?agency=1" target="_blank">Link agencia</a></div></aside><main class="main"><div class="top"><div><h1>${title()}</h1><p>${subtitle()}</p></div><div class="userbar"><span class="badge red">${esc(app.session?.name||'')}</span><button class="btn light small" onclick="logout()">Salir</button></div></div>${content}</main></div>`;
+  return `<div class="app"><aside class="side"><div class="brand"><div class="mark">Y</div><div><strong>Yango MKT</strong><span>Venezuela</span></div></div><div class="nav"><div class="nav-title">General</div>${navBtn('budget','Presupuesto')}<div class="nav-title">BTL</div>${navBtn('btl-global','Vista global')}${navBtn('btl-results','Resultados')}${navBtn('btl-calendar','Calendario')}${navBtn('btl-activations','Activaciones')}${navBtn('agency-admin','Admin agencia')}<div class="nav-title">Social Media</div>${navBtn('influencers','Influencers')}${navBtn('social-report','Reporte Social Media')}<div class="nav-title">Drivers</div>${navBtn('driver-comms','Comunicaciones Drivers')}<div class="nav-title">Media</div>${navBtn('ooh','OOH')}<div class="nav-title">Admin</div>${navBtn('users','Usuarios')}</div><div class="side-foot"><div class="sync-dot ${syncClass}">${app.sync==='ok'?'Sincronizado':'Revisar sync'}</div>${app.lastSync?`<br><br>Última lectura: ${app.lastSync.toLocaleTimeString('es-VE')}`:''}<br><br><a class="linkish" href="?agency=1" target="_blank">Link agencia</a></div></aside><main class="main"><div class="top"><div><h1>${title()}</h1><p>${subtitle()}</p></div><div class="userbar"><span class="badge red">${esc(app.session?.name||'')}</span><button class="btn light small" onclick="logout()">Salir</button></div></div>${content}</main></div>`;
 }
 function navBtn(id,label){ return `<button class="${app.view===id?'active':''}" onclick="go('${id}')">${label}</button>`; }
 function title(){
-  return ({'btl-global':'Vista global BTL','btl-results':'Activaciones — Resultados','btl-calendar':'Calendario BTL','btl-activations':'Activaciones y validación','agency-admin':'Admin agencia','influencers':'IG, TikTok e Influencers','social-report':'Reporte Social Media','driver-comms':'Comunicaciones Drivers','ooh':'OOH Caracas','users':'Usuarios'})[app.view]||'Yango MKT';
+  return ({'budget':'Presupuesto','btl-global':'Vista global BTL','btl-results':'Activaciones — Resultados','btl-calendar':'Calendario BTL','btl-activations':'Activaciones y validación','agency-admin':'Admin agencia','influencers':'IG, TikTok e Influencers','social-report':'Reporte Social Media','driver-comms':'Comunicaciones Drivers','ooh':'OOH Caracas','users':'Usuarios'})[app.view]||'Yango MKT';
 }
 function subtitle(){
-  return ({'btl-global':'Resumen de activaciones, inversión y performance por fecha.','btl-results':'Cruce de QR/Adjust, Promo Code y ubicación.','btl-calendar':'Planificación mensual y budget del mes/Q.','btl-activations':'Crear, editar y confirmar si una activación se dio.','agency-admin':'Lo que carga la agencia: flyers, promotoras y evidencia.','influencers':'Tracking de creadores, entregables, pagos y resultados.','social-report':'Followers, reach, clicks, installs y orders por mes.','driver-comms':'Calendario y grilla de WhatsApp Chat para conductores.','ooh':'Mapa y control de vallas, banderolas, muppies, metro y pantallas.','users':'Administrar accesos al panel compartido.'})[app.view]||'';
+  return ({'budget':'Budget, actuals, forecast y expenses desde tu Google Sheet.','btl-global':'Resumen de activaciones, inversión y performance por fecha.','btl-results':'Cruce de QR/Adjust, Promo Code y ubicación.','btl-calendar':'Planificación mensual y budget del mes/Q.','btl-activations':'Crear, editar y confirmar si una activación se dio.','agency-admin':'Lo que carga la agencia: flyers, promotoras y evidencia.','influencers':'Tracking de creadores, entregables, pagos y resultados.','social-report':'Followers, reach, clicks, installs y orders por mes.','driver-comms':'Calendario y grilla de WhatsApp Chat para conductores.','ooh':'Mapa y control de vallas, banderolas, muppies, metro y pantallas.','users':'Administrar accesos al panel compartido.'})[app.view]||'';
 }
 function go(view){ app.view=view; render(); }
 function logout(){ localStorage.removeItem('yango_mkt_session'); app.session=null; render(); }
+
+function budgetSource(){ return app.budgetSource || { ok:false, model:[], expenses:[], expense_months:[], summary:[], periods:[] }; }
+function budgetPeriods(){
+  const b=budgetSource();
+  const seen={};
+  (b.periods||[]).forEach(x=>{ if(x.period) seen[x.period]=x.label||monthLabel(x.period); });
+  (b.model||[]).forEach(x=>{ if(x.period) seen[x.period]=x.label||monthLabel(x.period); });
+  (b.expenses||[]).forEach(x=>{ if(x.period) seen[x.period]=monthLabel(x.period); });
+  return Object.keys(seen).sort().reverse().map(period=>({period,label:seen[period]}));
+}
+function budgetPeriod(){
+  const periods=budgetPeriods();
+  return app.budgetFilters.period || periods[0]?.period || new Date().toISOString().slice(0,7);
+}
+function budgetAreaOptions(){
+  const b=budgetSource();
+  return [...new Set((b.expenses||[]).map(x=>String(x.area||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+}
+function budgetStatusOptions(){
+  const b=budgetSource();
+  return [...new Set((b.expenses||[]).map(x=>String(x.status||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+}
+function budgetModelRows(period){
+  const rows=(budgetSource().model||[]).filter(x=>x.period===period);
+  const map={};
+  rows.forEach(x=>{
+    const category=String(x.category||'Sin categoría').trim();
+    if(!map[category]) map[category]={category,budget:0,actual:0,estimation:0};
+    map[category].budget+=n(x.budget);
+    map[category].actual+=n(x.actual);
+    map[category].estimation+=n(x.estimation);
+  });
+  return Object.values(map)
+    .filter(x=>n(x.budget)||n(x.actual)||n(x.estimation))
+    .sort((a,b)=>(n(b.budget)+n(b.actual)+n(b.estimation))-(n(a.budget)+n(a.actual)+n(a.estimation)))
+    .slice(0,24);
+}
+function budgetExpenseRows(period){
+  return (budgetSource().expenses||[]).filter(x=>{
+    return (!period||x.period===period)
+      && (app.budgetFilters.area==='all'||String(x.area||'')===app.budgetFilters.area)
+      && (app.budgetFilters.status==='all'||String(x.status||'')===app.budgetFilters.status);
+  });
+}
+function budgetSummaryRow(period){ return (budgetSource().summary||[]).find(x=>x.period===period) || null; }
+function budgetMetrics(period){
+  const model=budgetModelRows(period);
+  const expenses=budgetExpenseRows(period);
+  const summary=budgetSummaryRow(period);
+  const modelBudget=model.reduce((s,x)=>s+n(x.budget),0);
+  const modelActual=model.reduce((s,x)=>s+n(x.actual),0);
+  const modelForecast=model.reduce((s,x)=>s+n(x.estimation),0);
+  const expenseActual=expenses.reduce((s,x)=>s+n(x.amount),0);
+  const budget=n(summary?.budget)||modelBudget;
+  const actual=n(summary?.actual)||modelActual||expenseActual;
+  const forecast=modelForecast||actual;
+  const diff=n(summary?.diff)||(budget-actual);
+  return { budget, actual, forecast, diff, expenseActual, expenses:expenses.length, used:budget?actual/budget*100:0 };
+}
+function budgetColor(name){
+  const colors=['#ff1a1a','#0ea5e9','#16a34a','#8b5cf6','#f97316','#ec4899','#64748b','#b45309'];
+  let sum=0; String(name||'').split('').forEach(ch=>sum+=ch.charCodeAt(0));
+  return colors[sum%colors.length];
+}
+function budgetStatusBadge(status){
+  const s=String(status||'').trim();
+  const low=s.toLowerCase();
+  const cls=low.includes('paid')||low.includes('pag')||low.includes('approved')||low.includes('aprob')?'green':low.includes('pending')||low.includes('pend')?'orange':'gray';
+  return `<span class="badge ${cls}">${esc(s||'Sin status')}</span>`;
+}
+function budgetFiltersHTML(){
+  const periods=budgetPeriods();
+  const areas=budgetAreaOptions();
+  const statuses=budgetStatusOptions();
+  return `<section class="filters">
+    <div class="filter-field"><label>Mes</label><select onchange="app.budgetFilters.period=this.value;render()">${periods.map(p=>`<option value="${esc(p.period)}" ${budgetPeriod()===p.period?'selected':''}>${esc(p.label)}</option>`).join('')}</select></div>
+    <div class="filter-field"><label>Área</label><select onchange="app.budgetFilters.area=this.value;render()"><option value="all">Todas</option>${areas.map(x=>`<option value="${esc(x)}" ${app.budgetFilters.area===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+    <div class="filter-field"><label>Status expense</label><select onchange="app.budgetFilters.status=this.value;render()"><option value="all">Todos</option>${statuses.map(x=>`<option value="${esc(x)}" ${app.budgetFilters.status===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+    <div class="filter-field"><label>&nbsp;</label><button class="btn light" onclick="app.budgetFilters={period:budgetPeriod(),area:'all',status:'all'};render()">Limpiar</button></div>
+  </section>`;
+}
+function budgetCategoryTable(period){
+  const rows=budgetModelRows(period);
+  if(!rows.length) return `<div class="empty">No encontré partidas del modelo para este mes.</div>`;
+  return `<div class="table-wrap"><table class="budget-table"><thead><tr><th>Partida</th><th>Budget</th><th>Actual</th><th>Forecast</th><th>Disponible</th><th>Uso</th></tr></thead><tbody>${rows.map(row=>{
+    const budget=n(row.budget), actual=n(row.actual), forecast=n(row.estimation), used=budget?(actual/budget*100):0, available=budget-actual;
+    const color=budgetColor(row.category);
+    return `<tr>
+      <td><div class="budget-row-title"><span class="budget-color" style="background:${color}"></span>${esc(row.category)}</div></td>
+      <td class="budget-money">${money(budget)}</td>
+      <td class="budget-money">${money(actual)}</td>
+      <td class="budget-money">${forecast?money(forecast):'—'}</td>
+      <td class="budget-money" style="color:${available>=0?'var(--green)':'var(--red)'}">${money(available)}</td>
+      <td><div class="budget-progress"><div class="bar"><span style="width:${Math.min(100,Math.max(0,used))}%;background:${color}"></span></div><small>${pct(used)} usado</small></div></td>
+    </tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+function budgetExpensesTable(period){
+  const rows=budgetExpenseRows(period).slice(0,60);
+  if(!rows.length) return `<div class="empty">No hay expenses con estos filtros.</div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Área / proyecto</th><th>Proveedor</th><th>Descripción</th><th>Status</th><th>Monto</th><th>Links</th></tr></thead><tbody>${rows.map(x=>`<tr>
+    <td><strong>${fmtDate(x.date||x.initiative_date||x.approved_date||x.ticket_date)}</strong></td>
+    <td><strong>${esc(x.area||'—')}</strong><div class="tiny muted">${esc(x.project||'')}</div></td>
+    <td>${esc(x.provider||'—')}</td>
+    <td><div class="expense-desc">${esc(x.description||'—')}</div></td>
+    <td>${budgetStatusBadge(x.status)}</td>
+    <td class="budget-money">${money(x.amount)}</td>
+    <td>${x.proof?`<a class="linkish" href="${esc(x.proof)}" target="_blank">Proof</a>`:''}${x.ticket?`${x.proof?' · ':''}<a class="linkish" href="${esc(x.ticket)}" target="_blank">Ticket</a>`:''}${!x.proof&&!x.ticket?'<span class="muted">—</span>':''}</td>
+  </tr>`).join('')}</tbody></table></div>`;
+}
+function budgetView(){
+  const b=budgetSource();
+  if(!b || b.ok===false) return `<section class="hero budget-hero"><div><h2>Budget Control</h2><p>No pude leer el Google Sheet de presupuesto todavía.</p><div class="budget-meta"><span>${esc(b?.error||'Revisa permisos/redeploy de Apps Script')}</span></div></div><button class="btn light" onclick="load(true)">Reintentar</button></section>`;
+  const period=budgetPeriod();
+  const m=budgetMetrics(period);
+  return `<section class="hero budget-hero"><div><h2>Budget Control</h2><p>Lectura automática desde tu Google Sheet de presupuesto. Tú editas Drive; el panel lo resume.</p><div class="budget-meta"><span>${monthLabel(period)}</span><span>Actualizado ${fmtDate((b.updated_at||'').slice(0,10))}</span><a href="${esc(b.source_url||'#')}" target="_blank">Abrir Google Sheet</a></div></div><div class="actions"><button class="btn light" onclick="load(true)">Actualizar</button></div></section>
+  ${budgetFiltersHTML()}
+  <section class="cards compact budget-kpis">
+    <div class="card"><div class="icon i-red">$</div><div class="metric">${money(m.budget)}</div><span>Budget mes</span></div>
+    <div class="card"><div class="icon i-green">✓</div><div class="metric">${money(m.actual)}</div><span>Actual</span></div>
+    <div class="card"><div class="icon i-purple">↗</div><div class="metric">${money(m.forecast)}</div><span>Forecast</span></div>
+    <div class="card"><div class="icon ${m.diff>=0?'i-blue':'i-red'}">⇄</div><div class="metric">${money(m.diff)}</div><span>Diff vs budget</span></div>
+    <div class="card"><div class="icon i-orange">%</div><div class="metric">${pct(m.used)}</div><span>Usado</span></div>
+    <div class="card"><div class="icon i-gray">▤</div><div class="metric">${num(m.expenses)}</div><span>Expenses</span></div>
+  </section>
+  <section class="budget-grid">
+    <section class="panel"><div class="panel-head"><div><h3>Budget vs actual por partida</h3><p>Resumen visual del modelo Caracas para ${monthLabel(period)}.</p></div></div>${budgetCategoryTable(period)}</section>
+    <section class="panel"><div class="panel-head"><div><h3>Últimos expenses</h3><p>Filtrados por mes, área y status.</p></div></div>${budgetExpensesTable(period)}</section>
+  </section>`;
+}
 
 function metricsInfluencers(list){
   const budget=list.reduce((s,x)=>s+n(x.budget),0);
@@ -1085,8 +1257,15 @@ function oohView(){
   <section class="panel"><div class="panel-head"><div><h3>Mapa de Caracas</h3><p>Color por tipo. Click en un pin para editar. Si no hay lat/lng, uso la ubicación o zona para ubicarlo aproximado.</p></div></div>${oohMap(list)}<div class="legend" style="margin-top:14px">${OOH_TYPES.map(t=>`<span><span class="dot" style="background:${oohColor(t)}"></span>${esc(t)}</span>`).join('')}</div></section>
   <section class="panel" style="margin-top:22px"><div class="panel-head"><div><h3>Inventario OOH</h3><p>Control editable de cada elemento en calle.</p></div><button class="btn red" onclick="openOOHItem()">Agregar</button></div>${oohTable(list)}</section>`;
 }
-function driverCommColor(category){ return DRIVER_COMM_COLORS[category] || DRIVER_COMM_COLORS.Otro; }
-function driverCommStatus(x){ return x.status || 'scheduled'; }
+function driverCommCategory(x){
+  const raw=typeof x==='string'?x:String(x?.category||'').trim();
+  return DRIVER_COMM_CATEGORIES.includes(raw) ? raw : 'Otro';
+}
+function driverCommColor(category){ return DRIVER_COMM_COLORS[driverCommCategory(category)] || DRIVER_COMM_COLORS.Otro; }
+function driverCommStatus(x){
+  const raw=typeof x==='string'?x:String(x?.status||'').trim();
+  return DRIVER_COMM_STATUS_LABELS[raw] ? raw : 'scheduled';
+}
 function driverCommStatusBadge(status){
   return `<span class="badge ${DRIVER_COMM_STATUS_CLASS[status]||'gray'}">${DRIVER_COMM_STATUS_LABELS[status]||status||'Programada'}</span>`;
 }
@@ -1094,7 +1273,7 @@ function driverCommsFiltered(){
   return app.driverComms.filter(x=>{
     const month=normDate(x.date).slice(0,7);
     return (!app.driverCommFilters.month || month===app.driverCommFilters.month)
-      && (app.driverCommFilters.category==='all' || x.category===app.driverCommFilters.category)
+      && (app.driverCommFilters.category==='all' || driverCommCategory(x)===app.driverCommFilters.category)
       && (app.driverCommFilters.status==='all' || driverCommStatus(x)===app.driverCommFilters.status);
   }).sort((a,b)=>(normDate(a.date)||'').localeCompare(normDate(b.date)||'') || String(a.title||'').localeCompare(String(b.title||'')));
 }
@@ -1129,7 +1308,7 @@ function driverCommCalendar(list){
   return `<div class="calendar-grid comm-calendar"><div class="cal-head">L</div><div class="cal-head">M</div><div class="cal-head">M</div><div class="cal-head">J</div><div class="cal-head">V</div><div class="cal-head">S</div><div class="cal-head">D</div>${cells.map(cell=>{
     if(cell.out) return `<div class="cal-day out"></div>`;
     const dayItems=list.filter(x=>normDate(x.date)===cell.iso);
-    return `<div class="cal-day ${cell.iso===today?'today':''}"><div class="cal-num">${cell.day}</div>${dayItems.slice(0,4).map(x=>`<button class="cal-item comm-chip" style="border-left-color:${driverCommColor(x.category)}" onclick="openDriverComm('${x.id}')">${esc(x.title||'Sin título')}</button>`).join('')}${dayItems.length>4?`<div class="tiny muted">+${dayItems.length-4} más</div>`:''}</div>`;
+    return `<div class="cal-day ${cell.iso===today?'today':''}"><div class="cal-num">${cell.day}</div>${dayItems.slice(0,4).map(x=>`<button class="cal-item comm-chip" style="border-left-color:${driverCommColor(x)}" onclick="openDriverComm('${x.id}')">${esc(x.title||'Sin título')}</button>`).join('')}${dayItems.length>4?`<div class="tiny muted">+${dayItems.length-4} más</div>`:''}</div>`;
   }).join('')}</div>`;
 }
 function driverCommTable(list){
@@ -1137,7 +1316,7 @@ function driverCommTable(list){
   return `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Comunicación</th><th>Categoría</th><th>Canal / audiencia</th><th>Estatus</th><th>Copy WhatsApp</th><th>Imagen</th><th></th></tr></thead><tbody>${list.map(x=>`<tr>
     <td><strong>${fmtDate(x.date)}</strong></td>
     <td><div class="name">${esc(x.title||'Sin título')}</div><div class="tiny muted">${esc(x.notes||'')}</div></td>
-    <td><span class="badge" style="background:${driverCommColor(x.category)}20;color:${driverCommColor(x.category)}">${esc(x.category||'Otro')}</span></td>
+    <td><span class="badge" style="background:${driverCommColor(x)}20;color:${driverCommColor(x)}">${esc(driverCommCategory(x))}</span></td>
     <td><strong>${esc(x.channel||'WhatsApp Chat')}</strong><div class="tiny muted">${esc(x.audience||'Todos los drivers')}</div></td>
     <td>${driverCommStatusBadge(driverCommStatus(x))}</td>
     <td><div class="comm-text-preview">${esc(String(x.text||'').slice(0,220))}${String(x.text||'').length>220?'…':''}</div></td>
@@ -1150,7 +1329,7 @@ function driverCommsView(){
   const m=driverCommMetrics(list);
   return `<section class="hero"><div><h2>Comunicaciones Drivers</h2><p>Calendario de mensajes para WhatsApp Chat: título, copy, imagen y categoría.</p></div><div class="actions"><button class="btn light" onclick="openDriverComm()">+ Nueva comunicación</button><button class="btn light" onclick="load(true)">Actualizar</button></div></section>
   ${driverCommFiltersHTML()}
-  <section class="cards">
+  <section class="cards compact">
     <div class="card"><div class="icon i-red">☰</div><div class="metric">${num(m.total)}</div><span>Comunicaciones</span></div>
     <div class="card"><div class="icon i-orange">●</div><div class="metric">${num(m.scheduled)}</div><span>Programadas</span></div>
     <div class="card"><div class="icon i-green">✓</div><div class="metric">${num(m.sent)}</div><span>Enviadas</span></div>
@@ -1183,6 +1362,7 @@ function afterRender(){
   if(app.view==='ooh' && !app.loading) setTimeout(initOOHLeafletMap,0);
 }
 function renderView(){
+  if(app.view==='budget') return budgetView();
   if(app.view==='btl-global') return btlGlobalView();
   if(app.view==='btl-results') return btlResultsView();
   if(app.view==='btl-calendar') return btlCalendarView();
@@ -1444,6 +1624,7 @@ async function saveDriverComm(obj){
     obj.channel=obj.channel||'WhatsApp Chat';
     obj.audience=obj.audience||'Todos los drivers';
     obj.status=obj.status||'scheduled';
+    obj.category=DRIVER_COMM_CATEGORIES.includes(obj.category)?obj.category:'Otro';
     await api('upsertDriverComm',obj);
     const i=app.driverComms.findIndex(x=>x.id===obj.id);
     if(i>=0) app.driverComms[i]=obj; else app.driverComms.unshift(obj);
