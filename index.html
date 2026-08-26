@@ -305,7 +305,12 @@
     .cal-day.today { border-color:var(--red); box-shadow:0 0 0 3px #ffe1e1 inset; }
     .cal-day.out { background:#f8fafc; color:#b0bbcc; }
     .cal-num { font-weight:950; color:#71809a; margin-bottom:7px; }
-    .cal-item { display:block; border-radius:10px; padding:5px 7px; margin-bottom:5px; background:#f1f5f9; border-left:4px solid #64748b; color:#526176; font-size:11px; font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .cal-item { display:block; width:100%; text-align:left; border:0; border-left:4px solid #64748b; border-radius:10px; padding:5px 7px; margin-bottom:5px; background:#f1f5f9; color:#526176; font-size:11px; font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .comm-text-preview { max-width:340px; color:#526176; line-height:1.45; }
+    .comm-calendar .cal-day { min-height:140px; }
+    .comm-chip { cursor:pointer; transition:transform .15s ease, box-shadow .15s ease; }
+    .comm-chip:hover { transform:translateY(-1px); box-shadow:0 8px 18px rgba(16,24,40,.08); }
+    .comm-image-link { color:var(--red); font-weight:950; text-decoration:none; }
     .dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
     .agency-shell { min-height:100vh; padding:28px; background:#f6f8fb; }
     .agency-shell .main { padding:0; }
@@ -435,6 +440,11 @@ const OOH_TYPE_COLORS = {'Valla':'#ef4444','Banderola':'#f97316','Muppie':'#0ea5
 const OOH_STATUS_LABELS = { active:'Activa', planned:'Planificada', paused:'Pausada' };
 const OOH_STATUS_CLASS = { active:'green', planned:'orange', paused:'red' };
 const OOH_EMPTY_FILTERS = { type:'all', status:'all', zone:'all' };
+const DRIVER_COMM_CATEGORIES = ['Tutorial','Lanzamiento','Bonos','Recordatorio','Operativo','Promo','Otro'];
+const DRIVER_COMM_COLORS = {'Tutorial':'#0ea5e9','Lanzamiento':'#ff1a1a','Bonos':'#16a34a','Recordatorio':'#8b5cf6','Operativo':'#f97316','Promo':'#ec4899','Otro':'#64748b'};
+const DRIVER_COMM_STATUS_LABELS = { draft:'Borrador', scheduled:'Programada', sent:'Enviada', paused:'Pausada' };
+const DRIVER_COMM_STATUS_CLASS = { draft:'gray', scheduled:'orange', sent:'green', paused:'red' };
+const DRIVER_COMM_EMPTY_FILTERS = { month:new Date().toISOString().slice(0,7), category:'all', status:'all' };
 const CARACAS_POINTS = {
   'Caracas':{lat:10.490,lng:-66.902},
   'Oeste':{lat:10.493,lng:-66.965},
@@ -469,6 +479,7 @@ let app = {
   agencyReports:[],
   btlBudgets:[],
   oohItems:[],
+  driverComms:[],
   loading:true,
   sync:'warn',
   lastSync:null,
@@ -477,6 +488,7 @@ let app = {
   reportMonth:'all',
   btlFilters:{...BTL_EMPTY_FILTERS},
   oohFilters:{...OOH_EMPTY_FILTERS},
+  driverCommFilters:{...DRIVER_COMM_EMPTY_FILTERS},
   calendarMonth:new Date().toISOString().slice(0,7)
 };
 
@@ -586,7 +598,8 @@ async function load(silent=false){
       btlResults:data.btlResults||[],
       agencyReports:data.agencyReports||[],
       btlBudgets:data.btlBudgets||[],
-      oohItems:data.oohItems||[]
+      oohItems:data.oohItems||[],
+      driverComms:data.driverComms||[]
     });
     if(silent && nextSignature!==app.dataSignature) shouldRender=true;
     app.dataSignature=nextSignature;
@@ -598,6 +611,7 @@ async function load(silent=false){
     app.agencyReports=(data.agencyReports||[]).filter(x=>!x.deleted_at);
     app.btlBudgets=(data.btlBudgets||[]).filter(x=>!x.deleted_at);
     app.oohItems=(data.oohItems||[]).filter(x=>!x.deleted_at);
+    app.driverComms=(data.driverComms||[]).filter(x=>!x.deleted_at);
     app.sync='ok';
     app.lastSync=new Date();
   }catch(e){
@@ -616,14 +630,14 @@ function boot(){ try{app.session=JSON.parse(localStorage.getItem('yango_mkt_sess
 function loginHTML(){ return `<div class="login"><div class="login-card"><div class="mark">Y</div><h1>Yango MKT</h1><p>BTL + Social Media · panel compartido</p><form id="loginForm"><div class="field"><label>Usuario</label><select name="user"><option value="admin">Isabella / Admin</option><option value="giselle">Giselle</option></select></div><div class="field"><label>Clave</label><input name="password" type="password" placeholder="Clave" required></div><button class="btn red" style="width:100%">Entrar</button></form><p style="font-size:12px;margin-top:16px">La data se lee y se guarda en Google Sheets vía Apps Script.</p></div></div>`; }
 function layout(content){
   const syncClass=app.sync==='ok'?'':app.sync==='err'?'err':'warn';
-  return `<div class="app"><aside class="side"><div class="brand"><div class="mark">Y</div><div><strong>Yango MKT</strong><span>Venezuela</span></div></div><div class="nav"><div class="nav-title">BTL</div>${navBtn('btl-global','Vista global')}${navBtn('btl-results','Resultados')}${navBtn('btl-calendar','Calendario')}${navBtn('btl-activations','Activaciones')}${navBtn('agency-admin','Admin agencia')}<div class="nav-title">Social Media</div>${navBtn('influencers','Influencers')}${navBtn('social-report','Reporte Social Media')}<div class="nav-title">Media</div>${navBtn('ooh','OOH')}<div class="nav-title">Admin</div>${navBtn('users','Usuarios')}</div><div class="side-foot"><div class="sync-dot ${syncClass}">${app.sync==='ok'?'Sincronizado':'Revisar sync'}</div>${app.lastSync?`<br><br>Última lectura: ${app.lastSync.toLocaleTimeString('es-VE')}`:''}<br><br><a class="linkish" href="?agency=1" target="_blank">Link agencia</a></div></aside><main class="main"><div class="top"><div><h1>${title()}</h1><p>${subtitle()}</p></div><div class="userbar"><span class="badge red">${esc(app.session?.name||'')}</span><button class="btn light small" onclick="logout()">Salir</button></div></div>${content}</main></div>`;
+  return `<div class="app"><aside class="side"><div class="brand"><div class="mark">Y</div><div><strong>Yango MKT</strong><span>Venezuela</span></div></div><div class="nav"><div class="nav-title">BTL</div>${navBtn('btl-global','Vista global')}${navBtn('btl-results','Resultados')}${navBtn('btl-calendar','Calendario')}${navBtn('btl-activations','Activaciones')}${navBtn('agency-admin','Admin agencia')}<div class="nav-title">Social Media</div>${navBtn('influencers','Influencers')}${navBtn('social-report','Reporte Social Media')}<div class="nav-title">Drivers</div>${navBtn('driver-comms','Comunicaciones Drivers')}<div class="nav-title">Media</div>${navBtn('ooh','OOH')}<div class="nav-title">Admin</div>${navBtn('users','Usuarios')}</div><div class="side-foot"><div class="sync-dot ${syncClass}">${app.sync==='ok'?'Sincronizado':'Revisar sync'}</div>${app.lastSync?`<br><br>Última lectura: ${app.lastSync.toLocaleTimeString('es-VE')}`:''}<br><br><a class="linkish" href="?agency=1" target="_blank">Link agencia</a></div></aside><main class="main"><div class="top"><div><h1>${title()}</h1><p>${subtitle()}</p></div><div class="userbar"><span class="badge red">${esc(app.session?.name||'')}</span><button class="btn light small" onclick="logout()">Salir</button></div></div>${content}</main></div>`;
 }
 function navBtn(id,label){ return `<button class="${app.view===id?'active':''}" onclick="go('${id}')">${label}</button>`; }
 function title(){
-  return ({'btl-global':'Vista global BTL','btl-results':'Activaciones — Resultados','btl-calendar':'Calendario BTL','btl-activations':'Activaciones y validación','agency-admin':'Admin agencia','influencers':'IG, TikTok e Influencers','social-report':'Reporte Social Media','ooh':'OOH Caracas','users':'Usuarios'})[app.view]||'Yango MKT';
+  return ({'btl-global':'Vista global BTL','btl-results':'Activaciones — Resultados','btl-calendar':'Calendario BTL','btl-activations':'Activaciones y validación','agency-admin':'Admin agencia','influencers':'IG, TikTok e Influencers','social-report':'Reporte Social Media','driver-comms':'Comunicaciones Drivers','ooh':'OOH Caracas','users':'Usuarios'})[app.view]||'Yango MKT';
 }
 function subtitle(){
-  return ({'btl-global':'Resumen de activaciones, inversión y performance por fecha.','btl-results':'Cruce de QR/Adjust, Promo Code y ubicación.','btl-calendar':'Planificación mensual y budget del mes/Q.','btl-activations':'Crear, editar y confirmar si una activación se dio.','agency-admin':'Lo que carga la agencia: flyers, promotoras y evidencia.','influencers':'Tracking de creadores, entregables, pagos y resultados.','social-report':'Followers, reach, clicks, installs y orders por mes.','ooh':'Mapa y control de vallas, banderolas, muppies, metro y pantallas.','users':'Administrar accesos al panel compartido.'})[app.view]||'';
+  return ({'btl-global':'Resumen de activaciones, inversión y performance por fecha.','btl-results':'Cruce de QR/Adjust, Promo Code y ubicación.','btl-calendar':'Planificación mensual y budget del mes/Q.','btl-activations':'Crear, editar y confirmar si una activación se dio.','agency-admin':'Lo que carga la agencia: flyers, promotoras y evidencia.','influencers':'Tracking de creadores, entregables, pagos y resultados.','social-report':'Followers, reach, clicks, installs y orders por mes.','driver-comms':'Calendario y grilla de WhatsApp Chat para conductores.','ooh':'Mapa y control de vallas, banderolas, muppies, metro y pantallas.','users':'Administrar accesos al panel compartido.'})[app.view]||'';
 }
 function go(view){ app.view=view; render(); }
 function logout(){ localStorage.removeItem('yango_mkt_session'); app.session=null; render(); }
@@ -1071,6 +1085,88 @@ function oohView(){
   <section class="panel"><div class="panel-head"><div><h3>Mapa de Caracas</h3><p>Color por tipo. Click en un pin para editar. Si no hay lat/lng, uso la ubicación o zona para ubicarlo aproximado.</p></div></div>${oohMap(list)}<div class="legend" style="margin-top:14px">${OOH_TYPES.map(t=>`<span><span class="dot" style="background:${oohColor(t)}"></span>${esc(t)}</span>`).join('')}</div></section>
   <section class="panel" style="margin-top:22px"><div class="panel-head"><div><h3>Inventario OOH</h3><p>Control editable de cada elemento en calle.</p></div><button class="btn red" onclick="openOOHItem()">Agregar</button></div>${oohTable(list)}</section>`;
 }
+function driverCommColor(category){ return DRIVER_COMM_COLORS[category] || DRIVER_COMM_COLORS.Otro; }
+function driverCommStatus(x){ return x.status || 'scheduled'; }
+function driverCommStatusBadge(status){
+  return `<span class="badge ${DRIVER_COMM_STATUS_CLASS[status]||'gray'}">${DRIVER_COMM_STATUS_LABELS[status]||status||'Programada'}</span>`;
+}
+function driverCommsFiltered(){
+  return app.driverComms.filter(x=>{
+    const month=normDate(x.date).slice(0,7);
+    return (!app.driverCommFilters.month || month===app.driverCommFilters.month)
+      && (app.driverCommFilters.category==='all' || x.category===app.driverCommFilters.category)
+      && (app.driverCommFilters.status==='all' || driverCommStatus(x)===app.driverCommFilters.status);
+  }).sort((a,b)=>(normDate(a.date)||'').localeCompare(normDate(b.date)||'') || String(a.title||'').localeCompare(String(b.title||'')));
+}
+function driverCommMetrics(list){
+  return {
+    total:list.length,
+    scheduled:list.filter(x=>driverCommStatus(x)==='scheduled').length,
+    sent:list.filter(x=>driverCommStatus(x)==='sent').length,
+    draft:list.filter(x=>driverCommStatus(x)==='draft').length,
+    withImage:list.filter(x=>String(x.image_url||'').trim()).length
+  };
+}
+function driverCommFiltersHTML(){
+  return `<section class="filters">
+    <div class="filter-field"><label>Mes</label><input type="month" value="${esc(app.driverCommFilters.month)}" onchange="app.driverCommFilters.month=this.value;render()"></div>
+    <div class="filter-field"><label>Categoría</label><select onchange="app.driverCommFilters.category=this.value;render()"><option value="all">Todas</option>${DRIVER_COMM_CATEGORIES.map(x=>`<option value="${esc(x)}" ${app.driverCommFilters.category===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+    <div class="filter-field"><label>Estatus</label><select onchange="app.driverCommFilters.status=this.value;render()"><option value="all">Todos</option>${Object.entries(DRIVER_COMM_STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${app.driverCommFilters.status===k?'selected':''}>${v}</option>`).join('')}</select></div>
+    <div class="filter-field"><label>&nbsp;</label><button class="btn light" onclick="app.driverCommFilters={...DRIVER_COMM_EMPTY_FILTERS};render()">Limpiar</button></div>
+  </section>`;
+}
+function driverCommCalendar(list){
+  const month=app.driverCommFilters.month || new Date().toISOString().slice(0,7);
+  const [y,m]=month.split('-').map(Number);
+  const first=new Date(y,m-1,1);
+  const daysInMonth=new Date(y,m,0).getDate();
+  const startOffset=(first.getDay()+6)%7;
+  const cells=[];
+  for(let i=0;i<startOffset;i++) cells.push({out:true,label:''});
+  for(let d=1;d<=daysInMonth;d++) cells.push({day:d,iso:`${month}-${String(d).padStart(2,'0')}`});
+  while(cells.length%7) cells.push({out:true,label:''});
+  const today=new Date().toISOString().slice(0,10);
+  return `<div class="calendar-grid comm-calendar"><div class="cal-head">L</div><div class="cal-head">M</div><div class="cal-head">M</div><div class="cal-head">J</div><div class="cal-head">V</div><div class="cal-head">S</div><div class="cal-head">D</div>${cells.map(cell=>{
+    if(cell.out) return `<div class="cal-day out"></div>`;
+    const dayItems=list.filter(x=>normDate(x.date)===cell.iso);
+    return `<div class="cal-day ${cell.iso===today?'today':''}"><div class="cal-num">${cell.day}</div>${dayItems.slice(0,4).map(x=>`<button class="cal-item comm-chip" style="border-left-color:${driverCommColor(x.category)}" onclick="openDriverComm('${x.id}')">${esc(x.title||'Sin título')}</button>`).join('')}${dayItems.length>4?`<div class="tiny muted">+${dayItems.length-4} más</div>`:''}</div>`;
+  }).join('')}</div>`;
+}
+function driverCommTable(list){
+  if(!list.length) return `<div class="empty">No hay comunicaciones con estos filtros todavía.</div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Comunicación</th><th>Categoría</th><th>Canal / audiencia</th><th>Estatus</th><th>Copy WhatsApp</th><th>Imagen</th><th></th></tr></thead><tbody>${list.map(x=>`<tr>
+    <td><strong>${fmtDate(x.date)}</strong></td>
+    <td><div class="name">${esc(x.title||'Sin título')}</div><div class="tiny muted">${esc(x.notes||'')}</div></td>
+    <td><span class="badge" style="background:${driverCommColor(x.category)}20;color:${driverCommColor(x.category)}">${esc(x.category||'Otro')}</span></td>
+    <td><strong>${esc(x.channel||'WhatsApp Chat')}</strong><div class="tiny muted">${esc(x.audience||'Todos los drivers')}</div></td>
+    <td>${driverCommStatusBadge(driverCommStatus(x))}</td>
+    <td><div class="comm-text-preview">${esc(String(x.text||'').slice(0,220))}${String(x.text||'').length>220?'…':''}</div></td>
+    <td>${x.image_url?`<a class="comm-image-link" href="${esc(x.image_url)}" target="_blank">Ver imagen</a>`:'<span class="muted">—</span>'}</td>
+    <td><div class="row-actions"><button class="btn light small" onclick="openDriverComm('${x.id}')">Editar</button><button class="btn light small danger" onclick="deleteDriverComm('${x.id}')">Borrar</button></div></td>
+  </tr>`).join('')}</tbody></table></div>`;
+}
+function driverCommsView(){
+  const list=driverCommsFiltered();
+  const m=driverCommMetrics(list);
+  return `<section class="hero"><div><h2>Comunicaciones Drivers</h2><p>Calendario de mensajes para WhatsApp Chat: título, copy, imagen y categoría.</p></div><div class="actions"><button class="btn light" onclick="openDriverComm()">+ Nueva comunicación</button><button class="btn light" onclick="load(true)">Actualizar</button></div></section>
+  ${driverCommFiltersHTML()}
+  <section class="cards">
+    <div class="card"><div class="icon i-red">☰</div><div class="metric">${num(m.total)}</div><span>Comunicaciones</span></div>
+    <div class="card"><div class="icon i-orange">●</div><div class="metric">${num(m.scheduled)}</div><span>Programadas</span></div>
+    <div class="card"><div class="icon i-green">✓</div><div class="metric">${num(m.sent)}</div><span>Enviadas</span></div>
+    <div class="card"><div class="icon i-gray">✎</div><div class="metric">${num(m.draft)}</div><span>Borradores</span></div>
+    <div class="card"><div class="icon i-blue">▧</div><div class="metric">${num(m.withImage)}</div><span>Con imagen</span></div>
+  </section>
+  <section class="panel"><div class="calendar-toolbar"><div><h3>${monthLabel(app.driverCommFilters.month)}</h3><p>Click en una comunicación para editarla.</p></div><div class="actions"><button class="btn light small" onclick="moveDriverCommMonth(-1)">‹</button><button class="btn light small" onclick="app.driverCommFilters.month=new Date().toISOString().slice(0,7);render()">Hoy</button><button class="btn light small" onclick="moveDriverCommMonth(1)">›</button></div></div>${driverCommCalendar(list)}</section>
+  <section class="panel" style="margin-top:22px"><div class="panel-head"><div><h3>Grilla de comunicaciones</h3><p>Todo lo que se va a mandar por WhatsApp Chat.</p></div><button class="btn red" onclick="openDriverComm()">Agregar</button></div>${driverCommTable(list)}</section>`;
+}
+function moveDriverCommMonth(delta){
+  const current=app.driverCommFilters.month || new Date().toISOString().slice(0,7);
+  const [y,m]=current.split('-').map(Number);
+  const d=new Date(y,m-1+delta,1);
+  app.driverCommFilters.month=d.toISOString().slice(0,7);
+  render();
+}
 function usersView(){
   if(app.session?.role!=='admin') return `<section class="panel"><h3>Sin permiso</h3><p>Solo Admin puede administrar usuarios.</p></section>`;
   return `<section class="hero"><div><h2>Usuarios</h2><p>Giselle y Admin comparten la misma data central.</p></div><div class="actions"><button class="btn light" onclick="openUser()">+ Nuevo usuario</button></div></section><section class="panel"><div class="panel-head"><div><h3>Accesos</h3><p>Usuarios autorizados.</p></div></div><div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>${app.users.map(u=>`<tr><td><strong>${esc(u.name)}</strong></td><td>${esc(u.email||'')}</td><td><span class="badge ${u.role==='admin'?'red':'blue'}">${esc(u.role)}</span></td><td>${boolBadge(u.active!==false,'Activo','Inactivo')}</td><td><div class="row-actions"><button class="btn light small" onclick="openUser('${u.id}')">Editar</button><button class="btn light small danger" onclick="deleteUser('${u.id}')">Borrar</button></div></td></tr>`).join('')}</tbody></table></div></section>`;
@@ -1094,6 +1190,7 @@ function renderView(){
   if(app.view==='agency-admin') return agencyAdminView();
   if(app.view==='influencers') return influencersView();
   if(app.view==='social-report') return reportView();
+  if(app.view==='driver-comms') return driverCommsView();
   if(app.view==='ooh') return oohView();
   return usersView();
 }
@@ -1226,6 +1323,20 @@ function openOOHItem(id){
     <div class="field wide"><label>Notas</label><textarea name="notes">${esc(x.notes)}</textarea></div>
   </div>${id?`<div style="margin-top:14px"><button type="button" class="btn light danger" onclick="deleteOOHItem('${x.id}')">Eliminar OOH</button></div>`:''}`,saveOOHItem);
 }
+function openDriverComm(id){
+  const x=app.driverComms.find(i=>i.id===id)||{id:uid('drvcomm'),date:new Date().toISOString().slice(0,10),category:'Tutorial',channel:'WhatsApp Chat',audience:'Todos los drivers',status:'scheduled'};
+  openForm(id?'Editar comunicación':'Nueva comunicación',`<input type="hidden" name="id" value="${esc(x.id)}"><div class="form-grid">
+    <div class="field"><label>Fecha de envío</label><input type="date" name="date" value="${esc(normDate(x.date))}" required></div>
+    <div class="field"><label>Categoría</label><select name="category">${DRIVER_COMM_CATEGORIES.map(t=>`<option value="${esc(t)}" ${String(x.category)===t?'selected':''}>${esc(t)}</option>`).join('')}</select></div>
+    <div class="field"><label>Estatus</label><select name="status">${Object.entries(DRIVER_COMM_STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${driverCommStatus(x)===k?'selected':''}>${v}</option>`).join('')}</select></div>
+    <div class="field wide"><label>Título</label><input name="title" value="${esc(x.title)}" placeholder="Ej: Cómo aceptar viajes sin perder bonos" required></div>
+    <div class="field"><label>Canal</label><input name="channel" value="${esc(x.channel||'WhatsApp Chat')}" placeholder="WhatsApp Chat"></div>
+    <div class="field"><label>Audiencia</label><input name="audience" value="${esc(x.audience||'Todos los drivers')}" placeholder="Todos los drivers"></div>
+    <div class="field wide"><label>Imagen / link creativo</label><input name="image_url" value="${esc(x.image_url)}" placeholder="Pega el link de Drive/Canva/imagen que se enviará"></div>
+    <div class="field wide"><label>Texto para WhatsApp Chat</label><textarea name="text" placeholder="Escribe aquí el copy exacto que se enviará">${esc(x.text)}</textarea></div>
+    <div class="field wide"><label>Notas internas</label><textarea name="notes" placeholder="Comentarios, aprobaciones o pendiente por diseño">${esc(x.notes)}</textarea></div>
+  </div>${id?`<div style="margin-top:14px"><button type="button" class="btn light danger" onclick="deleteDriverComm('${x.id}')">Eliminar comunicación</button></div>`:''}`,saveDriverComm);
+}
 function openForm(title,body,onSave){
   modal.className='modal open';
   modal.innerHTML=`<div class="modal-card"><form id="modalForm"><div class="modal-head"><div><h2>${title}</h2><p class="muted">Se guarda directo en Google Sheets.</p></div><button type="button" class="btn light" onclick="closeModal()">Cerrar</button></div>${body}<div class="modal-actions"><button type="button" class="btn light" onclick="closeModal()">Cancelar</button><button class="btn red">Guardar</button></div></form></div>`;
@@ -1325,6 +1436,23 @@ async function saveOOHItem(obj){
 async function deleteOOHItem(id){
   if(!confirm('¿Eliminar este punto OOH?')) return;
   try{ await api('deleteOOHItem',{id}); app.oohItems=app.oohItems.filter(x=>x.id!==id); closeModal(); toast('OOH eliminado'); render(); load(true); }
+  catch(e){ toast(e.message,'err'); }
+}
+async function saveDriverComm(obj){
+  try{
+    obj.updated_at=new Date().toISOString();
+    obj.channel=obj.channel||'WhatsApp Chat';
+    obj.audience=obj.audience||'Todos los drivers';
+    obj.status=obj.status||'scheduled';
+    await api('upsertDriverComm',obj);
+    const i=app.driverComms.findIndex(x=>x.id===obj.id);
+    if(i>=0) app.driverComms[i]=obj; else app.driverComms.unshift(obj);
+    closeModal(); toast('Comunicación guardada'); render(); load(true);
+  }catch(e){ toast(e.message,'err'); }
+}
+async function deleteDriverComm(id){
+  if(!confirm('¿Eliminar esta comunicación?')) return;
+  try{ await api('deleteDriverComm',{id}); app.driverComms=app.driverComms.filter(x=>x.id!==id); closeModal(); toast('Comunicación eliminada'); render(); load(true); }
   catch(e){ toast(e.message,'err'); }
 }
 function fileToPayload(file){

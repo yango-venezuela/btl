@@ -9,6 +9,7 @@ const SHEETS = {
   agencyReports: 'BTL_Agency',
   btlBudgets: 'BTL_Budgets',
   oohItems: 'OOH_Inventory',
+  driverComms: 'Driver_Comms',
   log: 'SM_ChangeLog',
 };
 
@@ -21,6 +22,7 @@ const HEADERS = {
   [SHEETS.agencyReports]: ['id','activation_id','activation_name','date','real_location','type','status','promoters_count','promoters_names','flyers_delivered','photo_urls','notes','created_at','updated_at','deleted_at'],
   [SHEETS.btlBudgets]: ['id','period','label','amount','notes','created_at','updated_at','deleted_at'],
   [SHEETS.oohItems]: ['id','name','type','status','location','address','zone','lat','lng','vendor','format','start_date','end_date','monthly_cost','estimated_reach','photo_urls','notes','created_at','updated_at','deleted_at'],
+  [SHEETS.driverComms]: ['id','date','title','category','channel','audience','status','text','image_url','notes','created_at','updated_at','deleted_at'],
   [SHEETS.log]: ['at','actor','action','entity','entity_id','payload_json'],
 };
 
@@ -64,6 +66,9 @@ function doPost(e) {
     if (action === 'upsertOOHItem') return json(upsert_(SHEETS.oohItems, payload, actor, action));
     if (action === 'deleteOOHItem') return json(softDelete_(SHEETS.oohItems, payload.id, actor, action));
 
+    if (action === 'upsertDriverComm') return json(upsert_(SHEETS.driverComms, payload, actor, action));
+    if (action === 'deleteDriverComm') return json(softDelete_(SHEETS.driverComms, payload.id, actor, action));
+
     if (action === 'upsertAgencyReport') return json(saveAgencyReport_(payload, actor, action));
     if (action === 'deleteAgencyReport') return json(softDelete_(SHEETS.agencyReports, payload.id, actor, action));
 
@@ -93,6 +98,7 @@ function loadBootstrap_() {
     agencyReports: activeRows_(SHEETS.agencyReports),
     btlBudgets: activeRows_(SHEETS.btlBudgets),
     oohItems: activeRows_(SHEETS.oohItems),
+    driverComms: activeRows_(SHEETS.driverComms),
     updated_at: new Date().toISOString(),
   };
 }
