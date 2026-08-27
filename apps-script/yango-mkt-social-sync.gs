@@ -35,6 +35,7 @@ const DEFAULT_USERS = [
 function doGet(e) {
   const action = (e && e.parameter && e.parameter.action) || 'health';
   if (action === 'bootstrap') return json(loadBootstrap_());
+  if (action === 'budgetSource') return json(loadBudgetSource_());
   return json({ ok: true, configured: true, sheets: SHEETS });
 }
 
@@ -100,7 +101,9 @@ function loadBootstrap_() {
     btlBudgets: activeRows_(SHEETS.btlBudgets),
     oohItems: activeRows_(SHEETS.oohItems),
     driverComms: activeRows_(SHEETS.driverComms),
-    budgetSource: loadBudgetSource_(),
+    // Budget se carga aparte para que permisos/problemas de Budget nunca rompan
+    // Influencers, BTL, OOH, Agencia ni Comunicaciones Drivers.
+    budgetSource: null,
     updated_at: new Date().toISOString(),
   };
 }
