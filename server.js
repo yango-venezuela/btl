@@ -4,7 +4,7 @@ const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxeRgFRHoJi6_vnqi-6P5s7WNj-0d14yQBnDVdthKG7KucWeGdhr90VRR2G8vGf2765Qw/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzH3dNnlBwDLJruT8StrF9oQvdgWhZYUFCG-9a00eA6H_OvGXQhMzJAonZsJGPLyKT8nQ/exec';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -59,13 +59,30 @@ async function proxyToAppsScript(req, res, url) {
 
     if (req.method === 'POST') {
       const raw = await readBody(req);
-      const response = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        redirect: 'follow',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: raw || '{}',
-      });
+      let body = {};
+      try {
+        body = raw ? JSON.parse(raw) : {};
+      } catch (error) {
+        return send(res, 400, JSON.stringify({ ok: false, error: 'Invalid JSON body' }), 'application/json; charset=utf-8');
+      }
+      const target = new URL(APPS_SCRIPT_URL);
+      target.searchParams.set('action', body.action || '');
+      target.searchParams.set('actor', body.actor || 'anonymous');
+      target.searchParams.set('payload', JSON.stringify(body.payload || {}));
+      if (body.at) target.searchParams.set('at', body.at);
+      const response = await fetch(target.toString(), { method: 'GET', redirect: 'follow' });
       const text = await response.text();
+      if (response.ok && body.action && body.action !== 'bootstrap') {
+        try {
+          const parsed = JSON.parse(text || '{}');
+          if (parsed.ok === true && parsed.configured === true && parsed.sheets && !parsed.entity && !parsed.id) {
+            return send(res, 503, JSON.stringify({
+              ok: false,
+              error: 'Apps Script todavía no tiene activadas las escrituras por GET. Copia el Code.gs actualizado y haz Deploy > Nueva versión.',
+            }), 'application/json; charset=utf-8');
+          }
+        } catch (error) {}
+      }
       return send(res, response.ok ? 200 : response.status, text || '{}', response.headers.get('content-type') || 'application/json; charset=utf-8');
     }
 

@@ -36,55 +36,74 @@ function doGet(e) {
   const action = (e && e.parameter && e.parameter.action) || 'health';
   if (action === 'bootstrap') return json(loadBootstrap_());
   if (action === 'budgetSource') return json(loadBudgetSource_());
+  if (action && action !== 'health') {
+    const payloadText = (e && e.parameter && e.parameter.payload) || '{}';
+    const actor = (e && e.parameter && e.parameter.actor) || 'anonymous';
+    const payload = JSON.parse(payloadText || '{}');
+    return withLock_(function() {
+      return json(handleAction_(action, payload, actor));
+    });
+  }
   return json({ ok: true, configured: true, sheets: SHEETS });
 }
 
 function doPost(e) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     const action = body.action;
     const payload = body.payload || {};
     const actor = body.actor || 'anonymous';
-
-    ensureAll_();
-
-    if (action === 'upsertInfluencer') return json(upsert_(SHEETS.influencers, payload, actor, action));
-    if (action === 'deleteInfluencer') return json(softDelete_(SHEETS.influencers, payload.id, actor, action));
-
-    if (action === 'upsertSocialReport') return json(upsert_(SHEETS.socialReports, payload, actor, action));
-    if (action === 'deleteSocialReport') return json(softDelete_(SHEETS.socialReports, payload.id, actor, action));
-
-    if (action === 'upsertBTLActivation') return json(upsert_(SHEETS.btlActivations, payload, actor, action));
-    if (action === 'deleteBTLActivation') return json(softDelete_(SHEETS.btlActivations, payload.id, actor, action));
-
-    if (action === 'upsertBTLResult') return json(upsert_(SHEETS.btlResults, payload, actor, action));
-    if (action === 'deleteBTLResult') return json(softDelete_(SHEETS.btlResults, payload.id, actor, action));
-
-    if (action === 'upsertBTLBudget') return json(upsert_(SHEETS.btlBudgets, payload, actor, action));
-    if (action === 'deleteBTLBudget') return json(softDelete_(SHEETS.btlBudgets, payload.id, actor, action));
-
-    if (action === 'upsertOOHItem') return json(upsert_(SHEETS.oohItems, payload, actor, action));
-    if (action === 'deleteOOHItem') return json(softDelete_(SHEETS.oohItems, payload.id, actor, action));
-
-    if (action === 'upsertDriverComm') return json(upsert_(SHEETS.driverComms, payload, actor, action));
-    if (action === 'deleteDriverComm') return json(softDelete_(SHEETS.driverComms, payload.id, actor, action));
-
-    if (action === 'upsertAgencyReport') return json(saveAgencyReport_(payload, actor, action));
-    if (action === 'deleteAgencyReport') return json(softDelete_(SHEETS.agencyReports, payload.id, actor, action));
-
-    if (action === 'upsertUser') return json(upsert_(SHEETS.users, payload, actor, action));
-    if (action === 'deleteUser') return json(softDelete_(SHEETS.users, payload.id, actor, action));
-
-    if (action === 'bootstrap') return json(loadBootstrap_());
-
-    return json({ ok: false, error: 'Unknown action: ' + action });
+    return withLock_(function() {
+      return json(handleAction_(action, payload, actor));
+    });
   } catch (err) {
     return json({ ok: false, error: err.message || String(err) });
+  }
+}
+
+function withLock_(fn) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    return fn();
   } finally {
     lock.releaseLock();
   }
+}
+
+function handleAction_(action, payload, actor) {
+  ensureAll_();
+
+  if (action === 'upsertInfluencer') return upsert_(SHEETS.influencers, payload, actor, action);
+  if (action === 'deleteInfluencer') return softDelete_(SHEETS.influencers, payload.id, actor, action);
+
+  if (action === 'upsertSocialReport') return upsert_(SHEETS.socialReports, payload, actor, action);
+  if (action === 'deleteSocialReport') return softDelete_(SHEETS.socialReports, payload.id, actor, action);
+
+  if (action === 'upsertBTLActivation') return upsert_(SHEETS.btlActivations, payload, actor, action);
+  if (action === 'deleteBTLActivation') return softDelete_(SHEETS.btlActivations, payload.id, actor, action);
+
+  if (action === 'upsertBTLResult') return upsert_(SHEETS.btlResults, payload, actor, action);
+  if (action === 'deleteBTLResult') return softDelete_(SHEETS.btlResults, payload.id, actor, action);
+
+  if (action === 'upsertBTLBudget') return upsert_(SHEETS.btlBudgets, payload, actor, action);
+  if (action === 'deleteBTLBudget') return softDelete_(SHEETS.btlBudgets, payload.id, actor, action);
+
+  if (action === 'upsertOOHItem') return upsert_(SHEETS.oohItems, payload, actor, action);
+  if (action === 'deleteOOHItem') return softDelete_(SHEETS.oohItems, payload.id, actor, action);
+
+  if (action === 'upsertDriverComm') return upsert_(SHEETS.driverComms, payload, actor, action);
+  if (action === 'deleteDriverComm') return softDelete_(SHEETS.driverComms, payload.id, actor, action);
+
+  if (action === 'upsertAgencyReport') return saveAgencyReport_(payload, actor, action);
+  if (action === 'deleteAgencyReport') return softDelete_(SHEETS.agencyReports, payload.id, actor, action);
+
+  if (action === 'upsertUser') return upsert_(SHEETS.users, payload, actor, action);
+  if (action === 'deleteUser') return softDelete_(SHEETS.users, payload.id, actor, action);
+
+  if (action === 'bootstrap') return loadBootstrap_();
+
+  return { ok: false, error: 'Unknown action: ' + action };
 }
 
 function loadBootstrap_() {
