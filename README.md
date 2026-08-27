@@ -35,7 +35,7 @@ Ese script crea y usa estas pestañas en el Google Sheet:
 
 El servidor usa este deployment actual de Apps Script:
 
-`https://script.google.com/macros/s/AKfycbwqTjgkDybKNLcGy2O7RD63XzdlTPfhohYh9LN1M6g1Sb0IXw60X58w3n3dAMslnOWOmQ/exec`
+`https://script.google.com/macros/s/AKfycbxeRgFRHoJi6_vnqi-6P5s7WNj-0d14yQBnDVdthKG7KucWeGdhr90VRR2G8vGf2765Qw/exec`
 
 ## Prueba mínima antes de seguir
 
