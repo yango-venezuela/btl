@@ -835,7 +835,14 @@ function payloadInfluencer(x){
 async function api(action,payload={}){
   const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,payload,actor:app.session?.id||'anonymous',at:new Date().toISOString()})});
   let data={};
-  try{ data=await r.json(); }catch(e){}
+  let raw='';
+  try{
+    raw=await r.text();
+    data=raw?JSON.parse(raw):{};
+  }catch(e){
+    const friendly=raw && raw.includes('<html') ? 'Apps Script devolvió una página de permisos/error. Revisa el deploy del Apps Script.' : 'Apps Script no devolvió JSON válido.';
+    throw new Error(friendly);
+  }
   if(!r.ok||data.ok===false) throw new Error(data.error||'No se pudo guardar en Google Sheets');
   return data;
 }
@@ -1929,6 +1936,8 @@ async function deleteOOHItem(id){
 }
 async function saveDriverComm(obj){
   try{
+    obj.id=obj.id||uid('drvcomm');
+    obj.created_at=obj.created_at||new Date().toISOString();
     obj.updated_at=new Date().toISOString();
     obj.channel=obj.channel||'WhatsApp Chat';
     obj.audience=obj.audience||'Todos los drivers';
@@ -1937,12 +1946,12 @@ async function saveDriverComm(obj){
     await api('upsertDriverComm',obj);
     const i=app.driverComms.findIndex(x=>x.id===obj.id);
     if(i>=0) app.driverComms[i]=obj; else app.driverComms.unshift(obj);
-    closeModal(); toast('Comunicación guardada'); render(); load(true);
+    closeModal(); toast('Comunicación guardada'); render();
   }catch(e){ toast(e.message,'err'); }
 }
 async function deleteDriverComm(id){
   if(!confirm('¿Eliminar esta comunicación?')) return;
-  try{ await api('deleteDriverComm',{id}); app.driverComms=app.driverComms.filter(x=>x.id!==id); closeModal(); toast('Comunicación eliminada'); render(); load(true); }
+  try{ await api('deleteDriverComm',{id}); app.driverComms=app.driverComms.filter(x=>x.id!==id); closeModal(); toast('Comunicación eliminada'); render(); }
   catch(e){ toast(e.message,'err'); }
 }
 function fileToPayload(file){

@@ -150,7 +150,7 @@ function upsert_(sheetName, payload, actor, action) {
   else sheet.appendRow(row);
 
   log_(actor, action, sheetName, payload.id, payload);
-  return Object.assign({ ok: true }, loadBootstrap_());
+  return { ok: true, entity: sheetName, id: payload.id, row: payload, updated_at: now };
 }
 
 function softDelete_(sheetName, id, actor, action) {
@@ -167,7 +167,7 @@ function softDelete_(sheetName, id, actor, action) {
     if (updatedCol) sheet.getRange(rowIndex, updatedCol).setValue(now);
   }
   log_(actor, action, sheetName, id, { id: id });
-  return Object.assign({ ok: true }, loadBootstrap_());
+  return { ok: true, entity: sheetName, id: id, deleted_at: new Date().toISOString() };
 }
 
 function activeRows_(sheetName) {
