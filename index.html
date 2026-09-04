@@ -672,6 +672,7 @@ let app = {
   btlResults:[],
   agencyReports:[],
   btlBudgets:[],
+  mysteryShopper:{ok:false,configured:false,responses:[],summary:[]},
   oohItems:[],
   driverComms:[],
   budgetSource:null,
@@ -862,6 +863,7 @@ async function load(silent=false){
       btlResults:data.btlResults||[],
       agencyReports:data.agencyReports||[],
       btlBudgets:data.btlBudgets||[],
+      mysteryShopper:data.mysteryShopper||null,
       oohItems:data.oohItems||[],
       driverComms:data.driverComms||[],
       budgetSource:data.budgetSource||null
@@ -875,6 +877,7 @@ async function load(silent=false){
     app.btlResults=(data.btlResults||[]).filter(x=>!x.deleted_at);
     app.agencyReports=(data.agencyReports||[]).filter(x=>!x.deleted_at);
     app.btlBudgets=(data.btlBudgets||[]).filter(x=>!x.deleted_at);
+    app.mysteryShopper=data.mysteryShopper||{ok:false,configured:false,responses:[],summary:[]};
     app.oohItems=(data.oohItems||[]).filter(x=>!x.deleted_at);
     app.driverComms=(data.driverComms||[]).filter(x=>!x.deleted_at);
     app.budgetSource=data.budgetSource||null;
@@ -900,14 +903,14 @@ function boot(){ try{app.session=JSON.parse(localStorage.getItem('yango_mkt_sess
 function loginHTML(){ return `<div class="login"><div class="login-card"><div class="mark">Y</div><h1>Yango MKT</h1><p>BTL + Social Media · panel compartido</p><form id="loginForm"><div class="field"><label>Usuario</label><select name="user"><option value="admin">Isabella / Admin</option><option value="giselle">Giselle</option></select></div><div class="field"><label>Clave</label><input name="password" type="password" placeholder="Clave" required></div><button class="btn red" style="width:100%">Entrar</button></form><p style="font-size:12px;margin-top:16px">La data se lee y se guarda en Google Sheets vía Apps Script.</p></div></div>`; }
 function layout(content){
   const syncClass=app.sync==='ok'?'':app.sync==='err'?'err':'warn';
-  return `<div class="app"><aside class="side"><div class="brand"><div class="mark">Y</div><div><strong>Yango MKT</strong><span>Venezuela</span></div></div><div class="nav"><div class="nav-title">General</div>${navBtn('budget','Presupuesto')}<div class="nav-title">BTL</div>${navBtn('btl-global','Vista global')}${navBtn('btl-results','Resultados')}${navBtn('btl-calendar','Calendario')}${navBtn('btl-activations','Activaciones')}${navBtn('agency-admin','Admin agencia')}<div class="nav-title">Social Media</div>${navBtn('influencers','Influencers')}${navBtn('social-report','Reporte Social Media')}<div class="nav-title">Drivers</div>${navBtn('driver-comms','Comunicaciones Drivers')}<div class="nav-title">Media</div>${navBtn('ooh','OOH')}<div class="nav-title">Admin</div>${navBtn('users','Usuarios')}</div><div class="side-foot"><div class="sync-dot ${syncClass}">${app.sync==='ok'?'Sincronizado':'Revisar sync'}</div>${app.lastSync?`<br><br>Última lectura: ${app.lastSync.toLocaleTimeString('es-VE')}`:''}<br><br><a class="linkish" href="?agency=1" target="_blank">Link agencia</a></div></aside><main class="main"><div class="top"><div><h1>${title()}</h1><p>${subtitle()}</p></div><div class="userbar"><span class="badge red">${esc(app.session?.name||'')}</span><button class="btn light small" onclick="logout()">Salir</button></div></div>${content}</main></div>`;
+  return `<div class="app"><aside class="side"><div class="brand"><div class="mark">Y</div><div><strong>Yango MKT</strong><span>Venezuela</span></div></div><div class="nav"><div class="nav-title">General</div>${navBtn('budget','Presupuesto')}<div class="nav-title">BTL</div>${navBtn('btl-global','Vista global')}${navBtn('btl-results','Resultados')}${navBtn('btl-calendar','Calendario')}${navBtn('btl-activations','Activaciones')}${navBtn('agency-admin','Admin agencia')}${navBtn('btl-mystery','Mystery Shopper')}<div class="nav-title">Social Media</div>${navBtn('influencers','Influencers')}${navBtn('social-report','Reporte Social Media')}<div class="nav-title">Drivers</div>${navBtn('driver-comms','Comunicaciones Drivers')}<div class="nav-title">Media</div>${navBtn('ooh','OOH')}<div class="nav-title">Admin</div>${navBtn('users','Usuarios')}</div><div class="side-foot"><div class="sync-dot ${syncClass}">${app.sync==='ok'?'Sincronizado':'Revisar sync'}</div>${app.lastSync?`<br><br>Última lectura: ${app.lastSync.toLocaleTimeString('es-VE')}`:''}<br><br><a class="linkish" href="?agency=1" target="_blank">Link agencia</a></div></aside><main class="main"><div class="top"><div><h1>${title()}</h1><p>${subtitle()}</p></div><div class="userbar"><span class="badge red">${esc(app.session?.name||'')}</span><button class="btn light small" onclick="logout()">Salir</button></div></div>${content}</main></div>`;
 }
 function navBtn(id,label){ return `<button class="${app.view===id?'active':''}" onclick="go('${id}')">${label}</button>`; }
 function title(){
-  return ({'budget':'Presupuesto','btl-global':'Vista global BTL','btl-results':'Activaciones — Resultados','btl-calendar':'Calendario BTL','btl-activations':'Activaciones y validación','agency-admin':'Admin agencia','influencers':'IG, TikTok e Influencers','social-report':'Reporte Social Media','driver-comms':'Comunicaciones Drivers','ooh':'OOH Caracas','users':'Usuarios'})[app.view]||'Yango MKT';
+  return ({'budget':'Presupuesto','btl-global':'Vista global BTL','btl-results':'Activaciones — Resultados','btl-calendar':'Calendario BTL','btl-activations':'Activaciones y validación','agency-admin':'Admin agencia','btl-mystery':'Mystery Shopper','influencers':'IG, TikTok e Influencers','social-report':'Reporte Social Media','driver-comms':'Comunicaciones Drivers','ooh':'OOH Caracas','users':'Usuarios'})[app.view]||'Yango MKT';
 }
 function subtitle(){
-  return ({'budget':'Budget, actuals, forecast y expenses desde tu Google Sheet.','btl-global':'Resumen de activaciones, inversión y performance por fecha.','btl-results':'Cruce de QR/Adjust, Promo Code y ubicación.','btl-calendar':'Planificación mensual y budget del mes/Q.','btl-activations':'Crear, editar y confirmar si una activación se dio.','agency-admin':'Lo que carga la agencia: flyers, promotoras y evidencia.','influencers':'Tracking de creadores, entregables, pagos y resultados.','social-report':'Followers, reach, clicks, installs y orders por mes.','driver-comms':'Calendario y grilla de WhatsApp Chat para conductores.','ooh':'Mapa y control de vallas, banderolas, muppies, metro y pantallas.','users':'Administrar accesos al panel compartido.'})[app.view]||'';
+  return ({'budget':'Budget, actuals, forecast y expenses desde tu Google Sheet.','btl-global':'Resumen de activaciones, inversión y performance por fecha.','btl-results':'Cruce de QR/Adjust, Promo Code y ubicación.','btl-calendar':'Planificación mensual y budget del mes/Q.','btl-activations':'Crear, editar y confirmar si una activación se dio.','agency-admin':'Lo que carga la agencia: flyers, promotoras y evidencia.','btl-mystery':'Resultados del Google Form de Mystery Shopper por fecha, zona y tipo.','influencers':'Tracking de creadores, entregables, pagos y resultados.','social-report':'Followers, reach, clicks, installs y orders por mes.','driver-comms':'Calendario y grilla de WhatsApp Chat para conductores.','ooh':'Mapa y control de vallas, banderolas, muppies, metro y pantallas.','users':'Administrar accesos al panel compartido.'})[app.view]||'';
 }
 function go(view){ app.view=view; render(); }
 function logout(){ localStorage.removeItem('yango_mkt_session'); app.session=null; render(); }
@@ -1272,6 +1275,94 @@ function agencyReportsTable(reports){
   if(!reports.length) return `<div class="empty">Todavía no hay cargas de agencia en este rango.</div>`;
   return `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Activación</th><th>Ubicación</th><th>Promotoras</th><th>Flyers reales</th><th>Fotos</th><th>Estado</th><th></th></tr></thead><tbody>${reports.map(r=>`<tr><td>${fmtDate(r.date)}</td><td><strong>${esc(r.activation_name)}</strong><div class="tiny muted">${esc(r.type||'')}</div></td><td>${esc(r.real_location||'')}</td><td>${esc(r.promoters_names||'—')}<div class="tiny muted">${num(r.promoters_count)} promotoras</div></td><td>${num(r.flyers_delivered)}</td><td>${photoList(r).length}</td><td>${btlStatusBadge(r.status||'executed')}</td><td><button class="btn light small" onclick="openAgencyReport('${r.activation_id}')">Editar</button></td></tr>`).join('')}</tbody></table></div>`;
 }
+
+function mysteryData(){
+  const fallback={ok:false,configured:false,responses:[],summary:[]};
+  return app.mysteryShopper || fallback;
+}
+function mysteryRows(){
+  const rows=(mysteryData().responses||[]).filter(x=>{
+    const date=x.visit_date||x.date||x.timestamp;
+    const bucket=x.bucket||x.activation_visited||'';
+    const type=x.type||'';
+    return dateInRange(date,app.btlFilters.from,app.btlFilters.to)
+      && (app.btlFilters.bucket==='all'||bucket===app.btlFilters.bucket)
+      && (app.btlFilters.type==='all'||type===app.btlFilters.type);
+  });
+  return rows.sort((a,b)=>(normDate(b.visit_date||b.date)||'').localeCompare(normDate(a.visit_date||a.date)||''));
+}
+function mysteryYes(value){
+  const s=String(value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  return s==='si'||s==='sí'||s==='yes'||s==='true'||s.includes('completo');
+}
+function mysteryAvg(rows,key){
+  const vals=rows.map(x=>n(x[key])).filter(Boolean);
+  return vals.length ? vals.reduce((s,x)=>s+x,0)/vals.length : 0;
+}
+function mysteryRate(rows,key){
+  return rows.length ? rows.filter(x=>mysteryYes(x[key])).length/rows.length*100 : 0;
+}
+function mysteryMetrics(rows=mysteryRows()){
+  return {
+    responses:rows.length,
+    score:mysteryAvg(rows,'overall_score'),
+    visibility:mysteryAvg(rows,'visibility_score'),
+    operative:mysteryRate(rows,'operative'),
+    promoters:mysteryRate(rows,'promoters_present'),
+    reinvest:rows.length ? rows.filter(x=>String(x.reinvest||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes('si')).length/rows.length*100 : 0,
+    photos:rows.filter(x=>String(x.photo_url||'').trim()).length
+  };
+}
+function mysterySummaryRows(rows=mysteryRows()){
+  const map={};
+  rows.forEach(r=>{
+    const key=[r.bucket||r.activation_visited||'Sin ubicación',r.type||'Sin tipo'].join('||');
+    if(!map[key]) map[key]={activation:r.bucket||r.activation_visited||'Sin ubicación',type:r.type||'Sin tipo',responses:0,score:0,scoreCount:0,visibility:0,visibilityCount:0,operative:0,promoters:0,uniform:0};
+    const item=map[key];
+    item.responses+=1;
+    if(n(r.overall_score)){ item.score+=n(r.overall_score); item.scoreCount+=1; }
+    if(n(r.visibility_score)){ item.visibility+=n(r.visibility_score); item.visibilityCount+=1; }
+    if(mysteryYes(r.operative)) item.operative+=1;
+    if(mysteryYes(r.promoters_present)) item.promoters+=1;
+    if(mysteryYes(r.uniform_correct)) item.uniform+=1;
+  });
+  return Object.values(map).map(x=>({
+    ...x,
+    avgScore:x.scoreCount?x.score/x.scoreCount:0,
+    avgVisibility:x.visibilityCount?x.visibility/x.visibilityCount:0,
+    operativeRate:x.responses?x.operative/x.responses*100:0,
+    promotersRate:x.responses?x.promoters/x.responses*100:0,
+    uniformRate:x.responses?x.uniform/x.responses*100:0,
+  })).sort((a,b)=>String(a.activation).localeCompare(String(b.activation),'es'));
+}
+function scoreText(v){ return n(v) ? n(v).toLocaleString('es-VE',{maximumFractionDigits:1})+'/5' : '—'; }
+function mysteryShopperView(){
+  const data=mysteryData();
+  const rows=mysteryRows();
+  const m=mysteryMetrics(rows);
+  const source=data.source_tab ? `Fuente: ${esc(data.source_sheet||'Google Forms')} · ${esc(data.source_tab)}` : 'Fuente: Google Forms / Google Sheets';
+  return `<section class="hero"><div><h2>Mystery Shopper</h2><p>Resultados de encuestas por activación, ubicación y tipo.</p></div><div class="actions"><button class="btn light" onclick="load()">Actualizar</button></div></section>${btlFiltersHTML()}
+  ${data.ok===false ? `<section class="panel"><h3>No pude leer el Form todavía</h3><p>${esc(data.error||'Revisa el Sheet de respuestas o el deploy de Apps Script.')}</p><p class="tiny muted">Tip: en Google Forms usa Responses → View in Sheets y asegúrate de que ese Sheet esté configurado en Apps Script.</p></section>` : `
+  <section class="cards compact">
+    <div class="card"><div class="icon i-red">★</div><div class="metric">${num(m.responses)}</div><span>Respuestas</span></div>
+    <div class="card"><div class="icon i-green">✓</div><div class="metric">${scoreText(m.score)}</div><span>Score promedio</span></div>
+    <div class="card"><div class="icon i-blue">◎</div><div class="metric">${pct(m.operative)}</div><span>Operativa</span></div>
+    <div class="card"><div class="icon i-purple">👥</div><div class="metric">${pct(m.promoters)}</div><span>Promotoras presentes</span></div>
+    <div class="card"><div class="icon i-orange">↗</div><div class="metric">${pct(m.reinvest)}</div><span>Volvería a invertir</span></div>
+    <div class="card"><div class="icon i-gray">▧</div><div class="metric">${num(m.photos)}</div><span>Fotos</span></div>
+  </section>
+  <section class="panel"><div class="panel-head"><div><h3>Resumen por ubicación</h3><p>${source}</p></div></div>${mysterySummaryTable(mysterySummaryRows(rows))}</section>
+  <section class="panel" style="margin-top:22px"><div class="panel-head"><div><h3>Detalle de respuestas</h3><p>Últimas respuestas recibidas del Form.</p></div></div>${mysteryResponsesTable(rows)}</section>`}`;
+}
+function mysterySummaryTable(rows){
+  if(!rows.length) return `<div class="empty">Todavía no hay respuestas con estos filtros.</div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Ubicación</th><th>Tipo</th><th>Resp.</th><th>Score</th><th>Visibilidad</th><th>Operativa</th><th>Promotoras</th><th>Uniforme</th></tr></thead><tbody>${rows.map(x=>`<tr><td><strong>${esc(x.activation)}</strong></td><td>${esc(x.type)}</td><td>${num(x.responses)}</td><td>${scoreText(x.avgScore)}</td><td>${scoreText(x.avgVisibility)}</td><td>${pct(x.operativeRate)}</td><td>${pct(x.promotersRate)}</td><td>${pct(x.uniformRate)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function mysteryResponsesTable(rows){
+  if(!rows.length) return `<div class="empty">Todavía no hay respuestas con estos filtros.</div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Activación</th><th>Tipo</th><th>Mystery</th><th>Operativa</th><th>Promotoras</th><th>Score</th><th>Flujo</th><th>Competencia</th><th>Foto</th><th>Comentarios</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${fmtDate(r.visit_date||r.date)}<div class="tiny muted">${esc(r.visit_time||'')}</div></td><td><strong>${esc(r.activation_visited||r.bucket||'—')}</strong><div class="tiny muted">${esc(r.bucket||'')}</div></td><td>${esc(r.type||'—')}</td><td>${esc(r.shopper_name||'—')}</td><td>${boolBadge(mysteryYes(r.operative),'Sí','No')}</td><td>${esc(r.promoters_present||'—')}<div class="tiny muted">Uniforme: ${esc(r.uniform_correct||'—')}</div></td><td>${scoreText(r.overall_score)}<div class="tiny muted">Visibilidad ${scoreText(r.visibility_score)}</div></td><td>${esc(r.flow||'—')}</td><td>${esc(r.competition||'—')}</td><td>${r.photo_url?`<a class="linkish" href="${esc(r.photo_url)}" target="_blank">Ver foto</a>`:'—'}</td><td>${esc(r.comments||r.frequent_questions||'—')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
 function agencyPortal(){
   if(app.loading) return `<div class="agency-shell"><main class="main"><section class="panel"><h3>Cargando calendario...</h3><p>Un segundo, estoy leyendo Google Sheets.</p></section></main></div>`;
   const list=app.btlActivations.filter(x=>String(x.name||'').trim()).sort((a,b)=>(normDate(a.date)||'').localeCompare(normDate(b.date)||''));
@@ -1648,6 +1739,7 @@ function renderView(){
   if(app.view==='btl-calendar') return btlCalendarView();
   if(app.view==='btl-activations') return btlActivationsView();
   if(app.view==='agency-admin') return agencyAdminView();
+  if(app.view==='btl-mystery') return mysteryShopperView();
   if(app.view==='influencers') return influencersView();
   if(app.view==='social-report') return reportView();
   if(app.view==='driver-comms') return driverCommsView();

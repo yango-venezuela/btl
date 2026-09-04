@@ -1,5 +1,6 @@
 const SPREADSHEET_ID = '1C1cJ9z4lD6tIxwoS0Dk2d_UrjpK9XwRljZnUiQxWjt4';
 const BUDGET_SOURCE_SPREADSHEET_ID = '10e4_nB5dSu91s0bi8VY958WRp-9Dulso-a0MrQ9NlbM';
+const MYSTERY_RESPONSES_SPREADSHEET_ID = '12-AWRARvNJytUoGNWj0IGtSMaO1clqtqyzqT6jntwNY';
 
 const SHEETS = {
   users: 'SM_Users',
@@ -36,6 +37,7 @@ function doGet(e) {
   const action = (e && e.parameter && e.parameter.action) || 'health';
   if (action === 'bootstrap') return json(loadBootstrap_());
   if (action === 'budgetSource') return json(loadBudgetSource_());
+  if (action === 'mysteryShopper') return json(loadMysteryShopper_());
   if (action && action !== 'health') {
     const payloadText = (e && e.parameter && e.parameter.payload) || '{}';
     const actor = (e && e.parameter && e.parameter.actor) || 'anonymous';
@@ -120,11 +122,224 @@ function loadBootstrap_() {
     btlBudgets: activeRows_(SHEETS.btlBudgets),
     oohItems: activeRows_(SHEETS.oohItems),
     driverComms: activeRows_(SHEETS.driverComms),
+    mysteryShopper: loadMysteryShopper_(),
     // Budget se carga aparte para que permisos/problemas de Budget nunca rompan
     // Influencers, BTL, OOH, Agencia ni Comunicaciones Drivers.
     budgetSource: null,
     updated_at: new Date().toISOString(),
   };
+}
+
+function loadMysteryShopper_() {
+  const empty = { ok: true, configured: true, responses: [], summary: [], updated_at: new Date().toISOString() };
+  if (!MYSTERY_RESPONSES_SPREADSHEET_ID) {
+    return { ok: false, configured: false, responses: [], summary: [], error: 'Configura MYSTERY_RESPONSES_SPREADSHEET_ID con el Google Sheet de respuestas del Form.' };
+  }
+  try {
+    const cache = CacheService.getScriptCache();
+    const cached = cache.get('mystery_shopper_v1');
+    if (cached) return JSON.parse(cached);
+
+    const ss = SpreadsheetApp.openById(MYSTERY_RESPONSES_SPREADSHEET_ID);
+    const sheet = ss.getSheets().find(function(s) { return s.getLastRow() > 1; }) || ss.getSheets()[0];
+    if (!sheet) return empty;
+    const values = sheet.getDataRange().getDisplayValues();
+    if (!values || values.length < 2) return empty;
+
+    const headers = values[0].map(function(h) { return String(h || '').trim(); });
+    const col = {
+      timestamp: mysteryIndex_(headers, ['timestamp', 'marca temporal']),
+      activation: mysteryIndex_(headers, ['activación visitada', 'activacion visitada', 'ubicación visitada', 'ubicacion visitada']),
+      visitDate: mysteryIndex_(headers, ['fecha visitada', 'fecha de visita', 'fecha']),
+      visitTime: mysteryIndex_(headers, ['hora visitada', 'hora de visita', 'hora']),
+      shopper: mysteryIndex_(headers, ['nombre y apellido del mystery shopper', 'mystery shopper', 'nombre']),
+      type: mysteryIndex_(headers, ['tipo de activación', 'tipo de activacion', 'tipo']),
+      operative: mysteryIndex_(headers, ['la activación estaba operativa', 'la activacion estaba operativa', 'operativa']),
+      promotersPresent: mysteryIndex_(headers, ['estaban presentes todas las promotoras', 'promotoras presentes']),
+      uniformCorrect: mysteryIndex_(headers, ['uniforme correcto', 'tenían uniforme correcto', 'tenian uniforme correcto']),
+      approach: mysteryIndex_(headers, ['abordaban activamente', 'abordaban']),
+      kindness: mysteryIndex_(headers, ['amables y profesionales', 'profesionales']),
+      download: mysteryIndex_(headers, ['descargar la app', 'invitaban activamente']),
+      benefits: mysteryIndex_(headers, ['beneficios de yango', 'explicaban correctamente']),
+      questions: mysteryIndex_(headers, ['respondían correctamente', 'respondian correctamente']),
+      flow: mysteryIndex_(headers, ['flujo de personas observado', 'flujo']),
+      audience: mysteryIndex_(headers, ['perfil predominante del público', 'perfil predominante del publico', 'perfil']),
+      competition: mysteryIndex_(headers, ['presencia de competencia', 'competencia']),
+      visibility: mysteryIndex_(headers, ['visible era la activación', 'visible era la activacion', 'visibilidad']),
+      frequentQuestions: mysteryIndex_(headers, ['preguntas más frecuentes', 'preguntas mas frecuentes']),
+      overall: mysteryIndex_(headers, ['calificación general', 'calificacion general']),
+      reinvest: mysteryIndex_(headers, ['volverías a invertir', 'volverias a invertir']),
+      comments: mysteryIndex_(headers, ['comentarios adicionales', 'comentarios']),
+      photo: mysteryIndex_(headers, ['foto general', 'foto'])
+    };
+
+    const responses = values.slice(1).map(function(row, i) {
+      if (!row.some(function(cell) { return String(cell || '').trim(); })) return null;
+      const timestamp = mysteryCell_(row, col.timestamp);
+      const visitDate = mysteryDate_(mysteryCell_(row, col.visitDate)) || mysteryDate_(timestamp);
+      const activation = mysteryCell_(row, col.activation);
+      const type = mysteryType_(mysteryCell_(row, col.type));
+      const bucket = mysteryBucket_(activation);
+      return {
+        id: 'mystery_' + (i + 1),
+        timestamp: timestamp,
+        date: visitDate,
+        visit_date: visitDate,
+        visit_time: mysteryCell_(row, col.visitTime),
+        activation_visited: activation,
+        bucket: bucket,
+        type: type,
+        shopper_name: mysteryCell_(row, col.shopper),
+        operative: mysteryCell_(row, col.operative),
+        promoters_present: mysteryCell_(row, col.promotersPresent),
+        uniform_correct: mysteryCell_(row, col.uniformCorrect),
+        approach_score: mysteryNumber_(mysteryCell_(row, col.approach)),
+        kindness_score: mysteryNumber_(mysteryCell_(row, col.kindness)),
+        download_score: mysteryNumber_(mysteryCell_(row, col.download)),
+        benefits_score: mysteryNumber_(mysteryCell_(row, col.benefits)),
+        questions_score: mysteryNumber_(mysteryCell_(row, col.questions)),
+        flow: mysteryCell_(row, col.flow),
+        audience: mysteryCell_(row, col.audience),
+        competition: mysteryCell_(row, col.competition),
+        visibility_score: mysteryNumber_(mysteryCell_(row, col.visibility)),
+        frequent_questions: mysteryCell_(row, col.frequentQuestions),
+        overall_score: mysteryNumber_(mysteryCell_(row, col.overall)),
+        reinvest: mysteryCell_(row, col.reinvest),
+        comments: mysteryCell_(row, col.comments),
+        photo_url: mysteryCell_(row, col.photo)
+      };
+    }).filter(Boolean);
+
+    const result = {
+      ok: true,
+      configured: true,
+      source_sheet: ss.getName(),
+      source_tab: sheet.getName(),
+      responses: responses,
+      summary: mysterySummary_(responses),
+      updated_at: new Date().toISOString()
+    };
+    const serialized = JSON.stringify(result);
+    if (serialized.length < 90000) cache.put('mystery_shopper_v1', serialized, 120);
+    return result;
+  } catch (err) {
+    return { ok: false, configured: true, responses: [], summary: [], updated_at: new Date().toISOString(), error: err.message || String(err) };
+  }
+}
+
+function mysteryIndex_(headers, candidates) {
+  const normalized = headers.map(mysteryNormalize_);
+  for (let c = 0; c < candidates.length; c++) {
+    const needle = mysteryNormalize_(candidates[c]);
+    const index = normalized.findIndex(function(h) { return h === needle || h.indexOf(needle) >= 0; });
+    if (index >= 0) return index;
+  }
+  return -1;
+}
+
+function mysteryCell_(row, index) {
+  return index >= 0 ? String(row[index] || '').trim() : '';
+}
+
+function mysteryNormalize_(value) {
+  return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[¿?¡!.,:;()]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function mysteryDate_(value) {
+  const s = String(value || '').trim();
+  if (!s) return '';
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return m[1] + '-' + String(Number(m[2])).padStart(2, '0') + '-' + String(Number(m[3])).padStart(2, '0');
+  m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
+  if (m) {
+    const year = Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3]);
+    return year + '-' + String(Number(m[2])).padStart(2, '0') + '-' + String(Number(m[1])).padStart(2, '0');
+  }
+  m = s.match(/^(\d{1,2})\s+([a-záéíóúñ]+)\s+(\d{2,4})/i);
+  if (m) {
+    const months = { ene:1, enero:1, feb:2, febrero:2, mar:3, marzo:3, abr:4, abril:4, may:5, mayo:5, jun:6, junio:6, jul:7, julio:7, ago:8, agosto:8, sep:9, sept:9, septiembre:9, oct:10, octubre:10, nov:11, noviembre:11, dic:12, diciembre:12 };
+    const key = mysteryNormalize_(m[2]);
+    const month = months[key];
+    if (month) {
+      const year = Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3]);
+      return year + '-' + String(month).padStart(2, '0') + '-' + String(Number(m[1])).padStart(2, '0');
+    }
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  return '';
+}
+
+function mysteryNumber_(value) {
+  const match = String(value || '').match(/\d+(?:[.,]\d+)?/);
+  return match ? Number(match[0].replace(',', '.')) : 0;
+}
+
+function mysteryType_(value) {
+  const s = mysteryNormalize_(value);
+  if (s.indexOf('cafe') >= 0) return 'Café';
+  if (s.indexOf('helado') >= 0) return 'Helados';
+  if (s.indexOf('univers') >= 0) return 'Universidad';
+  if (s.indexOf('evento') >= 0) return 'Evento';
+  if (s.indexOf('material') >= 0 || s.indexOf('pop') >= 0) return 'Material POP';
+  if (s.indexOf('flyer') >= 0) return 'Flyers';
+  return value || '';
+}
+
+function mysteryBucket_(value) {
+  const text = mysteryNormalize_(value);
+  const buckets = {
+    'Petare': ['petare','palo verde','dolorita'],
+    'Centro': ['centro','caracas','hoyada','bellas artes','parque central','plaza venezuela','simbolos','5 de julio'],
+    'Este': ['este','altamira','chacaito','recreo','dos caminos','cortijos','ruices','california','urbina','macaracuay'],
+    'Sureste': ['sureste','mercedes','bello monte','cafetal','caurimare','prados','baruta','minas'],
+    'Universidades': ['universidades','ucab','ciudad universitaria','monteavila'],
+    'Oeste': ['oeste','catia','plaza sucre','propatria','antimano','yaguara','vega','montalban','paraiso','pinar'],
+    'Sur': ['sur','caricuao','valle','rinconada'],
+    'Norte': ['norte','san bernardino','alta florida','pastora'],
+    'Satelites': ['satelites','teques','san antonio','junquito'],
+    'Sabana Grande': ['sabana grande']
+  };
+  const names = Object.keys(buckets);
+  for (let i = 0; i < names.length; i++) {
+    if (buckets[names[i]].some(function(alias) { return text.indexOf(alias) >= 0; })) return names[i];
+  }
+  return value || '';
+}
+
+function mysteryYes_(value) {
+  const s = mysteryNormalize_(value);
+  return s === 'si' || s === 'sí' || s === 'yes' || s === 'true' || s.indexOf('completo') >= 0;
+}
+
+function mysterySummary_(responses) {
+  const map = {};
+  responses.forEach(function(r) {
+    const key = [r.bucket || r.activation_visited || 'Sin ubicación', r.type || 'Sin tipo'].join('||');
+    if (!map[key]) map[key] = { activation: r.bucket || r.activation_visited || 'Sin ubicación', type: r.type || 'Sin tipo', responses: 0, score_sum: 0, score_count: 0, visibility_sum: 0, visibility_count: 0, operative_yes: 0, promoters_yes: 0, uniform_yes: 0 };
+    const row = map[key];
+    row.responses += 1;
+    if (r.overall_score) { row.score_sum += r.overall_score; row.score_count += 1; }
+    if (r.visibility_score) { row.visibility_sum += r.visibility_score; row.visibility_count += 1; }
+    if (mysteryYes_(r.operative)) row.operative_yes += 1;
+    if (mysteryYes_(r.promoters_present)) row.promoters_yes += 1;
+    if (mysteryYes_(r.uniform_correct)) row.uniform_yes += 1;
+  });
+  return Object.keys(map).map(function(k) {
+    const x = map[k];
+    return {
+      activation: x.activation,
+      type: x.type,
+      responses: x.responses,
+      avg_score: x.score_count ? x.score_sum / x.score_count : 0,
+      avg_visibility: x.visibility_count ? x.visibility_sum / x.visibility_count : 0,
+      operative_rate: x.responses ? x.operative_yes / x.responses : 0,
+      promoters_rate: x.responses ? x.promoters_yes / x.responses : 0,
+      uniform_rate: x.responses ? x.uniform_yes / x.responses : 0
+    };
+  }).sort(function(a, b) {
+    return String(a.activation).localeCompare(String(b.activation));
+  });
 }
 
 function saveAgencyReport_(payload, actor, action) {
